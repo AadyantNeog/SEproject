@@ -1,0 +1,278 @@
+[
+  {
+    "id": "NFR-01",
+    "title": "MCP interoperability",
+    "statement": "The server shall support the standard local stdio transport, negotiated protocol initialisation, tool discovery and invocation, and resource discovery and reading. Tool inputs shall have machine-readable schemas; outputs shall include machine-readable fields and a readable explanation. Diagnostic logging shall use stderr and shall not corrupt stdout protocol messages. At least one documented MCP client shall be demonstrated.",
+    "verification": "AT-01 and AT-19; [R10]."
+  },
+  {
+    "id": "FR-0.1",
+    "title": "Normalise and validate inputs",
+    "statement": "The server shall accept canonical YouTube video URLs, youtu.be links and video IDs, and channel URLs, @handles and channel IDs. It shall validate identifiers, positive durations, result limits, language codes, date ranges, title and privacy fields before provider calls. Unknown hosts or ambiguous legacy channel URLs shall return corrective guidance instead of being fetched as arbitrary URLs.",
+    "verification": "AT-02, AT-03 and AT-10."
+  },
+  {
+    "id": "FR-0.2",
+    "title": "Declare coverage and limits",
+    "statement": "Every collection result shall state whether it is complete, paginated, sampled or truncated and shall report inaccessible items. The baseline shall support result limits from 1 to 50, a configurable candidate cap with a default of 200 unique videos, and proposals containing 1 to 50 videos. Larger requests shall return a clear limit message. Library pagination shall stop at the configured request budget and report the continuation state; it shall not label partial data as a full account history.",
+    "verification": "AT-04 and AT-15."
+  },
+  {
+    "id": "FR-1.1",
+    "title": "Retrieve a seed and candidate pool",
+    "statement": "Given a valid video URL or ID, the server shall retrieve its accessible metadata and discover a bounded pool of candidates through official API searches or channel metadata. An unavailable seed shall produce a typed error. Candidate retrieval shall not assume a related-videos endpoint exists.",
+    "verification": "AT-02 and AT-10; [R1, R3, R4]."
+  },
+  {
+    "id": "FR-1.2",
+    "title": "Compute and explain similarity",
+    "statement": "The server shall compute video similarity locally from available titles, descriptions, tags and categories using an explainable technique such as TF-IDF with cosine similarity or documented weighted scoring. It shall return at most the requested number of unique candidates in descending score order, exclude the seed, and break ties by a documented stable rule. Each result shall include its URL, title, channel, duration, application score and short metadata-based reason.",
+    "verification": "AT-02; unit tests for scores, ordering and ties."
+  },
+  {
+    "id": "FR-1.3",
+    "title": "Handle incomplete evidence",
+    "statement": "Missing tags or descriptions shall not crash ranking. The server shall use remaining supported features and disclose reduced evidence. It shall return an empty result with a reason when no eligible candidates are available. Results shall not describe similarity as verified educational quality or as a recommendation issued by YouTube.",
+    "verification": "AT-02 and AT-10."
+  },
+  {
+    "id": "FR-2.1",
+    "title": "Resolve and compare channels",
+    "statement": "Given a channel URL, @handle or ID, the server shall resolve the seed channel and rank distinct candidate channels by available channel descriptions and a bounded sample of their video metadata. The response shall disclose the sample size and selection rule. It shall exclude the seed channel and shall not rely on an assumed related-channels endpoint.",
+    "verification": "AT-03; [R1, R3]."
+  },
+  {
+    "id": "FR-2.2",
+    "title": "Return explainable channel rankings",
+    "statement": "Each channel result shall include ID, title, URL, application score and a short explanation of the topic overlap. Identical inputs, fixtures and configuration shall produce identical ordering. Unresolvable handles, inaccessible channels or insufficient comparable metadata shall return an explicit error or insufficient-data result.",
+    "verification": "AT-03 and AT-10."
+  },
+  {
+    "id": "FR-3.1",
+    "title": "Read authorised preference signals",
+    "statement": "With read consent, the server shall retrieve accessible liked videos, subscriptions, and playlists and their accessible items. It shall form a preference profile from the available sources, deduplicate video IDs across collections, and identify each source and its coverage. It shall not obtain or infer an actual watch-history feed.",
+    "verification": "AT-04; [R1, R4]."
+  },
+  {
+    "id": "FR-3.2",
+    "title": "Recommend and explain",
+    "statement": "The server shall discover and rank a bounded set of videos using that profile and any explicit topic, duration or language filters. Each result shall identify the signals supporting the recommendation. Results shall exclude seed/profile videos by default and shall disclose this exclusion. The same fixtures and settings shall produce a stable ranking.",
+    "verification": "AT-04 and AT-15."
+  },
+  {
+    "id": "FR-3.3",
+    "title": "Support sparse and denied data",
+    "statement": "If a source is empty or inaccessible, the server shall report the limitation and use remaining consented sources. If no usable preference data exists, it shall request a seed video or topic rather than invent preferences. Permission errors shall never be bypassed by scraping or another account.",
+    "verification": "AT-04 and AT-11."
+  },
+  {
+    "id": "FR-4.1",
+    "title": "Summarise accessible collections",
+    "statement": "The server shall report the top channels and video categories by item count, duration preferences through count, mean and median video length, and counts in documented duration bands. It shall distinguish liked videos, subscriptions and playlist items, identify the denominator of each count or percentage, and state duplicate handling, missing metadata and the retrieved population. Subscription summaries shall count channels rather than pretend subscriptions are video views.",
+    "verification": "AT-05 with hand-calculated fixtures."
+  },
+  {
+    "id": "FR-4.2",
+    "title": "Compare periods with valid timestamps",
+    "statement": "The server shall support two user-specified non-overlapping periods for trends and comparisons using available playlist-addition and subscription-creation timestamps. UTC intervals shall be start-inclusive and end-exclusive. Reports shall name the timestamp basis and include absolute differences; percentage change from a zero baseline shall be marked undefined. Video publication dates shall not be substituted for engagement dates. Unsupported like-event dates shall be reported as unavailable.",
+    "verification": "AT-05, including boundaries, zero baselines and missing dates; [R5]."
+  },
+  {
+    "id": "FR-4.3",
+    "title": "Avoid unsupported conclusions",
+    "statement": "Reports shall label the data as accessible collection activity and shall not claim watch time, completion, full historical behaviour or learning progress. A video runtime describes the video, not time actually watched. Empty periods shall return zero supported counts and a clear insufficient-evidence explanation for other measures.",
+    "verification": "AT-05; [R1]."
+  },
+  {
+    "id": "FR-5.1",
+    "title": "Translate and validate a request",
+    "statement": "The AI client and server together shall accept a natural-language playlist request specifying topic, total duration, maximum video length and language. The client shall translate these into structured values; the server shall independently validate them. Missing or ambiguous hard constraints shall be clarified before proposing a playlist. A request for an exact total shall be clarified as an upper limit or rejected as unsupported, rather than silently reinterpreted.",
+    "verification": "AT-06 and AT-10."
+  },
+  {
+    "id": "FR-5.2",
+    "title": "Enforce hard constraints",
+    "statement": "The server shall build an ordered proposal whose total duration does not exceed the requested total and whose individual durations do not exceed the requested maximum. Every selected video shall satisfy the stated topic-selection rule and requested language according to available API language metadata. Unknown language shall not count as a strict match, and search relevanceLanguage alone shall not prove spoken language. Unverifiable candidates shall be excluded and the evidence limitation shall be shown.",
+    "verification": "AT-06, AT-07 and duration-boundary unit tests."
+  },
+  {
+    "id": "FR-5.3",
+    "title": "Handle insufficient candidates",
+    "statement": "The server shall report if no non-empty feasible proposal can be built. If only a shorter compliant playlist is available, it shall show the total and unused time and allow the user to accept it or revise the request. It shall never relax a hard constraint, add duplicate filler or claim exact duration without evidence.",
+    "verification": "AT-07."
+  },
+  {
+    "id": "FR-5.4",
+    "title": "Present the complete proposal",
+    "statement": "Before any playlist write, the client shall display the destination account/channel, title, privacy, topic and constraints, ordered video titles and links, channels, per-video duration, total duration, language evidence, warnings and proposal expiry. Default privacy shall be private. The proposal shall have an account-bound ID and version tied to the exact content. Any change to account, videos, order, title, privacy or constraints shall invalidate earlier approval.",
+    "verification": "AT-06, AT-08 and AT-12."
+  },
+  {
+    "id": "FR-5.5",
+    "title": "Require trusted human approval",
+    "statement": "The write operation shall require explicit human approval of the current proposal through a trusted client confirmation control or a local approval interaction outside model-controlled tool arguments. Approval shall be bound to the user/account, proposal version and operation, expire within 10 minutes, and be usable for only that operation. A supplied confirmed=true value or instructions embedded in metadata shall not establish approval. Rejected, missing, expired, mismatched or superseded approval shall cause zero playlist writes.",
+    "verification": "AT-08 and AT-12."
+  },
+  {
+    "id": "FR-5.6",
+    "title": "Create and report the playlist",
+    "statement": "After valid approval, the server shall verify write scope, destination channel, current feasibility and quota, then create the new playlist and insert exactly the approved videos in the approved order. It shall return the playlist URL, final item count and duration, and a success or partial-failure status. It shall not silently replace an unavailable video or change privacy. A material change found during revalidation shall require a new preview and approval.",
+    "verification": "AT-06, AT-09 and AT-11; [R9]."
+  },
+  {
+    "id": "FR-5.7",
+    "title": "Prevent duplicate writes and disclose partial state",
+    "statement": "The server shall record the operation and known remote IDs. Repeating a completed operation ID shall return its recorded result without another playlist creation. On an insertion failure it shall stop and report the playlist URL, inserted and pending items. An ambiguous network timeout on a write shall be reconciled before any retry; if unresolved, it shall report an unknown outcome and require user action. Resume shall target only verified missing items, with renewed approval if needed. Automatic deletion is outside the baseline.",
+    "verification": "AT-09."
+  },
+  {
+    "id": "FR-6",
+    "title": "Manage consent and account state",
+    "statement": "The server shall support authorisation, access-token refresh, re-authorisation after expiry or revocation, and disconnect. Read workflows shall request youtube.readonly; creation shall request a documented sufficient write scope such as youtube.force-ssl only when needed. The client shall explain scope purpose. Missing channel or youtubeSignupRequired shall return guidance without claiming creation succeeded. Disconnect shall remove local tokens and account-specific stored data and attempt token revocation.",
+    "verification": "AT-11 and AT-14; [R7, R8, R9]."
+  },
+  {
+    "id": "FR-7",
+    "title": "Preflight and account for quota",
+    "statement": "Before the first provider call in a workflow, the server shall estimate and reserve its bounded worst-case cost across all applicable quota buckets, including pagination, revalidation, writes and permitted retries. If any bucket is insufficient, it shall reject the workflow before any provider call. It shall track each attempted call, including errors, and release unused reservations. Parallel operations shall not oversubscribe the tracked balance.",
+    "verification": "AT-13 and AT-15; [R6]."
+  },
+  {
+    "id": "FR-8",
+    "title": "Return recoverable errors",
+    "statement": "The server shall return stable error codes, a readable cause, retryability and a safe next action for invalid input, unavailable content, insufficient data, consent failure, quota exhaustion, rate limiting and provider failures. Errors shall not leak credentials, private metadata or stack traces. Partial results shall be explicitly marked.",
+    "verification": "AT-10, AT-11 and AT-16."
+  },
+  {
+    "id": "NFR-02",
+    "title": "Protect credentials and transport",
+    "statement": "All external requests shall use HTTPS. OAuth access and refresh tokens shall be stored through OS-protected credential storage or an equivalently protected encrypted local store, with the key outside the repository. Secrets shall never appear in source, fixtures, brain notes, chat, logs, resources or tool results. Automated secret scanning shall run on pull requests.",
+    "verification": "AT-14; inspect repository, logs and token storage."
+  },
+  {
+    "id": "NFR-03",
+    "title": "Enforce authority boundaries",
+    "statement": "The server shall validate schemas and account bindings on every tool call and resource read. It shall treat titles, descriptions, tags and retrieved text as data, never instructions. Only the trusted human approval path shall authorise playlist writes; the model and external metadata shall not be able to mint approval. Cross-account or modified-proposal access shall fail.",
+    "verification": "AT-12 and AT-14 adversarial tests."
+  },
+  {
+    "id": "NFR-04",
+    "title": "Minimise personal data",
+    "statement": "Only data needed for the requested workflow shall be collected. Private account data shall remain isolated from other accounts and shall not be sent to the AI client except as needed for the requested result. Fixtures and CI logs shall contain synthetic or fully anonymised data. A user-facing privacy notice shall explain collection, AI-client disclosure, retention, disconnect and local deletion.",
+    "verification": "AT-14 and documentation inspection."
+  },
+  {
+    "id": "NFR-05",
+    "title": "Limit retention and support removal",
+    "statement": "API metadata caches shall expire within 24 hours by default and shall be refreshed or deleted no later than 30 days. Local proposal and operation records containing API data shall follow that limit. Disconnect or a user deletion request shall clear account-specific caches, proposals, operation data and tokens during successful completion. Failed removal shall be reported and shall not be marked complete. Data deletion in this application shall not claim to delete the user's YouTube content.",
+    "verification": "AT-14 with simulated time and deletion checks; [R12]."
+  },
+  {
+    "id": "NFR-06",
+    "title": "Fail safely and recover",
+    "statement": "Read requests may use at most three attempts with bounded exponential backoff and jitter for retryable failures. Quota exhaustion and permanent permission errors shall not trigger repeated calls. Write timeouts shall follow FR-5.7. After interruption, stored operation state shall distinguish not-started, in-progress, completed, partial and unknown outcomes. A failed write shall never be reported as complete.",
+    "verification": "AT-09 and AT-16 fault-injection tests."
+  },
+  {
+    "id": "NFR-07",
+    "title": "Constrain network destinations",
+    "statement": "The server shall parse supported YouTube identifiers locally and shall not fetch arbitrary user-supplied URLs. Provider traffic shall be limited to official Google OAuth and YouTube API destinations required by the workflow. The OAuth callback shall bind only to the local loopback interface. The baseline shall not expose a public network listener.",
+    "verification": "AT-10 and AT-14; inspect outbound requests and callback binding."
+  },
+  {
+    "id": "NFR-08",
+    "title": "Meet local performance targets",
+    "statement": "On a documented reference machine with at least four CPU cores and 8 GB RAM, fixed offline fixtures and no client-model generation time, input validation shall have a 95th-percentile latency of at most 100 ms; ranking up to 200 candidate videos or constructing a proposal shall take at most 2 seconds. Tests shall use at least 30 measured runs after one warm-up. Cached read responses shall have a 95th percentile of at most 2 seconds. Live network and OAuth latency shall be reported separately.",
+    "verification": "AT-17 benchmark report with hardware, inputs and timings."
+  },
+  {
+    "id": "NFR-09",
+    "title": "Bound runtime and resource use",
+    "statement": "A provider HTTP attempt shall have a configurable timeout with a default of 15 seconds. A foreground read or planning workflow shall stop after a configurable deadline with a default of 60 seconds, return a typed timeout or labelled partial result, and perform no writes. Creation shall report progress and honour the same per-attempt timeout; a stop shall preserve partial/unknown state. All searches and pagination shall respect the declared candidate and quota caps.",
+    "verification": "AT-15 and AT-16 with simulated delays and bounded-call assertions."
+  },
+  {
+    "id": "NFR-10",
+    "title": "Provide usable and explainable results",
+    "statement": "The client shall display human-readable durations, clickable source URLs, collection coverage, relevant constraints and actionable errors. Scores shall be labelled application estimates and shall identify the metadata used. Confirmation shall explicitly identify account and privacy. User and developer documentation shall include setup, consent, each feature, limits, recovery and one complete example.",
+    "verification": "AT-19 task walkthrough and documentation review."
+  },
+  {
+    "id": "NFR-11",
+    "title": "Support maintainable testing",
+    "statement": "YouTube access shall be isolated behind a provider interface replaceable by a fixture provider. Domain rules for similarity, duration parsing, constraints and approval shall be testable independently of a live API or AI model. Dependencies and the supported runtime shall be declared. CI shall build or validate the package, lint, test, scan secrets and validate skills and brain notes on every PR.",
+    "verification": "AT-18 and AT-20; [R2]."
+  },
+  {
+    "id": "NFR-12",
+    "title": "Track changing API quotas",
+    "statement": "Quota method costs, bucket limits and daily reset rules shall be configurable and versioned with an authoritative reference date. The initial profile shall account for a 10,000-unit daily general bucket and the separately documented 100-call daily search allowance. The local ledger shall survive server restart and use the provider's reset boundary. It shall expose estimated remaining budget and warn that other applications sharing the Cloud project can consume unobserved quota.",
+    "verification": "AT-13 and AT-15; [R6]."
+  },
+  {
+    "id": "SK-01",
+    "title": "brain ingest",
+    "statement": "The brain-ingest skill shall capture supplied material or research as source-linked notes, record authorship and date, add requirement IDs and related wikilinks, update the index, and append the run to the log. Stage 1 shall contain at least 10 distinct research notes created through this workflow. Unverified material shall be identified as such.",
+    "verification": "AT-18: ingest sample material; inspect at least 10 source-linked research notes."
+  },
+  {
+    "id": "SK-02",
+    "title": "brain refine",
+    "statement": "The brain-refine skill shall organise notes into PARA, merge duplicates while preserving sources and authorship, and repair or report broken links. It shall report the changes made and leave an auditable history through the normal PR workflow.",
+    "verification": "AT-18: duplicate-note and broken-link fixtures."
+  },
+  {
+    "id": "SK-03",
+    "title": "brain query",
+    "statement": "The brain-query skill shall answer project questions or draft a document from relevant notes, cite the notes supporting its claims, and disclose missing or conflicting evidence. It shall not invent decisions, approvals, test results or sources.",
+    "verification": "AT-18 and AT-19: answer a requirement-to-decision question and an unsupported question."
+  },
+  {
+    "id": "SK-04",
+    "title": "local check",
+    "statement": "The local-check skill shall build or validate the project, run the automated test suite, start the local server, invoke one read-only fetch tool through MCP, and report pass, fail or blocked separately for every step. It shall terminate resources it started. Fixture mode shall be the default; an explicitly configured live check shall report quota used.",
+    "verification": "AT-19: live demonstration of all five steps with individual statuses."
+  },
+  {
+    "id": "SK-05",
+    "title": "video to playlist",
+    "statement": "The video-to-playlist skill shall accept a seed video, summarise its available title/description metadata with a stated evidence basis, find similar videos through FR-1, collect playlist constraints, propose a playlist, obtain human confirmation, create it through FR-5, and present a short analysis of duration, channels and constraints. Rejection or an infeasible request shall end without writes. It shall not claim access to full video content or unavailable transcripts.",
+    "verification": "AT-06, AT-08 and AT-19; full accepted and rejected workflow evaluations."
+  },
+  {
+    "id": "SK-06",
+    "title": "Evaluate skills before submissions",
+    "statement": "Each applicable skill shall have repeatable evaluation cases covering a successful path, a negative path and evidence/authority handling. Evaluations shall run before each relevant stage submission and results shall be recorded with inputs, expected behaviour, observed behaviour and pass/fail/blocked status.",
+    "verification": "AT-18; stage-specific evaluation records, not generated claims of success."
+  },
+  {
+    "id": "GOV-01",
+    "title": "Maintain linked project knowledge",
+    "statement": "The repository shall contain an Obsidian-compatible brain vault with inbox, projects, areas, resources and archive directories, an index entry point and an append-only run log. Notes shall link to other notes, requirement IDs and real issues/PRs as available. Every team member shall author notes under their own identity.",
+    "verification": "AT-20; repository and commit-history review; [R2] SB-1, SB-6."
+  },
+  {
+    "id": "GOV-02",
+    "title": "Record decisions and AI work",
+    "statement": "The repository shall contain root AGENTS.md and significant design decisions in docs/adr/. Each ADR and skill shall cite at least one distilled note. Significant AI sessions shall record goal, outcome and what worked or failed. The team shall write a review note at each stage and shall be able to explain every merged artefact.",
+    "verification": "AT-20; [R2] SB-2 to SB-4 and AI policy."
+  },
+  {
+    "id": "GOV-03",
+    "title": "Use reviewed version control",
+    "statement": "All work and defects shall be tracked as GitHub Issues. Code, skills, brain and document changes shall use meaningful incremental commits and PRs with at least one human review. The team shall document its branching strategy and maintain release tags and a changelog. Contributions shall remain attributable to their actual authors.",
+    "verification": "AT-20; inspect issues, commit history, PR reviews and release records; [R2]."
+  },
+  {
+    "id": "GOV-04",
+    "title": "Maintain engineering artefacts",
+    "statement": "The team shall maintain architecture and design documentation with suitable UML/ER diagrams, ADRs, a development plan and task breakdown, user documentation and developer documentation for MCP tools/resources and provider interfaces. An OpenAPI document is required only if a REST interface is introduced.",
+    "verification": "AT-20; [R2] SE-2 to SE-4 and SE-7."
+  },
+  {
+    "id": "GOV-05",
+    "title": "Preserve traceability and the submitted baseline",
+    "statement": "The team shall maintain requirement-to-issue-to-PR-to-test-to-skill-to-brain-note traceability. Before submission, requirement edits shall be reviewed. After submission, the selected topic and SRS shall remain the fixed baseline; implementation decisions shall refine it without silently changing scope. Instructor-directed clarifications shall be recorded separately.",
+    "verification": "AT-20; traceability completeness and baseline comparison."
+  }
+]
