@@ -32,7 +32,11 @@ Source: the user's team-details message in this chat, 7 November 2026. These det
 - Traceability register: `docs/requirements/traceability.csv` outside the vault.
 - Rebuild source: `scripts/build_srs.py` outside the vault.
 
-## Scope choices
+## Additional template rendition
+
+On 9 November 2026 the user supplied the teaching assistants' IEEE-style SRS template and requested a separate document alongside the previous version. The new outputs are `output/docx/YouTube_Video_Intelligence_SRS_IEEE.docx` and `output/pdf/YouTube_Video_Intelligence_SRS_IEEE.pdf` outside the vault. All 46 existing requirement statements and verification strings are unchanged. The original PDF remains unchanged. The adaptation is documented in [[2026-11-09-ieee-template-adaptation]] and [[14-ieee-srs-template-structure]].
+
+## Preserved scope choices
 
 Preserve all five core features. Use a local stdio MCP server with one documented client. Interpret duration as an upper limit and require verifiable language evidence. Summarise video metadata honestly. Use a trusted proposal-specific approval interaction and preserve partial-write state. These are proposed requirements, not implemented behaviour.
 

@@ -1,11 +1,12 @@
 # YouTube project Second Brain
 
-Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vault. Research notes were ingested using the repository brain-ingest skill on 7 November 2026. AI authorship is explicit.
+Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vault. Initial research was ingested on 7 November 2026; the supplied SRS template was added on 9 November 2026 using the repository brain-ingest workflow. AI authorship is explicit.
 
 ## Active project
 
 - [[srs-baseline]]
 - [[2026-11-07-srs-preparation]]
+- [[2026-11-09-ieee-template-adaptation]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
@@ -23,6 +24,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[11-mcp-and-agent-skill-contracts]]
 - [[12-engineering-and-knowledge-workflow]]
 - [[13-api-policy-dependency]]
+- [[14-ieee-srs-template-structure]]
 
 ## Structure
 

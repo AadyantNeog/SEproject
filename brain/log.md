@@ -22,3 +22,11 @@ Subsequent operations must append their actual outcome here.
 - Updated the SRS cover, PDF author metadata, editable source and current project roster in [[srs-baseline]].
 - Regenerated and rendered the 17-page PDF. Verified every name/roll mapping and visually checked the revised cover. Pages 2-17 are textually and visually unchanged; all 46 requirements are unchanged.
 - This administrative update does not constitute human review, contribution evidence, GitHub publication or submission.
+
+## 2026-11-09 IEEE template adaptation
+
+- Input: user-supplied `srs_template-ieee.doc` and the instruction to retain the previous SRS.
+- Workflow: inspected the template, preserved its layout/outline, mapped all 46 exact requirements, refreshed Word fields and exported a separate Word/PDF rendition.
+- Output: 27-page IEEE-style SRS, editable content, 46-row placement map, retained template copies, provenance and QA records; see [[2026-11-09-ieee-template-adaptation]] and [[14-ieee-srs-template-structure]].
+- Verification: all 43 contents entries matched their pages; all 46 statements and verification strings retained; final pages visually reviewed; original template and previous PDF hashes unchanged.
+- Result: local preparation complete. Live-policy applicability, human review, issues/PR workflow, implementation and submission remain pending.

@@ -1,0 +1,47 @@
+requirement_id,ieee_section,title,verification
+NFR-01,3.3,MCP interoperability,AT-01 and AT-19; [R10].
+FR-1.1,4.1.3,Retrieve a seed and candidate pool,"AT-02 and AT-10; [R1, R3, R4]."
+FR-1.2,4.1.3,Compute and explain similarity,"AT-02; unit tests for scores, ordering and ties."
+FR-1.3,4.1.3,Handle incomplete evidence,AT-02 and AT-10.
+FR-2.1,4.2.3,Resolve and compare channels,"AT-03; [R1, R3]."
+FR-2.2,4.2.3,Return explainable channel rankings,AT-03 and AT-10.
+FR-3.1,4.3.3,Read authorised preference signals,"AT-04; [R1, R4]."
+FR-3.2,4.3.3,Recommend and explain,AT-04 and AT-15.
+FR-3.3,4.3.3,Support sparse and denied data,AT-04 and AT-11.
+FR-4.1,4.4.3,Summarise accessible collections,AT-05 with hand-calculated fixtures.
+FR-4.2,4.4.3,Compare periods with valid timestamps,"AT-05, including boundaries, zero baselines and missing dates; [R5]."
+FR-4.3,4.4.3,Avoid unsupported conclusions,AT-05; [R1].
+FR-5.1,4.5.3,Translate and validate a request,AT-06 and AT-10.
+FR-5.2,4.5.3,Enforce hard constraints,"AT-06, AT-07 and duration-boundary unit tests."
+FR-5.3,4.5.3,Handle insufficient candidates,AT-07.
+FR-5.4,4.5.3,Present the complete proposal,"AT-06, AT-08 and AT-12."
+FR-5.5,4.5.3,Require trusted human approval,AT-08 and AT-12.
+FR-5.6,4.5.3,Create and report the playlist,"AT-06, AT-09 and AT-11; [R9]."
+FR-5.7,4.5.3,Prevent duplicate writes and disclose partial state,AT-09.
+FR-6,4.6.3,Manage consent and account state,"AT-11 and AT-14; [R7, R8, R9]."
+FR-7,4.7.3,Preflight and account for quota,AT-13 and AT-15; [R6].
+FR-0.1,4.8.3,Normalise and validate inputs,"AT-02, AT-03 and AT-10."
+FR-0.2,4.8.3,Declare coverage and limits,AT-04 and AT-15.
+FR-8,4.8.3,Return recoverable errors,"AT-10, AT-11 and AT-16."
+NFR-08,5.1,Meet local performance targets,"AT-17 benchmark report with hardware, inputs and timings."
+NFR-09,5.1,Bound runtime and resource use,AT-15 and AT-16 with simulated delays and bounded-call assertions.
+NFR-12,5.1,Track changing API quotas,AT-13 and AT-15; [R6].
+NFR-02,5.3,Protect credentials and transport,"AT-14; inspect repository, logs and token storage."
+NFR-03,5.3,Enforce authority boundaries,AT-12 and AT-14 adversarial tests.
+NFR-04,5.3,Minimise personal data,AT-14 and documentation inspection.
+NFR-05,5.3,Limit retention and support removal,AT-14 with simulated time and deletion checks; [R12].
+NFR-07,5.3,Constrain network destinations,AT-10 and AT-14; inspect outbound requests and callback binding.
+NFR-06,5.4,Fail safely and recover,AT-09 and AT-16 fault-injection tests.
+NFR-10,5.4,Provide usable and explainable results,AT-19 task walkthrough and documentation review.
+NFR-11,5.4,Support maintainable testing,AT-18 and AT-20; [R2].
+SK-01,6.1,brain ingest,AT-18: ingest sample material; inspect at least 10 source-linked research notes.
+SK-02,6.1,brain refine,AT-18: duplicate-note and broken-link fixtures.
+SK-03,6.1,brain query,AT-18 and AT-19: answer a requirement-to-decision question and an unsupported question.
+SK-04,6.1,local check,AT-19: live demonstration of all five steps with individual statuses.
+SK-05,6.1,video to playlist,"AT-06, AT-08 and AT-19; full accepted and rejected workflow evaluations."
+SK-06,6.1,Evaluate skills before submissions,"AT-18; stage-specific evaluation records, not generated claims of success."
+GOV-01,6.2,Maintain linked project knowledge,"AT-20; repository and commit-history review; [R2] SB-1, SB-6."
+GOV-02,6.2,Record decisions and AI work,AT-20; [R2] SB-2 to SB-4 and AI policy.
+GOV-03,6.2,Use reviewed version control,"AT-20; inspect issues, commit history, PR reviews and release records; [R2]."
+GOV-04,6.2,Maintain engineering artefacts,AT-20; [R2] SE-2 to SE-4 and SE-7.
+GOV-05,6.2,Preserve traceability and the submitted baseline,AT-20; traceability completeness and baseline comparison.
