@@ -30,3 +30,24 @@ Subsequent operations must append their actual outcome here.
 - Output: 27-page IEEE-style SRS, editable content, 46-row placement map, retained template copies, provenance and QA records; see [[2026-11-09-ieee-template-adaptation]] and [[14-ieee-srs-template-structure]].
 - Verification: all 43 contents entries matched their pages; all 46 statements and verification strings retained; final pages visually reviewed; original template and previous PDF hashes unchanged.
 - Result: local preparation complete. Live-policy applicability, human review, issues/PR workflow, implementation and submission remain pending.
+
+## 2026-11-09 SRS pre submission review
+
+- Compared the IEEE document with both original briefs and checked official quota, OAuth, metadata, captions and policy references.
+- Confirmed core feature/skill/test coverage, all 46 statements and 43 contents references. Recorded the detailed result in `docs/requirements/SRS_IEEE_submission_review.md` outside the vault and [[2026-11-09-srs-submission-review]].
+- Flagged the unconfirmed metadata-only video-summary interpretation and the existing live-policy dependency. Did not invent teaching-assistant acceptance or treat document verification as product test execution.
+- The IEEE Word/PDF and previous SRS PDF were not edited. Submission and human approval are not claimed.
+
+## 2026-11-09 Summary scope accepted by user
+
+- The user accepted the current metadata-based video-summary interpretation for the SRS and deferred implementation investigation to coding.
+- Recorded the agreement in [[srs-baseline]]. This does not establish TA approval or resolve the separate API policy dependency.
+- No requirement text or submission document was changed.
+
+## 2026-11-12 IEEE SRS condensation
+
+- Input: user requested a 15-20 page SRS; prior instruction to retain previous versions remains applicable.
+- Output: separate 18-page compact IEEE Word/PDF, condensation/export scripts, document QA and source-file preservation hashes. See [[2026-11-12-srs-condensation]].
+- Verification: all 46 exact numbered requirements and verification strings, all 43 contents references, 20 acceptance cases, TQ-1 to TQ-8, two figures, supplied team details and all final page layouts checked. Three existing deliverable hashes remain unchanged.
+- Rendering: packaged renderer lacked LibreOffice; native Word exported the final DOCX and bundled Poppler rendered it for review. No dependency installation was needed.
+- Result: local presentation revision complete. No product tests, human review, GitHub changes or submission are claimed.

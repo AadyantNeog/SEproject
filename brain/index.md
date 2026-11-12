@@ -7,6 +7,8 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[srs-baseline]]
 - [[2026-11-07-srs-preparation]]
 - [[2026-11-09-ieee-template-adaptation]]
+- [[2026-11-09-srs-submission-review]]
+- [[2026-11-12-srs-condensation]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
