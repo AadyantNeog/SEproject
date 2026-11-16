@@ -51,3 +51,11 @@ Subsequent operations must append their actual outcome here.
 - Verification: all 46 exact numbered requirements and verification strings, all 43 contents references, 20 acceptance cases, TQ-1 to TQ-8, two figures, supplied team details and all final page layouts checked. Three existing deliverable hashes remain unchanged.
 - Rendering: packaged renderer lacked LibreOffice; native Word exported the final DOCX and bundled Poppler rendered it for review. No dependency installation was needed.
 - Result: local presentation revision complete. No product tests, human review, GitHub changes or submission are claimed.
+
+## 2026-11-16 Implementation master plan and agent instructions
+
+- Input: user requested a detailed SRS-based architecture/technology/team implementation plan, with Aadyant owning the bulk of difficult work and smaller substantive contributions for Jeswin/Paul using their own coding agents.
+- Read the full SRS, baseline/brain/skill records and requirement register; checked official MCP, YouTube, OAuth, keyring and chosen-client references. Inspected canonical CPython 3.13.1 without installs or PyTorch changes.
+- Prepared `docs/implementation/` master plan, contracts, team task/dependency/gate schedule, three role briefs, exact 46-row coverage register and planning QA report; expanded root AGENTS.md; added five proposed ADRs and [[15-implementation-boundaries-and-contracts]] / [[16-official-api-design-check-2026-11-16]]. Session: [[2026-11-16-implementation-master-plan]].
+- Verification: final 16 planning integrity checks passed. Corrected a manual effort-total mismatch found by the first check run; final allocation is Aadyant 96–140 hours, Jeswin 20–28, Paul 22–30, about 70% for Aadyant at midpoint. All 46 IDs/titles/verification strings, AT-01–AT-20, defined task/note/link references, note authorship and ADR distilled citations checked. Fourteen pre-existing requirement/PDF files retained their session-start SHA-256 hashes; existing user PDF edits/deletion/untracked file were left as found.
+- Result: local planning complete. No product implementation/tests, live API calls, environment installation, GitHub mutation, team-member authorship, human review, instructor permission, submission or release is claimed. Native approval/client proof, D-02 resolution, dependency locks and actual delivery evidence remain pending.

@@ -9,6 +9,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-09-ieee-template-adaptation]]
 - [[2026-11-09-srs-submission-review]]
 - [[2026-11-12-srs-condensation]]
+- [[2026-11-16-implementation-master-plan]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
@@ -27,6 +28,8 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[12-engineering-and-knowledge-workflow]]
 - [[13-api-policy-dependency]]
 - [[14-ieee-srs-template-structure]]
+- [[15-implementation-boundaries-and-contracts]]
+- [[16-official-api-design-check-2026-11-16]]
 
 ## Structure
 
@@ -34,4 +37,4 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 
 ## Current evidence
 
-SRS preparation is complete locally, including the team details supplied by the user for Random Stuff. See [[srs-baseline]] for the member roster. Individual human notes, implementation, CI, GitHub issues/PR review and submission remain pending. No GitHub mutation has been performed by this preparation run.
+SRS preparation and the detailed implementation plan are complete locally, including the team details supplied by the user for Random Stuff. See [[srs-baseline]] for the member roster and [[2026-11-16-implementation-master-plan]] for the planning outcome and checks. Individual human notes, product implementation, CI, GitHub issues/PR review, live acceptance and submission remain pending. No GitHub mutation is implied by these local files.
