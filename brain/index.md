@@ -10,6 +10,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-09-srs-submission-review]]
 - [[2026-11-12-srs-condensation]]
 - [[2026-11-16-implementation-master-plan]]
+- [[2026-11-19-equal-workload-revision]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
@@ -30,6 +31,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[14-ieee-srs-template-structure]]
 - [[15-implementation-boundaries-and-contracts]]
 - [[16-official-api-design-check-2026-11-16]]
+- [[17-equal-team-allocation]]
 
 ## Structure
 
@@ -37,4 +39,4 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 
 ## Current evidence
 
-SRS preparation and the detailed implementation plan are complete locally, including the team details supplied by the user for Random Stuff. See [[srs-baseline]] for the member roster and [[2026-11-16-implementation-master-plan]] for the planning outcome and checks. Individual human notes, product implementation, CI, GitHub issues/PR review, live acceptance and submission remain pending. No GitHub mutation is implied by these local files.
+SRS preparation and the implementation planning records exist. The current equal-workload revision is version 2, dated 19 November 2026; see [[17-equal-team-allocation]] and [[2026-11-19-equal-workload-revision]]. The earlier unequal plan remains a historical session record. See [[srs-baseline]] for the member roster. Individual human contributions/reviews, product implementation, actual CI, GitHub Issues/PRs, live acceptance and submission remain pending; no remote review or release is implied by local files.

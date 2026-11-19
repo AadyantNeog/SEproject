@@ -1,30 +1,40 @@
 # Implementation plan integrity checks
 
-16 November 2026 · Author: Codex · Local document verification only
+Allocation version 2.0 · Checked 2026-11-19 · Author: Codex
 
-These checks verify the planning artefacts. They are **not** product tests, CI runs, live YouTube calls, human review or acceptance evidence. No dependencies were installed for this planning session.
+This report supersedes the 16 November planning report. It verifies allocation/document integrity only: **no product tests, actual CI/live API runs, human review or release are claimed**. Matching estimates are not measured equal productivity.
 
 | Check | Observed result | Evidence |
 | --- | --- | --- |
-| Exact requirement coverage | PASS | 46 unique source requirement IDs, no missing or extra IDs |
-| Requirement text identity | PASS | Titles and verification strings exactly match requirements.json |
-| Honest implementation status | PASS | All uncreated Issue/PR and execution evidence remain pending |
-| Task definitions | PASS | 12 Aadyant, 4 Jeswin and 4 Paul task definitions |
-| Requirement task ownership | PASS | Every requirement has an owner, defined tasks and explicitly planned evidence targets |
-| Acceptance catalogue coverage | PASS | All AT-01 through AT-20 mapped and explained |
-| Effort arithmetic | PASS | Calculated task-hour ranges: {'A': [96, 140], 'J': [20, 28], 'P': [22, 30]} |
-| Workload allocation | PASS | Aadyant midpoint share 70.24%, core security/algorithms owned by A-tasks |
-| Local Markdown links | PASS | 17 Markdown files checked; broken: [] |
-| Markdown fences | PASS | Balanced code/diagram fences; errors: [] |
-| Unique brain note stems | PASS | 23 substantive note stems are unique |
-| Coverage distilled-note links | PASS | Every planning row links to existing relevant distilled-note stems |
-| New/index agent wikilinks | PASS | Broken references: [] |
-| New note frontmatter/authorship | PASS | 3 notes have required fields, Codex authorship, sources and requirements; errors: [] |
-| ADR distilled-note basis | PASS | All 5 proposed ADRs cite distilled notes; errors: [] |
-| Existing SRS/PDF preservation | PASS | 14 pre-existing requirement/PDF files compared by SHA-256; changed: [] |
+| Current task register | PASS | 24 unique version 2 tasks, eight for each member |
+| Equal task counts | PASS | {'Aadyant': 8, 'Jeswin': 8, 'Paul': 8} |
+| Equal effort arithmetic | PASS | Hours including owned tests/docs/integration/reviews: {'Aadyant': [56, 80], 'Jeswin': [56, 80], 'Paul': [56, 80]}; midpoint 68 each, 33.33% each |
+| Task scope and ownership | PASS | Each task has a real owner, positive range, deliverable and path targets |
+| Dependency references | PASS | Prerequisite/integration references: all registered, no self-dependencies |
+| Acyclic implementation prerequisites | PASS | depends_on is acyclic; integration_requires are separately verified cross-component gate obligations, not build prerequisites |
+| Exact requirement coverage | PASS | 46 unchanged numbered requirements, no duplicates/missing/extra IDs |
+| Requirement text identity | PASS | Exact source titles and verification strings preserved |
+| Current coverage task references | PASS | Every planning row uses registered v2 tasks and planned evidence targets |
+| Coverage owner consistency | PASS | Each stated requirement owner owns at least one mapped task |
+| All tasks traced | PASS | All 24 tasks appear in requirement coverage |
+| Honest pending evidence | PASS | No uncreated Issue/PR, executed test or human review is claimed |
+| Acceptance coverage | PASS | AT-01 through AT-20 remain mapped with current responsibility |
+| Workplan task/range agreement | PASS | Human-readable 24-task table matches tasks.json and equal totals |
+| Role workload agreement | PASS | Role ranges, engineering/integration/review ownership agree; errors: [] |
+| Agent coordination and commit rules | PASS | All three v2 tracks, shared integration and regular commits required |
+| Retired task migration | PASS | All 20 earlier IDs mapped; history and existing authorship not reassigned |
+| Unique substantive note stems | PASS | 25 substantive note stems checked |
+| Coverage distilled-note links | PASS | Every row links existing distilled notes, including current allocation |
+| New note authorship/frontmatter | PASS | Required schema/sources/requirements and honest Codex authorship; errors: [] |
+| Local Markdown links | PASS | 20 Markdown files checked; broken: [] |
+| Wikilinks | PASS | Broken new/current/historical-supersession links: [] |
+| Markdown fences | PASS | Balanced code/diagram fences; errors: []; diagrams not renderer-tested |
+| ADR distilled basis | PASS | Six ADRs cite distilled notes; errors: [] |
+| No stale active allocation | PASS | Current docs/roles/ADRs checked; historical allocation remains only with supersession context; errors: [] |
+| SRS/source/output preservation | PASS | 18 pre-revision files compared by SHA-256; changed: [] |
 
-The temporary validation helper is `tmp/validate_plan.py` and its baseline snapshot is `tmp/implementation-plan-baseline.json`; both are ignored local audit aids, not shipped product tests. Coverage was generated from the existing requirement register, retaining exact titles/verification strings. Proposed implementation test paths remain marked planned.
+Reproduce with the canonical/local compatible Python and PyYAML: `python scripts/validate_implementation_plan.py`. For a new dated report use `--write-report --checked-on YYYY-MM-DD`. The preservation reference is [protected-baseline-2026-11-19.json](protected-baseline-2026-11-19.json); [tasks.json](tasks.json) and [coverage.csv](coverage.csv) remain planning data.
 
-Runtime inspection: the canonical machine interpreter reports CPython 3.13.1. No project environment existed at inspection; no environment, package installation or PyTorch change was performed. Official source checks are recorded in the master plan and distilled note 16.
+Manual scope review: each member owns complex production code and their own fixtures/tests/docs/integration/reviews; common interfaces connect the provider/ledger, account/deletion, proposals/approval/writes and snapshot/profile/analytics paths. The SRS technical requirements, algorithms, API-only boundary and human authority are unchanged. Earlier session/log records retain historical results with supersession notices.
 
-Unresolved: selected-client/native approval proof, dependency lock resolution, policy D-02, credentials/runner/live quota setup, implementation and performance tests, actual GitHub Issues/PRs/CI, human reviews and individual contributions, stage submissions and release. Existing user PDF edits/deletion/untracked SRSv1 file were preserved as found.
+Pending: dependency lock/client/native proof, policy D-02, actual credentials/runner/quota configuration, product implementation/performance/live tests, real Issues/PRs/CI/human reviews, member contributions and submission/release. Technical source checks remain dated 16 November; no fresh upstream research or environment installation was performed in this allocation revision.

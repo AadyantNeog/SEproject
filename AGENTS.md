@@ -5,11 +5,11 @@ These instructions apply to every coding agent working in this repository. `AGEN
 ## Read before implementation
 
 1. `docs/requirements/SRS.md` and `brain/index.md`.
-2. `docs/implementation/MASTER_PLAN.md`, `CONTRACTS.md`, `TEAM_WORKPLAN.md`, and `coverage.csv`.
+2. `docs/implementation/MASTER_PLAN.md`, `CONTRACTS.md`, `TEAM_WORKPLAN.md`, `tasks.json`, `TASK_MIGRATION.md`, and `coverage.csv`.
 3. Your assigned brief under `docs/implementation/roles/` and the relevant ADRs in `docs/adr/`.
 4. Any additional applicable directory instructions. Inspect git status and existing environments before edits; preserve unrelated work and existing SRS/PDF changes.
 
-The implementation plan is a local design baseline, not completed work or a replacement SRS. Planned paths, commands and test names may not exist yet. A01 must create the package/contracts/check commands before dependent tasks use them. Record discrepancies instead of inventing files or passing results.
+The current implementation plan is version 2.0, revised 19 November 2026 for an equal workload. It is a local design baseline, not completed work or a replacement SRS. Use A2-01–A2-08, J2-01–J2-08 and P2-01–P2-08; earlier task IDs/prompts are retired, with the mapping in TASK_MIGRATION.md. Planned paths, commands and tests may not exist yet. A2-01 creates the package/common contracts; each task owner implements their own tools/checks. Record discrepancies instead of inventing files or passing results.
 
 ## Project requirements
 
@@ -21,16 +21,19 @@ The implementation plan is a local design baseline, not completed work or a repl
 
 ## Team ownership and coordination
 
-- Aadyant Neog (BT2024186) owns A01–A12: shared contracts/composition, providers, auth/secrets, persistence/quota/cache, ranking/recommendations, playlist constraints/approval/writes/recovery, MCP and integration. He intentionally owns most complex work.
-- Jeswin Jose (BT2024142) owns J01–J04: pure analytics, UTC period comparisons, readable result/proposal/report presentation, corresponding unit tests and analytics examples. Follow `docs/implementation/roles/JESWIN.md`.
-- Paul T Mathew (BT2024135) owns P01–P04: independent synthetic fixture datasets/oracles, CI and knowledge checks, workflow skills/evaluations, client/setup/privacy/recovery docs and evidence organisation. Follow `docs/implementation/roles/PAUL.md`.
-- Work only on the assigned dependency-ready task. Do not silently implement another member's assignment, misattribute code, or edit shared contracts/manifests to work around a missing field. Propose the specific interface change and coordinate its reviewed PR with Aadyant.
-- Start consumer work from merged A01 contracts using synthetic snapshots. Teammates do not need live credentials to implement their modules. Use separate branches/checkouts for simultaneous agents; do not race over the same uncommitted files.
+- Divide work equally: each member owns eight tasks, 56–80 planned hours and one third of responsibility, including substantial production code, tests, synthetic fixtures, docs, integration, reviews and a demonstration. Compare actual effort at G1/G3 and rebalance remaining work explicitly if it diverges; equal task counts alone are insufficient.
+- Aadyant Neog (BT2024186) owns A2-01–A2-08: common bootstrap/MCP contracts, ranking/discovery/recommendations, strict playlist planning, shared presentation, product skill and feature integration. Follow `docs/implementation/roles/AADYANT.md`.
+- Jeswin Jose (BT2024142) owns J2-01–J2-08: parsers/accounted HTTP/read provider/fixture dispatch, OAuth/secrets/account lifecycle, authorised library retrieval, analytics, knowledge skills/validation and privacy/live-read setup. Follow `docs/implementation/roles/JESWIN.md`.
+- Paul T Mathew (BT2024135) owns P2-01–P2-08: SQLite/repositories/cache/retention, quota/workflow sessions, native approval, playlist write adapters/execution/recovery, CI, local-check and measurement tooling. Follow `docs/implementation/roles/PAUL.md`.
+- Work only on the assigned dependency-ready task. Do not silently take over a teammate's work or misattribute it. Propose shared contract/manifest changes with a named editor and affected-owner review; coordination is shared, not automatically assigned to Aadyant.
+- Start consumer implementation from merged A2-01 contracts using synthetic snapshots. All three can then implement their tracks in parallel without live credentials. Use separate branches/checkouts for simultaneous agents; do not race over uncommitted files.
+- Every owner supplies their own feature fixtures/oracles/tests/docs and service/MCP-handler integration. Jeswin owns the read/fixture dispatch core and Paul its separate write adapters; all provider traffic uses Jeswin's one quota-accounted executor and Paul's ledger. Aadyant's composition role does not make him responsible for everyone's integration fixes.
+- Rotate reviews and coordination: Jeswin reviews Aadyant, Paul reviews Jeswin, Aadyant reviews Paul; add affected specialists for critical shared boundaries. Each member supplies their share of stage/release evidence and human reflection. Agents cannot stand in for actual human reviewers.
 - Shared-contract changes require compatible consumers, examples and tests. Scope/ownership changes are recorded team decisions, never an agent's unilateral redistribution.
 
 ## Architecture and implementation rules
 
-- Baseline: local Python 3.13 modular monolith, official `mcp` SDK, Pydantic models, explicit HTTPX provider boundary, SQLite state, protected OS token vault and native human approval. Follow the tested SDK version, not incompatible snippets from another major version. Dependency resolution/locking belongs to A01.
+- Baseline: local Python 3.13 modular monolith, official `mcp` SDK, Pydantic models, explicit HTTPX provider boundary, SQLite state, protected OS token vault and native human approval. Follow the tested SDK version, not incompatible snippets from another major version. Initial dependency locking belongs to A2-01; later changes use a coordinated dependency PR.
 - Keep `domain/` and `analytics/` pure. No provider, database, OAuth, logging of private metadata or approval side effects there. MCP handlers call application services; do not duplicate business rules in handlers or renderers.
 - Only the quota-accounted HTTP executor may call allowlisted official API routes. Do not fetch supplied URLs, follow off-host redirects, add hidden retries or implement invented related-video/channel endpoints.
 - Validate strict schemas, URL/ID hosts, positive integer seconds, language tags, result limits (1–50) and bounded candidate/page sizes before provider calls. The default candidate cap is 200; proposals contain 1–50 unique videos.
@@ -43,7 +46,7 @@ The implementation plan is a local design baseline, not completed work or a repl
 
 - No model argument, `confirmed=true`, chat text, tool annotation, CLI `--yes`, environment flag or runtime test mode can mint human approval. Never automate clicking/typing into a live approval control. Tests may inject fake approval only in isolated fixture/test construction.
 - Baseline approval is a server-owned native human dialog for the complete stored proposal. Bind grants to the active account/channel, exact proposal digest/version and operation ID, expire within 10 minutes and use once. The grant stays internal; no MCP approval-minting tool exists.
-- Verify the helper/client trust boundary early (A02). If human confirmation cannot be distinguished from model automation, live writes are blocked; continue independent fixture/read work. Do not claim protection against an OS-compromised application.
+- Verify the helper/client trust boundary early (P2-03 with A2-05/A2-06). If human confirmation cannot be distinguished from model automation, live writes are blocked; continue independent fixture/read work. Do not claim protection against an OS-compromised application.
 - Reserve bounded worst-case costs across every applicable quota bucket before the first provider call, including pages, hydration, revalidation, permitted read retries and recovery allowance. Insufficient budget means zero provider calls. Use an atomic persistent project-scoped ledger and a dated configurable profile; reset at Pacific midnight with DST.
 - Preflight composed user workflows as a whole: video-to-playlist starts a server-defined workflow session before fetching its seed and carries that reservation through all stages. Do not bypass the full-workflow rule by splitting one requested run into individually affordable tools.
 - Read retries are at most three total attempts within deadline, never repeated quota/permission failures. Writes get one attempt. Persist intent and cost before dispatch, remote IDs before next item, and actual partial/unknown outcomes on cancellation/crash/timeouts. Do not automatically retry ambiguous writes or delete playlists.
@@ -57,7 +60,7 @@ The implementation plan is a local design baseline, not completed work or a repl
 - Inspect the existing environment before creating/installing anything. Aadyant's canonical interpreter is `C:\Users\Aadyant Neog\AppData\Local\Programs\Python\Python313\python.exe`; use its exact path if bare `python`/`py` fails. Teammates use their own compatible Python 3.13 path.
 - This is not an ML workload: create a normal isolated `.venv` from that interpreter when needed, and leave standalone CUDA PyTorch untouched. If a later authorised ML task needs isolation, follow the user's system-site-packages preference after checking compatibility. Do not replace an existing environment without permission.
 - Commit compatible runtime/dev locks with hashes and declared direct dependencies; no unpinned installs or SDK-major changes hidden in a teammate task. Never install project dependencies globally.
-- After A01/P02 implement them, expected checks are `python -m ruff check .`, `python -m ruff format --check .`, `python -m mypy src`, `python -m pytest -m "not live"`, locked-environment wheel build, and `python scripts/validate_knowledge.py`. Use `.venv\Scripts\python.exe` explicitly on Windows. Do not claim these commands work before their tasks land.
+- After A2-01/P2-06/J2-06 implement them, expected product checks are `python -m ruff check .`, `python -m ruff format --check .`, `python -m mypy src`, `python -m pytest -m "not live"`, locked-environment wheel build, and `python scripts/validate_knowledge.py`. Use `.venv\Scripts\python.exe` explicitly on Windows. Do not claim these product commands work before their tasks land. The existing `scripts/validate_implementation_plan.py` checks planning integrity only.
 - PR CI is offline, synthetic and secret-free. Live checks are a separately scheduled, fixed-budget, authorised workflow; scheduled checks are read-only. Live playlist creation is supervised with the actual human approval path. Report fixture/live evidence separately.
 - Run relevant tests for implementation changes, including MCP subprocess integration for protocol behaviour. Do not weaken tests or invent results. Performance claims require the SRS's reference setup, one warm-up and at least 30 measured runs.
 
@@ -78,8 +81,8 @@ The implementation plan is a local design baseline, not completed work or a repl
 - Task completion requires its concrete workplan exit criteria, actual check results, appropriate docs/traceability, human review and an explainable attributable contribution. A blocked live prerequisite is not a passed acceptance case.
 - For a handoff, report task ID, changed files/behaviour, checks actually run, limitations, pending links and next dependency. Never claim team authorship, submission, review, release or instructor approval from generated files.
 
-Distilled basis for these agent instructions: [[12-engineering-and-knowledge-workflow]], [[06-preview-and-human-approval]], [[09-quota-buckets-and-budgeting]], [[15-implementation-boundaries-and-contracts]].
+Distilled basis for these agent instructions: [[12-engineering-and-knowledge-workflow]], [[06-preview-and-human-approval]], [[09-quota-buckets-and-budgeting]], [[15-implementation-boundaries-and-contracts]], [[17-equal-team-allocation]].
 
 ## Current state
 
-The SRS, research records and detailed implementation plan are prepared locally. The team is Random Stuff: Aadyant Neog (BT2024186), Jeswin Jose (BT2024142), and Paul T Mathew (BT2024135). Product implementation, CI, human review, live acceptance and submission are not yet complete. No release or approval is implied by generated files.
+The SRS/research and detailed implementation plan exist; the equal-workload revision is prepared locally on 19 November 2026. The team is Random Stuff: Aadyant Neog (BT2024186), Jeswin Jose (BT2024142), and Paul T Mathew (BT2024135). Product implementation, CI, human review, live acceptance and submission remain pending. No release, member contribution or approval is implied by generated files.

@@ -1,10 +1,10 @@
 # Shared implementation contracts
 
-Version 1.0 · 16 November 2026 · Owner: Aadyant · Status: design, implementation pending
+Version 2.0 · 19 November 2026 · Ownership: shared across the three engineering tracks · Status: design, implementation pending
 
-Read with [MASTER_PLAN.md](MASTER_PLAN.md) and [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md). A01 turns these contracts into validated models and fixture examples. Consumer work starts after that contract PR is merged. Future changes require an explicit contract PR, affected-owner review and updated examples/tests. No implementation is claimed here.
+Read with [MASTER_PLAN.md](MASTER_PLAN.md), [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md), [tasks.json](tasks.json) and [TASK_MIGRATION.md](TASK_MIGRATION.md). A2-01 turns the common contracts into validated models/protocols/examples, with Jeswin reviewing provider/account and Paul reviewing quota/approval/repository boundaries. Consumer merges use that reviewed baseline. Later changes have a named editor, affected-owner review and updated examples/tests. Documentation version 2.0 changes allocation; the application schema below remains version 1. No implementation is claimed here.
 
-Basis: [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [partial writes](../../brain/resources/07-playlist-writes-and-partial-failure.md), [planning boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md).
+Basis: [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [partial writes](../../brain/resources/07-playlist-writes-and-partial-failure.md), [planning boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), [equal allocation](../../brain/resources/17-equal-team-allocation.md).
 
 ## 1. Shared rules
 
@@ -19,7 +19,7 @@ Basis: [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md
 
 ## 2. Shared models
 
-These are model field requirements, not copy-paste executable class definitions. A01 supplies actual enums, validators and JSON examples.
+These are model field requirements, not copy-paste executable class definitions. A2-01 supplies common enums, validators, protocols and JSON examples. Jeswin implements normalisers/account models and Paul implements grant/quota/repository models through reviewed compatible extensions.
 
 | Model | Required fields and semantics |
 | --- | --- |
@@ -54,7 +54,7 @@ Page continuation handles are opaque account-bound random IDs with expiry pointi
 
 The reports contain separate views for likes, playlist occurrences, combined unique videos and subscriptions. Duration statistics use known positive values and explicitly identify that denominator. Empty mean/median and undefined changes use null plus an explanatory code. Top-list ties use ascending stable ID. Publication dates cannot be passed as event timestamps by coercing a field name.
 
-Presentation functions accept public DTOs and return readable text only: `render_ranked_results`, `render_proposal`, `render_report`, `render_error`. They do not mutate DTOs, infer evidence, recalculate authoritative totals or assign approval. For large previews, show all 50 items in scrollable/pages of content rather than dropping items. Escape metadata for the target surface and label synthetic mode.
+Presentation functions (Aadyant, A2-06) accept public DTOs and return readable text only: `render_ranked_results`, `render_proposal`, `render_report`, `render_error`. They do not mutate DTOs, infer evidence, recalculate authoritative totals or assign approval. For large previews, show all 50 items in scrollable/pages of content rather than dropping items. Escape metadata for the target surface and label synthetic mode. Jeswin owns the analytics service and report DTO usage; Paul consumes the exact renderer in native approval.
 
 ## 3. Provider and infrastructure boundaries
 
@@ -81,13 +81,17 @@ The provider performs API mapping, response normalisation and typed error transl
 
 Only allow `www.googleapis.com/youtube/v3` (exact route/method allowlist), Google OAuth authorisation/token/revocation destinations configured from verified official documentation, and the local OAuth callback. Reject userinfo, off-host redirects, arbitrary URL requests, discovery downloads from unplanned hosts and alternate methods. OAuth library network use receives the same timeout/redaction policy even though it is not charged YouTube quota.
 
-The fixture provider implements the same surface and emits an audit list of attempted method/IDs/costs for assertions. Paul supplies API-shaped payloads and manifests; Aadyant owns the normalising fixture adapter and call/error script interpreter. Neither can read live credentials or silently fall through to the live provider. Fixtures support deterministic pagination, injected errors at chosen attempts, timeouts, omitted content and write-before-timeout outcomes.
+Jeswin owns the read provider and shared fixture dispatch/normalisation/error engine in J2-02. Paul supplies `youtube_writes.py` and `fixture_writes.py` for guarded writes, remote write-state simulation and write-before-timeout scenarios in P2-04/P2-05. Both compose through Jeswin's single HTTP executor and Paul's validated quota/authority contexts; no write adapter bypasses that executor. Each feature owner supplies independent API-shaped fixtures/oracles for their feature. The fixture provider implements the same surface and emits an attempted-method/IDs/cost audit list for assertions. It cannot read live credentials or fall through to live. Fixtures cover pagination/errors/omissions/timeouts and uncertain outcomes.
+
+Cross-owner integration contracts are executable acceptance boundaries: J2-01 must debit P2-02's actual ledger before dispatch; J2-03 disconnect must invoke P2-01's real account deletion while preserving project quota; A2-04 proposal/renderer must bind P2-03/P2-04 approval and exact writes; J2-04 snapshots must support A2-03 recommendations and J2-05 analytics without schema translation. A2-05 supplies composition/routing while each service owner supplies their handlers and integration tests. Isolated fake tests never close these real integration checks.
 
 Other replaceable interfaces: `Clock`, `TokenVault`, `ApprovalAdapter`, `QuotaLedger`, `ProposalRepository`, `OperationRepository`, `CacheRepository`. Fake clocks/vaults/approval adapters are test dependencies built by test code. A `testing=true`, `approved=true` or `auto_confirm` runtime option must not enable a fake authority path in live mode.
 
 ## 4. MCP tool surface
 
 Tool names below are the v1 application contract. Result schemas use explicit Pydantic models. Mark read-only tools accordingly and creation as a write in annotations; annotations are client hints and never the server's authorisation check.
+
+Handler ownership in allocation version 2: Aadyant owns `find_similar_videos`, `find_similar_channels`, `recommend_videos`, `propose_playlist` and `revise_proposal`; Jeswin owns `get_video`, `get_library`, `analyse_library`, `get_account_status` and `disconnect_account`; Paul owns `begin_workflow`, `prepare_creation`, `create_playlist`, `get_operation`, `reconcile_operation`, `resume_operation` and `get_quota_status`. Each integrates/tests those handlers with A2-05's shared server/resource routing and shared guards; the composition owner does not implement every handler.
 
 | Tool | Model-controlled inputs | Output and side effect |
 | --- | --- | --- |

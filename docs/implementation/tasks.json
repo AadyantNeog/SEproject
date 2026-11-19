@@ -1,0 +1,128 @@
+{
+  "plan_version": "2.0",
+  "allocation_date": "2026-11-19",
+  "status": "planned; implementation, actual issue/PR links and human review pending",
+  "effort_unit": "hours including scoped tests, documentation, integration and review",
+  "tasks": [
+    {
+      "id": "A2-01", "owner": "Aadyant", "title": "Bootstrap and common contracts", "hours": [6, 8], "depends_on": [], "integration_requires": [],
+      "deliverable": "Complete G0 checks, package/runtime/dependency locks, strict common DTOs/errors and provider/quota/approval/repository protocols. Supply immutable synthetic contract examples and subprocess stdio initialise/tool/resource smoke. Both teammates review their interfaces; publish the contract PR before consumers merge.",
+      "paths": ["pyproject.toml", "requirements*.lock", "src/yt_intel/contracts/", "src/yt_intel/bootstrap.py", "tests/system/test_stdio_protocol.py"]
+    },
+    {
+      "id": "A2-02", "owner": "Aadyant", "title": "Video and channel discovery and ranking", "hours": [10, 14], "depends_on": ["A2-01"], "integration_requires": ["J2-02", "P2-02"],
+      "deliverable": "Implement FR-1/FR-2 bounded candidate discovery, TF-IDF/cosine, category evidence, deterministic ties and channel sampling. Own ranking/discovery fixtures, independent topical expectations, service tests and feature MCP handlers. Integration uses Jeswin's provider and Paul's reserved contexts.",
+      "paths": ["src/yt_intel/domain/ranking.py", "src/yt_intel/services/discovery.py", "src/yt_intel/mcp/discovery.py", "tests/fixtures/discovery/"]
+    },
+    {
+      "id": "A2-03", "owner": "Aadyant", "title": "Preference profile and recommendation engine", "hours": [6, 8], "depends_on": ["A2-02"], "integration_requires": ["J2-04", "P2-02"],
+      "deliverable": "Implement FR-3 profile weighting, shared-vector-space ranking, profile exclusions, sparse-source handling and explicit filters. Consume LibrarySnapshot without fetching data inside the domain. Own profile/recommendation fixtures, reasons, unit/service tests and recommendation handler.",
+      "paths": ["src/yt_intel/domain/profiles.py", "src/yt_intel/services/recommendations.py", "tests/fixtures/recommendations/"]
+    },
+    {
+      "id": "A2-04", "owner": "Aadyant", "title": "Strict playlist planning and versioned proposals", "hours": [8, 12], "depends_on": ["A2-01", "A2-02"], "integration_requires": ["J2-01", "J2-03", "P2-01", "P2-02"],
+      "deliverable": "Implement FR-5 clarification/validation, strict topic/audio-language/duration eligibility, deterministic packing, immutable proposal digest/version/revision and expiry. Use common parsing/account/repository protocols. Own boundary/property tests and planning handler; no playlist writes.",
+      "paths": ["src/yt_intel/domain/constraints.py", "src/yt_intel/domain/proposals.py", "src/yt_intel/services/planning.py", "src/yt_intel/mcp/planning.py", "tests/fixtures/planning/"]
+    },
+    {
+      "id": "A2-05", "owner": "Aadyant", "title": "MCP composition, resources and client adapter", "hours": [8, 12], "depends_on": ["A2-01"], "integration_requires": ["J2-02", "J2-03", "J2-04", "P2-02", "P2-04", "P2-05"],
+      "deliverable": "Build shared server/CLI/resource routing, strict structured/text output, account guards, progress/cancellation and canonical skill adapter. Coordinate feature-owned handler modules instead of implementing everyone's services. Prove selected-client stdio/resources early; complete registration as owners supply handlers.",
+      "paths": ["src/yt_intel/mcp/server.py", "src/yt_intel/mcp/resources.py", "src/yt_intel/cli.py", "src/yt_intel/bootstrap.py", "scripts/install_client_skills.py"]
+    },
+    {
+      "id": "A2-06", "owner": "Aadyant", "title": "Shared readable presentation and exact preview", "hours": [6, 8], "depends_on": ["A2-01"], "integration_requires": [],
+      "deliverable": "Implement escaped ranked results, complete proposal/resume previews, analytics report rendering and actionable errors from public DTOs. Preserve authoritative totals/evidence, show all items/account/privacy/expiry and fixture labels. Supply early preview examples to Paul's native dialog.",
+      "paths": ["src/yt_intel/presentation/", "tests/unit/presentation/"]
+    },
+    {
+      "id": "A2-07", "owner": "Aadyant", "title": "Product skill and feature walkthrough", "hours": [5, 7], "depends_on": ["A2-02", "A2-04", "A2-05"], "integration_requires": ["J2-04", "P2-03", "P2-04", "P2-05"],
+      "deliverable": "Author/evaluate video-to-playlist, including composed quota session before seed fetch, metadata-only summary, clarification, exact preview, human rejection/approval and actual result analysis. Own feature/ranking/planning user docs and selected-client skill walkthrough; no automated live approval.",
+      "paths": [".agents/skills/video-to-playlist/", "tests/skills/test_video_to_playlist.py", "docs/user/discovery-and-playlists.md"]
+    },
+    {
+      "id": "A2-08", "owner": "Aadyant", "title": "Feature integration, performance and review evidence", "hours": [7, 11], "depends_on": ["A2-03", "A2-04", "A2-05", "A2-06", "A2-07", "J2-04", "P2-05"], "integration_requires": ["P2-07"],
+      "deliverable": "Integrate and demonstrate FR-1/FR-2/FR-3/planning through real stdio, measure ranking/planning targets, resolve own defects, update own traceability and review Jeswin's modules. Supply feature release evidence and an individually authored human reflection; do not absorb teammate work.",
+      "paths": ["tests/system/test_similar_videos.py", "tests/system/test_similar_channels.py", "tests/system/test_recommendations.py", "tests/system/test_playlist_planning.py", "docs/evidence/features/"]
+    },
+    {
+      "id": "J2-01", "owner": "Jeswin", "title": "Input parsing and accounted HTTP executor", "hours": [8, 12], "depends_on": ["A2-01"], "integration_requires": ["P2-02"],
+      "deliverable": "Implement supported URL/ID, exact ISO duration and language-tag parsing plus HTTPS route allowlist, timeouts, cancellation, redaction and bounded safe read retries. Debit before dispatch through QuotaLedger; use a fake ledger in offline unit tests until real integration. No hidden retry or write retry.",
+      "paths": ["src/yt_intel/domain/identifiers.py", "src/yt_intel/domain/durations.py", "src/yt_intel/domain/language.py", "src/yt_intel/infrastructure/http.py", "src/yt_intel/infrastructure/redaction.py"]
+    },
+    {
+      "id": "J2-02", "owner": "Jeswin", "title": "Official read provider and fixture engine", "hours": [10, 14], "depends_on": ["J2-01"], "integration_requires": ["P2-02", "P2-04"],
+      "deliverable": "Implement official read methods, batching/pagination/omissions/category labels and the fixture provider dispatch/error engine. Own read API-shaped fixtures and contract tests. Compose Paul's separate write adapters/fixture-write script support through the same executor; never fall through from fixtures to live.",
+      "paths": ["src/yt_intel/providers/youtube.py", "src/yt_intel/providers/fixture.py", "tests/fixtures/youtube_reads/", "tests/integration/test_provider_contract.py"]
+    },
+    {
+      "id": "J2-03", "owner": "Jeswin", "title": "OAuth, protected secrets and account lifecycle", "hours": [10, 14], "depends_on": ["J2-01"], "integration_requires": ["J2-02", "P2-01"],
+      "deliverable": "Implement installed-app PKCE/state flow, verified protected vault, refresh/granted scopes/channel binding and scope upgrade. Disconnect orchestrates revocation and account-data deletion through Paul's repositories. Own isolation/redaction/denied-scope/missing-channel tests and consent/privacy docs.",
+      "paths": ["src/yt_intel/auth/", "src/yt_intel/contracts/account.py", "tests/security/test_account_isolation.py", "tests/integration/test_oauth_lifecycle.py", "docs/user/privacy.md"]
+    },
+    {
+      "id": "J2-04", "owner": "Jeswin", "title": "Authorised library collection and continuation", "hours": [8, 12], "depends_on": ["J2-02", "J2-03"], "integration_requires": ["P2-01", "P2-02"],
+      "deliverable": "Retrieve likes/subscriptions/owned playlists with source fairness, bounded nested pages/samples, dedup/source memberships and private opaque continuation. Produce immutable snapshots for Aadyant's profile and analytics. Own library fixtures, coverage/denial tests and library/account MCP handlers.",
+      "paths": ["src/yt_intel/services/library.py", "src/yt_intel/mcp/library.py", "tests/fixtures/libraries/", "tests/integration/test_library_sources.py"]
+    },
+    {
+      "id": "J2-05", "owner": "Jeswin", "title": "Analytics and valid timestamp comparisons", "hours": [8, 10], "depends_on": ["A2-01"], "integration_requires": ["J2-04", "A2-05", "A2-06"],
+      "deliverable": "Implement FR-4 pure source/unique summaries, denominators, runtime bands/mean/median and separate subscription counts. Compare allowed events over non-overlapping UTC intervals, with unknown like dates and zero baselines disclosed. Own hand-calculated oracles, analytics service/handler and tests.",
+      "paths": ["src/yt_intel/analytics/", "src/yt_intel/services/analysis.py", "tests/unit/analytics/", "tests/system/test_analysis.py"]
+    },
+    {
+      "id": "J2-06", "owner": "Jeswin", "title": "Knowledge skills and integrity validation", "hours": [4, 6], "depends_on": ["A2-01"], "integration_requires": [],
+      "deliverable": "Maintain brain-ingest; implement brain-refine and brain-query, their positive/negative/evidence cases, and note/skill/link/traceability validation. Preserve source/authorship/history. Expose a stable validation command for Paul's CI; all owners maintain their own notes and skills.",
+      "paths": [".agents/skills/brain-ingest/", ".agents/skills/brain-refine/", ".agents/skills/brain-query/", "scripts/validate_knowledge.py", "tests/skills/test_brain_workflows.py"]
+    },
+    {
+      "id": "J2-07", "owner": "Jeswin", "title": "Privacy operations and scheduled read-only live checks", "hours": [4, 6], "depends_on": ["J2-02", "J2-03", "P2-06"], "integration_requires": ["P2-02"],
+      "deliverable": "Document clean-checkout consent/disconnect, retention/AI-client disclosure, token recovery and D-02 status. Prepare a separately scheduled protected-runner read-only workflow with fixed budget and honest blocked prerequisites. Operator provisions credentials; no live writes or unattended approval.",
+      "paths": ["docs/user/setup-and-consent.md", "docs/user/privacy.md", ".github/workflows/live-read-only.yml", "docs/evidence/policy-and-consent/"]
+    },
+    {
+      "id": "J2-08", "owner": "Jeswin", "title": "Read-path integration, analytics demo and reviews", "hours": [4, 6], "depends_on": ["J2-04", "J2-05", "J2-06", "J2-07", "A2-05", "P2-01", "P2-02"], "integration_requires": [],
+      "deliverable": "Prove HTTP/account/library/analytics integration with real SQLite/quota and stdio, verify disconnect/retention, show FR-4 and read failures, update own traceability and review Paul's critical invariants. Supply read/privacy release evidence and own human reflection; no fabricated live result.",
+      "paths": ["tests/system/test_analysis.py", "tests/system/test_sparse_and_denied_sources.py", "docs/evidence/read-and-privacy/"]
+    },
+    {
+      "id": "P2-01", "owner": "Paul", "title": "SQLite repositories, cache and retention", "hours": [8, 12], "depends_on": ["A2-01"], "integration_requires": ["J2-03"],
+      "deliverable": "Implement migrations, private account-bound repositories, operation intent storage, clock/cache, TTL/hard deletion and minimal replay tombstones. Protect runtime paths outside git and preserve project quota on account deletion. Publish deletion/repository interfaces for Jeswin and Aadyant with simulated-time/restart tests.",
+      "paths": ["src/yt_intel/infrastructure/database.py", "src/yt_intel/infrastructure/repositories.py", "src/yt_intel/infrastructure/cache.py", "src/yt_intel/infrastructure/clock.py", "tests/security/test_retention_and_deletion.py"]
+    },
+    {
+      "id": "P2-02", "owner": "Paul", "title": "Quota planning, reservations and workflow sessions", "hours": [10, 14], "depends_on": ["P2-01"], "integration_requires": ["J2-01", "A2-05"],
+      "deliverable": "Implement dated general/search profiles, project-scoped atomic reserve/spend/release, conservative crash accounting, Pacific DST reset and full composed-workflow sessions. Prove insufficient budget rejects before seed/provider calls, concurrent requests cannot overspend and changed profiles/restarts fail safely.",
+      "paths": ["src/yt_intel/infrastructure/quota.py", "src/yt_intel/services/workflows.py", "config/quota-profiles/", "tests/system/test_composed_workflow_budget.py"]
+    },
+    {
+      "id": "P2-03", "owner": "Paul", "title": "Native approval proof and trusted grants", "hours": [6, 8], "depends_on": ["A2-01", "A2-06"], "integration_requires": ["A2-05", "J2-03", "P2-01"],
+      "deliverable": "Prove helper/client lifecycle early using the fixture stdio skeleton and full preview, then implement challenge-bound human decisions and internal one-use account/digest/operation grants. Reject close/timeout/forgery/headless paths with zero writes. No client/model automation may operate a live control.",
+      "paths": ["src/yt_intel/approval/", "src/yt_intel/contracts/approval.py", "tests/security/test_human_approval.py", "docs/evidence/native-approval/"]
+    },
+    {
+      "id": "P2-04", "owner": "Paul", "title": "Guarded playlist creation and write journal", "hours": [10, 14], "depends_on": ["P2-01", "P2-02", "P2-03", "A2-04", "J2-02", "J2-03"], "integration_requires": ["A2-05"],
+      "deliverable": "Implement exact approved write bodies through Jeswin's executor, operation claim, preflight/revalidation, intent-before-dispatch, serial insertions, final verification and partial/unknown status. Own live-write adapter, fixture write-state engine/scenarios, execution MCP handler and fault/security tests; never auto-retry writes.",
+      "paths": ["src/yt_intel/services/creation.py", "src/yt_intel/providers/youtube_writes.py", "src/yt_intel/providers/fixture_writes.py", "src/yt_intel/mcp/execution.py", "tests/fixtures/write_failures/"]
+    },
+    {
+      "id": "P2-05", "owner": "Paul", "title": "Crash recovery, reconciliation and supervised resume", "hours": [8, 12], "depends_on": ["P2-04"], "integration_requires": ["J2-02", "A2-06"],
+      "deliverable": "Implement replay safety, restart and ambiguous create/item reconciliation, verified-prefix/missing-suffix resume proposals with fresh approval and expired-result handling. Own independent fault matrix, repeated-operation MCP tests, recovery documentation and honest unknown/manual-action paths.",
+      "paths": ["src/yt_intel/services/recovery.py", "tests/integration/test_write_journal_recovery.py", "tests/system/test_operation_replay.py", "docs/user/recovery.md"]
+    },
+    {
+      "id": "P2-06", "owner": "Paul", "title": "Offline CI, secret scanning and shared test infrastructure", "hours": [4, 6], "depends_on": ["A2-01"], "integration_requires": ["J2-06"],
+      "deliverable": "Implement locked Windows/Linux PR build/lint/type/offline test/secret checks, shared denied-network test setup, PR template and ownership policy. Run Jeswin's knowledge validator once available; pin actions/scanners and keep untrusted PRs credential-free. Each owner supplies their own feature fixtures/tests.",
+      "paths": [".github/workflows/ci.yml", ".github/CODEOWNERS", ".github/pull_request_template.md", "tests/conftest.py"]
+    },
+    {
+      "id": "P2-07", "owner": "Paul", "title": "Local-check skill and benchmark harness", "hours": [4, 6], "depends_on": ["A2-05", "P2-06", "J2-02"], "integration_requires": [],
+      "deliverable": "Implement/evaluate local-check with separate build/tests/start/read-only MCP fetch/cleanup statuses. Supply reusable one-warm-up/30-run performance harness and safe evidence format; owners run their own target measurements. Fixture default, explicit live quota disclosure and no automated human approval.",
+      "paths": [".agents/skills/local-check/", "scripts/check_local.py", "scripts/benchmark_local.py", "tests/skills/test_local_check.py"]
+    },
+    {
+      "id": "P2-08", "owner": "Paul", "title": "Write/quota acceptance and shared release assembly", "hours": [6, 8], "depends_on": ["P2-02", "P2-05", "P2-06", "P2-07", "A2-08", "J2-08"], "integration_requires": [],
+      "deliverable": "Demonstrate approved/rejected/replayed/partial/unknown write and quota scenarios through stdio, resolve own defects, update own traceability and review Aadyant's feature boundaries. Assemble release evidence supplied and checked by all three; human reviews/tag remain actual team actions. Provide own human reflection.",
+      "paths": ["tests/system/test_playlist_creation.py", "tests/system/test_playlist_authority.py", "docs/evidence/write-and-quota/", "docs/evidence/release/"]
+    }
+  ]
+}

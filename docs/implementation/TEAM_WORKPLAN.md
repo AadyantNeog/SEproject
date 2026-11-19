@@ -1,155 +1,180 @@
 # Team implementation and delivery plan
 
-Version 1.0 · 16 November 2026 · Team Random Stuff · Local proposal; no assignment has been accepted or completed by a teammate merely because it appears here.
+Version 2.0 · 19 November 2026 · Team Random Stuff · Author: Codex
 
-Follow [MASTER_PLAN.md](MASTER_PLAN.md), [CONTRACTS.md](CONTRACTS.md) and [AGENTS.md](../../AGENTS.md). Task IDs below are local planning IDs, not existing GitHub Issues. Create real Issues and add links before implementation PRs. Proposed test paths are targets, not evidence that tests exist or passed.
+Current allocation: equal engineering responsibility across Aadyant, Jeswin and Paul. This user-directed revision supersedes the 16 November allocation and earlier chat prompts. It does not change the submitted SRS, product scope, technical safety rules or actual contribution history. Local preparation is not human review or completed implementation.
 
-Basis: [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md) and [implementation boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md).
+Read [MASTER_PLAN.md](MASTER_PLAN.md), [CONTRACTS.md](CONTRACTS.md), [AGENTS.md](../../AGENTS.md), your role brief and [TASK_MIGRATION.md](TASK_MIGRATION.md). Use **A2-01–A2-08, J2-01–J2-08 and P2-01–P2-08**. Earlier task IDs are retired. [tasks.json](tasks.json) is the machine-readable task/effort/dependency register; [coverage.csv](coverage.csv) maps the unchanged requirements. Real GitHub Issue/PR links remain pending until created.
 
-## 1. Ownership and workload
+Distilled basis: [equal team allocation](../../brain/resources/17-equal-team-allocation.md), [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), [implementation boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md).
 
-| Person | Responsibility | Why the assignment fits |
+## 1. Equal workload and responsibility
+
+| Member | Engineering track | Planned effort |
 | --- | --- | --- |
-| Aadyant Neog, BT2024186 | Architecture/contracts, official API provider, OAuth/secrets, persistence/quota, FR-1/2/3, FR-5 planner/approval/write recovery, MCP integration and release integration | Holds the difficult algorithms, security boundaries and bulk of implementation |
-| Jeswin Jose, BT2024142 | FR-4 pure analytics, period comparisons, readable result/preview/report formatting, relevant unit tests and user examples | Substantive product code on stable inputs, without network/auth/recovery complexity |
-| Paul T Mathew, BT2024135 | Independent synthetic fixture datasets/oracles, offline CI and knowledge validation, skill workflows/evaluations, setup/recovery docs and evidence organisation | Bounded infrastructure and workflow contributions with concrete deliverables |
+| Aadyant Neog, BT2024186 | Common bootstrap/MCP, similarity and recommendations, strict playlist planning, shared presentation and product skill | 8 tasks; 56–80 hours; one third at midpoint |
+| Jeswin Jose, BT2024142 | Validation/HTTP/provider, OAuth/secrets, authorised library retrieval, analytics, knowledge skills and privacy operations | 8 tasks; 56–80 hours; one third at midpoint |
+| Paul T Mathew, BT2024135 | Durable repositories/retention, quota, native approval, playlist writes/recovery, CI and local-check/performance tooling | 8 tasks; 56–80 hours; one third at midpoint |
 
-Estimated implementation effort, including task-specific tests and documentation: **Aadyant 96–140 hours, Jeswin 20–28 hours, Paul 22–30 hours**. At midpoint Aadyant carries about 70% of the work and most of its complexity. These estimates are planning ranges, not measured productivity or grading promises. Add 20–30% team contingency for integration, defect repair, reviews and external setup. No calendar deadline was supplied.
+The equal split covers engineering effort and difficult decisions, not only task counts. Each person implements substantial production code, security/error paths, synthetic fixtures, tests, feature documentation, integration, reviews and an individually explainable demonstration. Nobody is assigned only support work. Estimates are planning ranges, not measured productivity: total 168–240 hours before 20–30% contingency, distributed evenly. Re-estimate after the first integrated slice and rebalance remaining work if actual effort diverges. Do not move all defect repair, reviews or final integration onto one person.
 
-Every teammate must explain their code, run its checks, provide an attributable contribution and participate in human review. A smaller workload does not mean a fabricated contribution. The user requested this allocation; do not quietly redistribute core work to teammates or do their tasks under their names.
+Every owner maintains their requirement/test/Issue/PR/note links and fixes their own defects. AI sessions name the actual AI author; each human writes their own reflection, performs real reviews and commits under their own identity. No fabricated contribution or human approval is permitted.
 
-### Path ownership
+## 2. Path ownership and interfaces
 
-| Paths | Primary owner | Shared-change rule |
+| Area | Primary owner | Collaboration rule |
 | --- | --- | --- |
-| `src/yt_intel/contracts/`, `domain/`, `services/`, `providers/`, `infrastructure/`, `auth/`, `approval/`, `mcp/`, bootstrap/config/CLI | Aadyant | Interface/security changes need an explicit contract/ADR update and human review |
-| `src/yt_intel/analytics/`, `src/yt_intel/presentation/`, corresponding `tests/unit/analytics/` and `tests/unit/presentation/` | Jeswin | Consume merged DTOs; request upstream fields instead of inventing them |
-| `tests/fixtures/`, `tests/skills/`, knowledge/skill/local-check scripts, CI workflows, `docs/user/`, client setup examples, new workflow skills | Paul | Aadyant reviews security/live/shared-tool assumptions; Jeswin reviews analytics fixture expectations |
-| `pyproject.toml`, locks, root `AGENTS.md`, implementation plan, shared `tests/conftest.py`, SRS traceability/index/log | Aadyant integrates | Agree shared edits in the Issue/PR; others propose focused patches rather than overwrite |
-| Individual notes/session records, stage-review content | Actual author | AI sessions name the AI; human reflections are written by the human |
+| Bootstrap, initial dependency locks, common DTO/error/protocol skeleton | Aadyant, A2-01 | Jeswin reviews provider/account inputs; Paul reviews quota/approval/storage inputs before consumer PRs merge |
+| Ranking/profile/constraint/proposal domain; discovery/recommendation/planning services; presentation | Aadyant | No network, auth, database or approval side effects in domain/renderers |
+| Identifier/duration/language parsing, HTTP/redaction, read provider/fixture dispatcher, OAuth/account, library and analytics | Jeswin | One accounted executor; auth uses Paul's deletion/repository interfaces; data snapshot contract is stable |
+| SQLite/repositories/cache/clock/quota/workflow sessions, native approval, creation/recovery and write adapters | Paul | Uses Jeswin's executor/account service and Aadyant's exact proposal/renderer; no independent network or ranking implementation |
+| `mcp/server.py`, common resources/CLI and client skill adapter | Aadyant | Feature owners supply their own service/handler integration and tests; composition ownership is not ownership of all integration |
+| `mcp/discovery.py`, `mcp/planning.py`, recommendations handler | Aadyant | Guards use shared account/quota protocols |
+| `mcp/library.py`, read/account/analysis handlers | Jeswin | Same schemas/bindings as common resources |
+| `mcp/execution.py`, operation/quota/recovery handlers | Paul | Approval stays internal and write authority is checked at runtime |
+| `providers/youtube.py`, `providers/fixture.py` read/dispatch core | Jeswin | Compose Paul's `youtube_writes.py` / `fixture_writes.py` through the common executor |
+| CI/secret scan/shared denied-network tests; local-check and benchmark harness | Paul | All three supply their feature tests; CI calls Jeswin's knowledge validator |
+| Brain-ingest/refine/query and knowledge validator; read-only scheduled live workflow | Jeswin | Every owner authors/updates their own knowledge and skill evidence; operator provisions live credentials |
+| Video-to-playlist skill and feature/client walkthrough | Aadyant | Paul reviews write authority; Jeswin reviews data/consent assumptions |
+| Fixture datasets, expected results, feature docs and evidence | Owner of the corresponding feature | Cross-review expected results independently; no central fixture/documentation backlog assigned to one person |
+| Common manifests/contracts/config, AGENTS, index/log and traceability | Shared with a named editor per PR | Coordinate exact edits; affected owners review interface/dependency changes; append history without overwriting others |
 
-Ownership coordinates work and review; it does not prevent a legitimate reviewed fix. Each owner handles their defects. Never weaken tests, increase budgets or bypass approval to finish a task.
+Foundation interfaces: RequestContext/WorkflowPlan/QuotaLedger, YouTubeProvider, immutable LibrarySnapshot, Proposal/ResumeProposal, AccountService, TokenVault, ApprovalAdapter and repository deletion/expiry protocols. Publish examples and error cases in A2-01; no consumer invents a second representation of account, quota, duration or approval.
 
-## 2. Aadyant's engineering tasks
+## 3. Work order and handoffs
 
-| ID | Effort | Dependencies | Concrete deliverable and definition of done |
+1. **G0 together:** read the same plan/SRS, inspect existing changes/access, create real Issues, agree branches/reviewers and share this revised plan through a human-reviewed PR. Inspect the actual current implementation before claiming anything complete.
+2. **Aadyant starts A2-01.** Jeswin and Paul review the contract draft and prepare independent fixture/oracle/interface questions. They can prototype in isolated tests; consumer implementation merges against the reviewed shared contracts.
+3. **After A2-01 merges, all three code in parallel:** Aadyant starts A2-06's preview and A2-05's stdio/client shell, then A2-02/A2-04; Jeswin starts J2-01 then J2-02/J2-03 (J2-05 pure analytics can also start from snapshots); Paul starts P2-01, proves P2-03 as soon as the preview exists, then P2-02. P2-06 CI scaffolding should start early once package commands exist.
+4. **Read/proposal integration:** Jeswin delivers J2-04 snapshots; Aadyant integrates A2-03 recommendations and A2-04 planning; Jeswin integrates J2-05 reports. Paul verifies actual quota accounting and native approval against these shared objects. Do not wait for live credentials to develop fixtures.
+5. **Writes and skills:** Paul implements P2-04 then P2-05. Aadyant completes A2-07's real product-skill evaluations; Jeswin completes J2-06 knowledge workflows and J2-07 privacy/live-check setup; Paul completes P2-07 local-check/measurement tooling. Use actual tools to evaluate skills, with human approval/rejection supervised.
+6. **Final evidence together:** A2-08 owns feature/ranking/planning integration and measurements; J2-08 owns read/auth/analytics/privacy evidence; P2-08 owns writes/quota/recovery evidence and assembles the checked contributions. All three review the release; an agent cannot supply the human review, approval or tag evidence.
+
+Task dependencies below are prerequisites for the scoped implementation. `integration_requires` in tasks.json records additional real components needed before claiming integrated acceptance. Fake protocol dependencies are valid for isolated tests, never evidence that real integration passed. Large tasks have small reviewed slices: specifically A2-05 publishes the stdio/client shell early, and later registers feature-owner handlers as they land. A dependency on that shell does not require waiting for every final product route.
+
+### Phase view
+
+| Phase | Aadyant | Jeswin | Paul |
 | --- | --- | --- | --- |
-| A01 | 6–8 h | G0 baseline inspection | Package/locked environment, composition skeleton, Pydantic contracts, example DTOs/errors/provider protocol, fixture-mode stdio initialise/tool/resource smoke. Verify chosen SDK release/protocol compatibility. Publish dependency record and contract PR; consumers can import the wheel/package. |
-| A02 | 4–6 h | A01 minimum server | Windows client/skill/native-dialog proof. Demonstrate actual local stdio connection, complete human preview and reject/close producing zero writes. Test helper availability/lifecycle, restrictions on automation, and selected-client skill loading. Record blocked prerequisites honestly. |
-| A03 | 8–12 h | A01; A05 execution accounting before live calls | ID/URL/duration/language validation, live HTTP executor and YouTube provider mappings; fixture provider normaliser/script runner. Mock HTTP tests cover allowlist, batches/pages, omissions, errors, timeouts, no hidden retries. |
-| A04 | 8–12 h | A01; A03/A05 for channel verification | Installed-app OAuth with PKCE/state, protected vault, granted-scope checks, channel binding, refresh and disconnect/deletion. Fake vault/HTTP tests; Windows protected-backend manual proof in authorised local setup. No secrets committed or emitted. |
-| A05 | 10–14 h | A01 | SQLite migrations/repositories, cache expiry/cleanup, project-scoped quota profile/ledger, `WorkflowPlan` and composed workflow sessions. Transaction/restart/DST/concurrency tests prove full-cost reservation and zero calls on insufficient budget, including rejection before the first seed fetch in a multi-tool product skill. A03 may use a fake executor while this lands. |
-| A06 | 8–12 h | A03, A05, P01 discovery fixtures | FR-1/2 candidate discovery, versioned TF-IDF/scoring, bounded channel samples, stable explanations/ties and coverage. Domain and MCP system tests for AT-02/03; policy gate applies to live derived processing. |
-| A07 | 10–14 h | A03–A05, A06 ranking primitive, P01 library fixtures | Budgeted likes/subscriptions/owned-playlist snapshots with continuation, dedup/source membership, recommendation profile and FR-3. Denied/sparse-source and all-signal tests; stable snapshot handoff to Jeswin. |
-| A08 | 8–10 h | A06, contracts; A04 for account binding | FR-5 structured interpretation validation, topic/audio-language/duration hard filters, deterministic bounded selection, immutable proposal digest/version/expiry/revision. Property/boundary tests and complete preview DTO; no provider writes. |
-| A09 | 6–10 h | A02, A04, A05, A08, J03 preview rendering | Production native approval adapter/helper, one-use operation/digest/account-bound grants, cancellation/expiry/forgery defences. Approval tests verify no model input/test flag can grant live consent. |
-| A10 | 14–20 h | A03–A05, A08–A09 | Serial playlist creation and durable intent journal, final verification, partial/unknown responses, crash/restart reconciliation, safe human-assisted unknown-create handling and renewed approval for resume. Fault injection at each boundary; AT-08/09/12/13 regression cases. |
-| A11 | 8–12 h | A06–A10, J01–J03, P02/P03 available increments | Finish MCP tools/resources/services wiring; account/policy checks on every surface, readable structured outputs, process/deadline/cancellation handling, full offline AT-01–AT-16 and skill integration. No tool/schema drift. |
-| A12 | 6–10 h | A11, P04, J04 | Performance evidence, authorised quota-budgeted live verification, stage/final traceability inspection, defect fixes and release integration. External blocks recorded; no release until all mandatory evidence is satisfied. Human review/release actions remain genuine team actions. |
+| Shared foundation | A2-01 package/contracts/smoke | Review provider/account interfaces; prepare parsing/oracles | Review quota/storage/approval interfaces; prepare fault oracles |
+| Parallel foundations | A2-06 renderer; A2-05 early client shell; A2-02 ranking | J2-01 executor/parsing; J2-02 provider; J2-03 OAuth | P2-01 storage; P2-03 early native proof; P2-02 quota; early P2-06 CI |
+| Read and proposal features | A2-03 recommendations; A2-04 proposals | J2-04 library; J2-05 analytics; J2-06 knowledge | Finish ledger/approval integration; P2-04 writes |
+| Recovery and integration | Finish A2-05 routing; A2-07 product skill | J2-07 privacy/scheduled reads; integrate owned handlers | P2-05 recovery; P2-06 full CI; P2-07 local-check/harness |
+| Acceptance/reviews | A2-08 feature evidence and reviews | J2-08 read/privacy evidence and reviews | P2-08 write/quota evidence and assembly |
 
-A04/A05/A03 are mutually integrated slices, not a circular dependency: A01 defines interfaces; A05 implements fake-driven persistence/accounting independently; A03 uses test doubles until real accounting is ready; A04 uses mocked identity/provider responses before live channel verification. Do not enable live traffic during that intermediate state.
+Do not use the old sequence A01 → A02 → A05 from chat. New IDs and this three-track order replace it. No instructor date was supplied. At 15–20 hours per person per week, roughly four to seven weeks including contingency is a capacity illustration, not a promised delivery date; external blocks can extend it.
 
-## 3. Jeswin's bounded product tasks
+## 4. Aadyant's tasks
 
-| ID | Effort | Dependencies | Concrete deliverable and definition of done |
+| ID | Effort | Prerequisites | Deliverable and scoped completion criteria |
 | --- | --- | --- | --- |
-| J01 | 6–8 h | Merged A01 contracts, P01 initial datasets; A07 not required for pure tests | Implement source/unique composition, channel/category counts, unknowns, runtime mean/median/bands and subscription-channel summaries. Tests use a hand-calculated oracle and assert denominators/dedup rules. Code takes an immutable snapshot and imports no provider/auth/SQLite modules. |
-| J02 | 5–7 h | J01 model familiarity, event fixtures | Implement two non-overlapping UTC interval comparisons using allowed event types. Test start/end boundaries, adjacent versus overlapping periods, empty periods, missing dates and zero baseline. Like-event trends explicitly unavailable. |
-| J03 | 6–8 h | A01 public DTOs, A08 proposal example; can begin from contract fixture | Implement readable ranked results, full proposal previews, report tables and actionable error text. Escape metadata and show all approved items, account/privacy, exact/display totals and warnings. Snapshot/targeted tests check semantic content rather than brittle whitespace. Supply the renderer used by native approval. |
-| J04 | 3–5 h | J01–J03 integrated via A11 | Write analytics examples/limitations, verify Windows client presentation, explain FR-4 in the demo, and author own human note/review. Correct own defects and link actual test/PR evidence. |
+| A2-01 | 6–8 h | G0 shared baseline checks | Complete G0 checks, package/runtime/dependency locks, strict common DTOs/errors and provider/quota/approval/repository protocols. Supply immutable synthetic contract examples and subprocess stdio initialise/tool/resource smoke. Both teammates review their interfaces; publish the contract PR before consumers merge. |
+| A2-02 | 10–14 h | A2-01 | Implement FR-1/FR-2 bounded candidate discovery, TF-IDF/cosine, category evidence, deterministic ties and channel sampling. Own ranking/discovery fixtures, independent topical expectations, service tests and feature MCP handlers. Integration uses Jeswin's provider and Paul's reserved contexts. |
+| A2-03 | 6–8 h | A2-02 | Implement FR-3 profile weighting, shared-vector-space ranking, profile exclusions, sparse-source handling and explicit filters. Consume LibrarySnapshot without fetching data inside the domain. Own profile/recommendation fixtures, reasons, unit/service tests and recommendation handler. |
+| A2-04 | 8–12 h | A2-01, A2-02 | Implement FR-5 clarification/validation, strict topic/audio-language/duration eligibility, deterministic packing, immutable proposal digest/version/revision and expiry. Use common parsing/account/repository protocols. Own boundary/property tests and planning handler; no playlist writes. |
+| A2-05 | 8–12 h | A2-01 | Build shared server/CLI/resource routing, strict structured/text output, account guards, progress/cancellation and canonical skill adapter. Coordinate feature-owned handler modules instead of implementing everyone's services. Prove selected-client stdio/resources early; complete registration as owners supply handlers. |
+| A2-06 | 6–8 h | A2-01 | Implement escaped ranked results, complete proposal/resume previews, analytics report rendering and actionable errors from public DTOs. Preserve authoritative totals/evidence, show all items/account/privacy/expiry and fixture labels. Supply early preview examples to Paul's native dialog. |
+| A2-07 | 5–7 h | A2-02, A2-04, A2-05 | Author/evaluate video-to-playlist, including composed quota session before seed fetch, metadata-only summary, clarification, exact preview, human rejection/approval and actual result analysis. Own feature/ranking/planning user docs and selected-client skill walkthrough; no automated live approval. |
+| A2-08 | 7–11 h | A2-03, A2-04, A2-05, A2-06, A2-07, J2-04, P2-05 | Integrate and demonstrate FR-1/FR-2/FR-3/planning through real stdio, measure ranking/planning targets, resolve own defects, update own traceability and review Jeswin's modules. Supply feature release evidence and an individually authored human reflection; do not absorb teammate work. |
 
-Start J01/J02 using synthetic contract fixtures while Aadyant implements retrieval. Do not wait for real Google credentials. If the snapshot lacks a field, file a contract question with a minimal example; do not call the API from analytics or read another account's files.
+## 5. Jeswin's tasks
 
-## 4. Paul's bounded quality/workflow tasks
-
-| ID | Effort | Dependencies | Concrete deliverable and definition of done |
+| ID | Effort | Prerequisites | Deliverable and scoped completion criteria |
 | --- | --- | --- | --- |
-| P01 | 5–7 h | A01 model examples; oracle drafting can start earlier | Synthetic API-shaped video/channel/library/pages and failure manifests with expected outputs authored independently of algorithms. Include private/deleted/omitted metadata, 1,200/1,201-second items, wrong/unknown language, duplicate sources, injection text and partial/unknown writes. Fixture schema validation and no private data. Aadyant implements provider mechanics. |
-| P02 | 5–7 h | A01 working package/check commands | PR CI on Windows/Linux fixtures, build/lint/type/unit/integration/system/secret checks, note/skill/link/traceability validator, PR template and ownership configuration. Test deliberate invalid note/link/skill/secret-shaped synthetic examples safely; real secrets never used. GitHub-run evidence only when actual workflows run. |
-| P03 | 6–8 h | A01, P02; A06/A08/A10 for full product evaluation | Maintain brain-ingest; implement brain-refine, brain-query, local-check and video-to-playlist SKILL.md workflows, client adapter and evaluations. local-check starts/stops its fixture subprocess and fetches via MCP. Evaluate success, negative and authority/evidence cases; do not automate human approval. Aadyant reviews write-related instructions. |
-| P04 | 6–8 h | A02 setup findings; A11/J04 for final evidence | Setup/privacy/recovery/client/tool docs, separately scheduled budgeted read-only live-workflow configuration, performance-report harness, stage-evidence folders and demo checklist. Verify setup from a clean checkout. Explain own fixtures/CI/skills contribution; author own human note/review. Credentials/runner/policy setup remains Aadyant's/operator action. |
+| J2-01 | 8–12 h | A2-01 | Implement supported URL/ID, exact ISO duration and language-tag parsing plus HTTPS route allowlist, timeouts, cancellation, redaction and bounded safe read retries. Debit before dispatch through QuotaLedger; use a fake ledger in offline unit tests until real integration. No hidden retry or write retry. |
+| J2-02 | 10–14 h | J2-01 | Implement official read methods, batching/pagination/omissions/category labels and the fixture provider dispatch/error engine. Own read API-shaped fixtures and contract tests. Compose Paul's separate write adapters/fixture-write script support through the same executor; never fall through from fixtures to live. |
+| J2-03 | 10–14 h | J2-01 | Implement installed-app PKCE/state flow, verified protected vault, refresh/granted scopes/channel binding and scope upgrade. Disconnect orchestrates revocation and account-data deletion through Paul's repositories. Own isolation/redaction/denied-scope/missing-channel tests and consent/privacy docs. |
+| J2-04 | 8–12 h | J2-02, J2-03 | Retrieve likes/subscriptions/owned playlists with source fairness, bounded nested pages/samples, dedup/source memberships and private opaque continuation. Produce immutable snapshots for Aadyant's profile and analytics. Own library fixtures, coverage/denial tests and library/account MCP handlers. |
+| J2-05 | 8–10 h | A2-01 | Implement FR-4 pure source/unique summaries, denominators, runtime bands/mean/median and separate subscription counts. Compare allowed events over non-overlapping UTC intervals, with unknown like dates and zero baselines disclosed. Own hand-calculated oracles, analytics service/handler and tests. |
+| J2-06 | 4–6 h | A2-01 | Maintain brain-ingest; implement brain-refine and brain-query, their positive/negative/evidence cases, and note/skill/link/traceability validation. Preserve source/authorship/history. Expose a stable validation command for Paul's CI; all owners maintain their own notes and skills. |
+| J2-07 | 4–6 h | J2-02, J2-03, P2-06 | Document clean-checkout consent/disconnect, retention/AI-client disclosure, token recovery and D-02 status. Prepare a separately scheduled protected-runner read-only workflow with fixed budget and honest blocked prerequisites. Operator provisions credentials; no live writes or unattended approval. |
+| J2-08 | 4–6 h | J2-04, J2-05, J2-06, J2-07, A2-05, P2-01, P2-02 | Prove HTTP/account/library/analytics integration with real SQLite/quota and stdio, verify disconnect/retention, show FR-4 and read failures, update own traceability and review Paul's critical invariants. Supply read/privacy release evidence and own human reflection; no fabricated live result. |
 
-Automated skill validators prove file/schema integrity and deterministic workflow steps; they do not prove the client followed a conversational skill correctly. P03 includes actual selected-client observed evaluations, with human approval/rejection cases supervised. Record unperformed cases as blocked/pending instead of generating a pass table.
+## 6. Paul's tasks
 
-## 5. Dependency graph and integration gates
+| ID | Effort | Prerequisites | Deliverable and scoped completion criteria |
+| --- | --- | --- | --- |
+| P2-01 | 8–12 h | A2-01 | Implement migrations, private account-bound repositories, operation intent storage, clock/cache, TTL/hard deletion and minimal replay tombstones. Protect runtime paths outside git and preserve project quota on account deletion. Publish deletion/repository interfaces for Jeswin and Aadyant with simulated-time/restart tests. |
+| P2-02 | 10–14 h | P2-01 | Implement dated general/search profiles, project-scoped atomic reserve/spend/release, conservative crash accounting, Pacific DST reset and full composed-workflow sessions. Prove insufficient budget rejects before seed/provider calls, concurrent requests cannot overspend and changed profiles/restarts fail safely. |
+| P2-03 | 6–8 h | A2-01, A2-06 | Prove helper/client lifecycle early using the fixture stdio skeleton and full preview, then implement challenge-bound human decisions and internal one-use account/digest/operation grants. Reject close/timeout/forgery/headless paths with zero writes. No client/model automation may operate a live control. |
+| P2-04 | 10–14 h | P2-01, P2-02, P2-03, A2-04, J2-02, J2-03 | Implement exact approved write bodies through Jeswin's executor, operation claim, preflight/revalidation, intent-before-dispatch, serial insertions, final verification and partial/unknown status. Own live-write adapter, fixture write-state engine/scenarios, execution MCP handler and fault/security tests; never auto-retry writes. |
+| P2-05 | 8–12 h | P2-04 | Implement replay safety, restart and ambiguous create/item reconciliation, verified-prefix/missing-suffix resume proposals with fresh approval and expired-result handling. Own independent fault matrix, repeated-operation MCP tests, recovery documentation and honest unknown/manual-action paths. |
+| P2-06 | 4–6 h | A2-01 | Implement locked Windows/Linux PR build/lint/type/offline test/secret checks, shared denied-network test setup, PR template and ownership policy. Run Jeswin's knowledge validator once available; pin actions/scanners and keep untrusted PRs credential-free. Each owner supplies their own feature fixtures/tests. |
+| P2-07 | 4–6 h | A2-05, P2-06, J2-02 | Implement/evaluate local-check with separate build/tests/start/read-only MCP fetch/cleanup statuses. Supply reusable one-warm-up/30-run performance harness and safe evidence format; owners run their own target measurements. Fixture default, explicit live quota disclosure and no automated human approval. |
+| P2-08 | 6–8 h | P2-02, P2-05, P2-06, P2-07, A2-08, J2-08 | Demonstrate approved/rejected/replayed/partial/unknown write and quota scenarios through stdio, resolve own defects, update own traceability and review Aadyant's feature boundaries. Assemble release evidence supplied and checked by all three; human reviews/tag remain actual team actions. Provide own human reflection. |
+
+## 7. Dependencies and delivery gates
 
 ```mermaid
 flowchart TD
-    G0[Baseline and Issues G0] --> A01[A01 contracts and skeleton]
-    A01 --> A02[A02 client and authority proof]
-    A01 --> A05[A05 storage and quota]
-    A01 --> A03[A03 providers and validation]
-    A01 --> P01[P01 fixture datasets]
-    A01 --> P02[P02 CI and validators]
-    A03 --> A04[A04 OAuth and account]
-    A05 --> A04
-    A03 --> A06[A06 discovery and ranking]
-    A05 --> A06
-    P01 --> A06
-    A06 --> A07[A07 library and recommendations]
-    A04 --> A07
-    A06 --> A08[A08 strict proposals]
-    A04 --> A08
-    P01 --> J01[J01 and J02 analytics]
-    A01 --> J03[J03 presentation]
-    A08 --> A09[A09 human approval]
-    A02 --> A09
-    J03 --> A09
-    A09 --> A10[A10 write and recovery]
-    A07 --> A11[A11 all features through MCP]
-    J01 --> A11
-    A10 --> A11
-    P02 --> P03[P03 skills and evaluations]
-    A11 --> Final[A12 and P04 and J04 evidence]
-    P03 --> Final
+    G0[Shared baseline and reviewed plan] --> A01[A2-01 common contracts]
+    A01 --> A06[A2-06 exact preview]
+    A01 --> A05[A2-05 early stdio shell]
+    A01 --> A02[A2-02 ranking]
+    A01 --> J01[J2-01 HTTP and parsing]
+    A01 --> P01[P2-01 storage]
+    A06 --> P03[P2-03 native approval proof]
+    P01 --> P02[P2-02 quota]
+    J01 --> J02[J2-02 provider]
+    J01 --> J03[J2-03 OAuth]
+    J02 --> J04[J2-04 library]
+    J03 --> J04
+    A02 --> A03[A2-03 recommendations]
+    J04 --> ReadGate[Integrated read and planning gate]
+    A03 --> ReadGate
+    A02 --> A04[A2-04 planning]
+    A04 --> ReadGate
+    P02 --> ReadGate
+    P03 --> P04[P2-04 writes]
+    ReadGate --> P04
+    P04 --> P05[P2-05 recovery]
+    P05 --> Evidence[All three owned acceptance tracks]
+    A05 --> Evidence
 ```
 
-The graph shows principal dependencies; task tables retain additional checks. Aadyant remains the critical path. Teammates work in their own branches/checkouts and integrate against merged contracts rather than editing his uncommitted files.
+The diagram is a principal integration view; tasks.json contains the exact implementation prerequisites and integration requirements, including analytics, CI and skills omitted from the compact diagram. Check both sets at the relevant gate. Cross-track calls share interfaces and test doubles until real components are ready, then actual integration must pass.
 
-| Gate | Required outcome before declaring it complete |
+| Gate | Exit evidence |
 | --- | --- |
-| G0 Baseline/workflow | Read SRS and brain; inspect existing edits; create real task/dependency Issues; verify members' actual access/identity, branch protection and baseline hashes. Existing Stage 1 CI/human evidence gaps are visible. |
-| G1 Contracts and feasibility | A01 and A02 reviewed; package/bootstrap works; selected-client stdio/resources and skills proven; native confirmation authority/lifecycle tested. Jeswin/Paul can start independent work. D-02 clarification requested/tracked. |
-| G2 Foundations and discovery | A03–A06 plus P01/P02 pass applicable offline checks. Inputs, HTTP allowlist, OAuth mocked failures, SQLite/quota/restart/concurrency and FR-1/2 complete through MCP. No live-derived claim while D-02 unresolved. |
-| G3 Read features and planning | A07/A08 and J01–J03 pass; FR-1/2/3/4 plus strict proposals function end-to-end in fixtures. Full preview is stable and trusted renderer shared. |
-| G4 Writes and failure safety | A09–A11 pass negative/security/fault-recovery tests through MCP; complete/reject/replay/partial/unknown scenarios demonstrated with synthetic provider. P03 skill evaluations are real observed records. |
-| G5 Live and submission evidence | A12/J04/P04; policy/account/client prerequisites resolved, authorised live FR-1–FR-5/skills and scheduled checks evidenced, NFR targets measured, traceability and human PR reviews complete, instructor stage checklist satisfied. Missing live evidence is a block. |
+| G0 Reviewed allocation/baseline | Same revised docs, real Issues/identities/access and task branches; unchanged SRS; historical allocation explicitly superseded |
+| G1 Shared contracts and client/authority feasibility | A2-01 merged; A2-05 shell/client proof; A2-06 exact preview; P2-03 human rejection/expiry/lifecycle proof. Protocol and native trust remain blockers until demonstrated |
+| G2 Accounted provider foundations | J2-01/J2-02/J2-03 + P2-01/P2-02 integrated; secure identity/storage and real quota debit-before-dispatch; offline CI basics from P2-06 |
+| G3 Read features and strict proposals | A2-02/A2-03/A2-04/A2-06 + J2-04/J2-05 work through stdio with actual fixture provider/storage/quota; no assumed watch history or fabricated language |
+| G4 Write/recovery and skill safety | P2-03/P2-04/P2-05 plus A2-07/J2-06/P2-06/P2-07 pass applicable real offline security/fault/skill evaluations; zero writes for refusal/forgery/replay; unknown outcomes disclosed |
+| G5 Actual acceptance/submission | A2-08/J2-07/J2-08/P2-08 supply measured/observed evidence, resolved live dependencies, all 46 requirements/20 ATs/TQ/SK mapped, actual human reviews and release artefacts |
 
-A rough five-to-seven-week envelope at Aadyant's 20–30 hours/week: week 1 contracts/spikes/fixtures; weeks 2–3 foundations/discovery/library and parallel analytics/CI; weeks 4–5 planning/approval/recovery/skills; weeks 6–7 integration/live/defects/reviews as needed. This is conditional capacity planning. Re-estimate after G1 and G3; do not shrink required tests to fit an unsupported date.
+SRS stage alignment remains: Stage 1 SRS/vault/AGENTS/repository/CI skeleton; Stage 2 reviewed architecture/ADRs/diagrams and brain-refine/query/local-check; Stage 3 tested CI/skills/defects/regressions and stage reviews; Stage 4 live five-feature/skill walkthrough, traced evidence, final human review/tag/changelog. Functional gates do not replace instructor submissions. Unresolved D-02, credentials, runner or trusted human approval remains blocked, never passed.
 
-### SRS stage alignment
+## 8. Commits, review and integration responsibility
 
-Stage 1: preserve current SRS, notes and AGENTS; finish any real repository/CI-skeleton/human-review gaps. Stage 2: reviewed architecture/UML/ER/state/sequence diagrams and ADRs, brain-refine/query and initial local-check. Stage 3: automated testing/CI results, evaluated product skill, defects/regressions and stage review. Stage 4: live five-feature/skill walkthrough, traceability, release/tag/changelog and final review. Functional gates help implementation; they do not replace instructor stage submissions.
+- Claim one dependency-ready task Issue; branch from reviewed main using `codex/<v2-task-id>-<purpose>` for agent work. Do not push directly to main or overwrite teammates' work.
+- Commit regularly after coherent verified steps and before switching tasks or handing off. Stage only intended changes, reference the task/Issue and use descriptive messages. Do not hold an entire task/project for one final commit. Preserve unrelated local edits.
+- Each task owner writes/runs their necessary tests, supplies independent synthetic fixtures/oracles, integrates their service/handler, maintains docs/traceability and repairs defects. Use real stdio tests for protocol behaviour and real components for final integration; passing a fake is not the latter.
+- Aadyant's default reviewer is Jeswin; Jeswin's is Paul; Paul's is Aadyant. Add the affected specialist for a critical shared boundary. At least one non-author human actually reviews every PR; agents may assist but cannot manufacture approval.
+- Coordinate one editor per shared manifest/contract/index/log change. The affected owners review a contract delta before consumers depend on it. Shared ownership does not mean simultaneous uncoordinated writes.
+- Rotate coordination: Aadyant coordinates foundation/feature readiness, Jeswin coordinates read/consent/privacy readiness, Paul coordinates write/recovery/release assembly. Every owner supplies and verifies their portion; none is the default author of all integration fixes or docs.
+- A PR handoff lists task, changed behaviour/files, checks actually run, requirements/Issue/PR/test/skill/note links, integration-ready interfaces and remaining blocks. Do not claim a task or acceptance case complete merely because a planning row exists.
 
-## 6. Branch, Issue, PR and review protocol
+## 9. Evidence and workload checkpoints
 
-1. An owner claims one task Issue with requirements, scope, dependencies, intended files, expected tests and open questions. Use actual GitHub links; never substitute `A07` for a real Issue URL in traceability.
-2. Branch from current reviewed `main` using `codex/<task-id>-<short-purpose>` for agent work, or the team's agreed human branch convention. One active owner per implementation area. Avoid a shared working directory for simultaneous agent edits.
-3. Keep task-sized incremental commits. Security-sensitive tasks may use multiple reviewable PRs, such as quota storage then accounting tests, or write journalling then reconciliation. No direct pushes to protected main and no force pushes to teammates' branches.
-4. Run scoped checks, then required PR checks. Update the requirement register with the actual implementation test path and Issue/PR links, add/update a distilled note/ADR when needed, and record significant AI sessions honestly. Shared index/log changes are appended and conflict-resolved without erasing others' entries.
-5. PR body states trigger/problem, resulting behaviour, tests actually run, remaining blocks, requirements and risks. At least one actual human other than the author reviews. AI review assists but never supplies the human approval.
-6. Aadyant integrates shared contract/dependency changes and keeps consumers compatible. Merge only after checks and review; preserve attributable commit authors. Do not merge, publish, tag or send messages on someone's behalf without appropriate session authority.
+At G1/G3 and each weekly checkpoint compare actual effort, completed complexity, pending defects, review and integration load. If one track exceeds the others materially (for example by over 15% of remaining estimated effort), explicitly redistribute a bounded unstarted task or reduce that person's other obligations and update all task/ownership/coverage documents. Do not silently move work or remove required scope. Review counts and hours support judgement; they do not override the actual difficulty or quality of the work.
 
-Suggested reviewers: Jeswin reviews Aadyant's discovery/profile/results against fixtures; Paul reviews Aadyant's quota/approval/recovery acceptance evidence using documented invariants; Aadyant reviews Jeswin's arithmetic/DTO use and Paul's CI/skills/live-workflow permissions. Reviewers ask the author to demonstrate unclear code. A superficial approval is not a substitute for understanding; get additional instructor help if a critical boundary remains uncertain.
+Each owner contributes their scoped docs/evidence: date, mode, commit, runtime/client versions, inputs, expected/observed results, pass/fail/blocked, fixture IDs, actual timings/quota where required, limitations and real links. No secrets/private payloads in git. All three personally author a human reflection and explain their implementation. Before a stage submission, each checks their own skills/requirements and the team produces a real stage review.
 
-## 7. Task completion and evidence format
+## 10. Copyable prompts for each coding agent
 
-Every task closes only when its scoped code/docs exist, necessary tests pass, expected limitations are documented, real links are present, a human PR review occurred and the owner can explain the result. Planning checks do not close implementation tasks. Broken CI, secret exposure, approval bypass, cross-account access or duplicate writes block release.
+Aadyant:
 
-Evidence records under `docs/evidence/<stage-or-feature>/` should contain: date, mode, commit, runtime/client versions, synthetic fixture identifiers or redacted live configuration, commands/inputs, expected/observed results, pass/fail/blocked per step, elapsed/quota values where relevant, limitations, owner and review/Issue/PR links. Capture no tokens, callback URLs, private library dumps or raw account identifiers unnecessarily. Keep live account-specific screenshots/exports out of git unless safely anonymised and actually authorised.
+> Read root AGENTS.md and the version 2 master plan, contracts, team workplan, tasks.json, coverage and roles/AADYANT.md. Start with A2-01 after G0 checks, then choose a dependency-ready A2 task. Own ranking/recommendations/planning/MCP/presentation and video-to-playlist. Jeswin and Paul own equally substantial tracks; request their interfaces and integrate your own handlers without taking over their work. Commit regularly, run relevant checks and prepare a human-reviewable PR handoff. Earlier A01–A12 prompts are retired.
 
-Before each stage, Paul checks evaluation records and knowledge validity; owners repair their paths; the team writes an actual stage review. Before release, Aadyant checks all 46 requirement rows, all 20 ATs, TQ-1–TQ-8, SK-01–SK-06, human identities/reviews, changelog and a reviewed release tag. Do not call any of these complete because this document lists them.
+Jeswin:
 
-## 8. Copyable teammate prompts
+> Read root AGENTS.md and the version 2 implementation documents plus roles/JESWIN.md. After A2-01 contracts merge, start J2-01; use isolated contract fixtures while real ledger/storage components develop. Own HTTP/read provider/OAuth/library/analytics, knowledge skills and privacy/live-read setup. Implement your own tests/docs/handler integration, commit regularly and coordinate shared interfaces with both teammates. Never bypass quota, protected credentials or human write approval. Earlier J01–J04 prompts are retired.
 
-Give Jeswin's agent this instruction with his actual task Issue:
+Paul:
 
-> Read root AGENTS.md, docs/requirements/SRS.md, brain/index.md, docs/implementation/MASTER_PLAN.md, CONTRACTS.md, TEAM_WORKPLAN.md and roles/JESWIN.md. Work on my assigned J-task only, starting from merged contracts. Own analytics/presentation and their tests. Use synthetic snapshots, no YouTube/OAuth/database/approval changes. Inspect git status and preserve existing edits. If a required shared field is absent, propose a contract change instead of inventing an API. Report actual checks and pending links. Attribute AI notes to the AI and leave human review to humans.
+> Read root AGENTS.md and the version 2 implementation documents plus roles/PAUL.md. After A2-01 contracts merge, start P2-01; prove P2-03 as soon as A2-06 preview exists, develop P2-02 quota and early P2-06 CI. Own durable storage/quota/native approval/playlist writes/recovery, local-check and benchmark tooling. Use Jeswin's accounted executor and Aadyant's exact proposals. Commit regularly, test crash/authority failures, integrate your own handlers and report actual evidence. Never automate human confirmation. Earlier P01–P04 prompts are retired.
 
-Give Paul's agent:
+Reusable continuation:
 
-> Read root AGENTS.md, docs/requirements/SRS.md, brain/index.md, docs/implementation/MASTER_PLAN.md, CONTRACTS.md, TEAM_WORKPLAN.md and roles/PAUL.md. Work on my assigned P-task only. Own synthetic fixtures, workflow/knowledge checks, skills/evaluations and docs in the allowed paths. Do not change production ranking/provider/auth/quota/approval/recovery or claim a scheduled live run happened. Keep PR CI offline; live credentials/configuration belong to the operator. Run the relevant checks and record pass/fail/blocked honestly. Never automate human playlist confirmation or human PR approval.
-
-For Aadyant's coding agent:
-
-> Read root AGENTS.md and the implementation documents, then work on the next dependency-ready A-task from roles/AADYANT.md. Preserve the SRS and existing document edits. Establish contracts and early client/approval feasibility first. Build fixture-driven security/quota/recovery tests with the implementation. Keep shared interfaces stable for Jeswin and Paul, and do not silently take over their contributions. Mark external policy/live/review dependencies blocked rather than passed.
+> Inspect the reviewed current branch and version 2 tasks.json. Work on [V2 TASK ID] only after its prerequisites/interfaces are ready. Preserve existing edits, stay within the shared ownership rules, commit coherent verified steps and report actual tests, integration status and pending links. Prepare the PR for a real teammate's human review.

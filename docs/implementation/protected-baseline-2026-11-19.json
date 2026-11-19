@@ -1,0 +1,24 @@
+{
+  "captured_on": "2026-11-19",
+  "purpose": "Preserve existing SRS, source briefs and output documents during allocation revision",
+  "sha256": {
+    "docs/requirements/ieee-compact-preservation.json": "9668f0c3c423c5c8c0c117d95b98112061e11c3f2fa59fbe8c6a9ac68132a690",
+    "docs/requirements/ieee-requirements-map.csv": "71274dc2bdb547e20ea0cf6be05d77936944ba14eb8b6a446e49e83aec4cf682",
+    "docs/requirements/ieee-template-provenance.json": "6cd2c413899e8c1c33926075f311b1c9b377006ef43138ae930b560c5d7c459e",
+    "docs/requirements/requirements.json": "8b199f5f68169616946d2484434a187fe7733843c770a016e5855bb4208fe1f3",
+    "docs/requirements/SRS.md": "67266a81b4ecde190d7d72250aad4e182fe8199e25a170c4e3b1f1343a4f579e",
+    "docs/requirements/SRS_IEEE.md": "6c1216ce0acb734365ba58bc326d5a049363f5c402d46bfc76cd43c74eb55337",
+    "docs/requirements/SRS_IEEE_Compact_QA.md": "d0b55fa72d5a6e8ea04cd39ad3b7ca50755b1a3a64e4ad3046a0185271f38ad6",
+    "docs/requirements/SRS_IEEE_QA.md": "4e9fc4e1316e4b4c151e69c3ce75e767cbb5a72f3e2644287d7bea7923bee608",
+    "docs/requirements/SRS_IEEE_submission_review.md": "b58dd11a5a9c6d904fb46f9c7cc2748270fecf198aabf832e38f9ba49ffb21cf",
+    "docs/requirements/SRS_QA.md": "3f7c91f35a27093c3d285ee7e79f39fafe9b9d3aa7a37521f2ad092e2b3aa964",
+    "docs/requirements/traceability.csv": "d3a53dbf5b3689083409a935af48d1304d142fadb27682d5354f25e394ce556e",
+    "output/pdf/RandomStuff_SRSsubmission.pdf": "db4226bbdc30c8e2010af62f2670a5df1b1feda69782cec768e98090b78d192c",
+    "output/pdf/SRSv1.pdf": "20b02918d5f51897a9989ced432d14e6869e0938a362e78566874b969929b1a1",
+    "output/pdf/YouTube_Video_Intelligence_SRS.pdf": "dcce9dafd873cdc0db34c7d4211d9d6e4e3852c776a1f116ec2c39b66c21dc20",
+    "output/docx/YouTube_Video_Intelligence_SRS_IEEE.docx": "1cd5201ccff818ed842763107c59ac8d14d5084f4cab672a4507e21e217ae576",
+    "output/docx/YouTube_Video_Intelligence_SRS_IEEE_Compact.docx": "a3d07aa28aae57c442e92219cec5839c8135bb296e7623d2889bf03fb5baf403",
+    "Project_1_YouTube_MCP.pdf": "d22caeb410bc7317eaf556f542efb5e8f83cecc8fd18cc545ea700705e6a8321",
+    "SDLC_and_Workflow.pdf": "73e4a2b371af1f753b6df038b363a197ba81c6967113a91f4fa1c5eb38cc574c"
+  }
+}
