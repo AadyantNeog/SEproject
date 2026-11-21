@@ -1,43 +1,38 @@
-# Team lead review policy
+# Team lead and owner review policy
 
-Version 2.1 · 21 November 2026 · Team lead: Aadyant Neog · Author: Codex
+Version 2.2 · 21 November 2026 · Team lead: Aadyant Neog · Author: Codex
 
-Aadyant is the required human reviewer for every PR and deliverable produced by Jeswin or Paul. This replaces the rotating-review arrangement. The existing 24 implementation tasks, their owners, prerequisites and 56–80-hour engineering ranges remain; lead review and coordination are additional work tracked separately. The SRS and product approval/security boundaries are unchanged.
+Aadyant reviews every Jeswin/Paul PR and deliverable. Jeswin and Paul are not assigned to review Aadyant's PRs. His chosen AI model provides automated review assistance, followed by his own actual, recorded human review of the changes. The SRS is frozen as submitted; AI output alone is not human-review evidence.
 
-## Review ownership
+## Review responsibilities
 
-| Work author or contributor | Required review and acceptance |
+| Work | Review workflow |
 | --- | --- |
-| Jeswin | Aadyant reviews every PR and deliverable; Jeswin addresses feedback and returns the updated version to Aadyant |
-| Paul | Aadyant reviews every PR and deliverable; Paul addresses feedback and returns the updated version to Aadyant |
-| Jeswin and Paul jointly | Aadyant reviews the combined work and its integration/evidence |
-| Aadyant | Jeswin or Paul, who did not author or materially coauthor the change, provides the independent human PR review; Aadyant's self-check is not that review |
-| Teammate work materially coauthored by Aadyant | Aadyant still checks the teammate deliverable as lead; another non-author human supplies independent review of the combined change |
+| Jeswin's or Paul's PRs/deliverables | Aadyant personally reviews the exact version; authors fix findings and return material changes for re-review |
+| Aadyant's PRs/deliverables | His chosen AI reviews the diff; he personally reads/verifies it, resolves findings and records his own human owner-review note; no Jeswin/Paul review assignment |
+| Joint work | Disclose authorship. Aadyant reviews teammate portions and performs AI-assisted recorded human owner review of his own portions; do not claim independent review of material he authored |
 
-This applies to code, tests, fixtures/oracles, architecture/contracts/ADRs, documentation, skills, brain notes, validation reports, demonstrations, integration evidence and stage/release deliverables. A passing CI run, AI review, model-controlled approval field or another teammate's feedback does not replace Aadyant's required review. If no eligible independent reviewer is available for Aadyant-authored/coauthored work, keep the PR unmerged until a real reviewer is available.
+The workflow covers code, tests/fixtures, contracts/design/ADRs, docs, skills, brain notes, reports/demos and stage/release evidence. Authors retain implementation, integration, fixes and truthful evidence. Aadyant's review role does not transfer their work to him.
 
-The non-author rule is the project's independent-review safeguard. GitHub also prevents an author from approving their own PR. [GitHub review documentation](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request).
+## Source requirement and truthful evidence
 
-## Handoff and review cycle
+The submitted SRS GOV-03 requires at least one human review per PR. The supplied `SDLC_and_Workflow.pdf`, page 2, requires a human to review every AI-generated PR change. Neither passage names Jeswin/Paul or explicitly requires a different teammate. The previous mandatory teammate/non-author assignment was a design choice and is removed. This plan records Aadyant's actual manual owner review as such; it does not invent instructor acceptance of a particular evidence format.
 
-1. The author completes a coherent change on their task branch, commits regularly, runs the relevant checks and prepares a PR or versioned deliverable. Each author remains responsible for implementation, tests, docs, integration fixes and truthful evidence.
-2. The handoff names the task/requirements, actual Issue/PR links, exact commit or artefact version, changed behaviour, checks/observations, remaining blocks and decisions needed. A standalone report or demo links its source commit and observable evidence. Keep secrets/private payloads out of review records.
-3. Teammates request Aadyant's human review. He checks scope, correctness, interfaces, relevant authority/quota/privacy/recovery invariants, necessary tests, documentation and traceability. Affected owners may give technical input; it does not substitute for the required reviewer.
-4. Record Aadyant's actual decision against that version: changes requested, approved, or still pending. The author fixes findings, commits the changes and requests review again. A materially changed commit/deliverable needs fresh review; do not carry an earlier approval forward silently.
-5. Merge/accept only after the required current-version human review and checks. Aadyant coordinates stage/release readiness and reviews the teammate evidence bundle; the owner still assembles and demonstrates their contribution. Aadyant-authored portions retain the independent-review rule above.
+AI findings must remain labelled AI-generated. A human review record names the person, exact commit or artefact version, checks actually performed, findings/resolutions, decision, date and evidence link. Do not generate a completed review record before Aadyant actually performs it. After material changes, rerun relevant AI/checks and repeat the manual review.
 
-Review requests and approvals are genuine human actions. Agents may prepare diffs, run checks, explain findings and draft handoff text, but cannot impersonate Aadyant, Jeswin or Paul, submit fabricated approvals, mark lead acceptance from chat inference, or send review-request messages without authority. Local preparation or a commit is not a completed PR review.
+Owner review is not independent GitHub approval: GitHub does not let a PR author approve their own PR. Existing repository protection/approval requirements remain in force; do not bypass them, fabricate another reviewer or change remote settings as part of this edit. [GitHub review documentation](https://docs.github.com/en/pull-requests/how-tos/review-pull-requests/reviewing-proposed-changes-in-a-pull-request).
 
-Engineering review does not grant OAuth scope or approve a learner's playlist. Live account writes still require the application's trusted human approval of the exact account-bound proposal through the existing FR-5 workflow.
+## Handoff and acceptance
 
-## Repository configuration and evidence
+1. Authors commit coherent increments, run relevant checks and provide task/requirement/Issue/PR links, the exact version, actual results and open issues.
+2. Jeswin/Paul submit their work to Aadyant. He records the actual decision; they fix findings and request re-review of materially changed work.
+3. For Aadyant's own work, his AI produces findings; he personally evaluates them, inspects/verifies the change and records human owner-review evidence. A better AI model is not itself a human reviewer.
+4. Acceptance requires the appropriate actual human review, relevant checks and any applicable existing repository protections. No AI/CI flag, silence, local commit or generated note is treated as human approval.
 
-P2-06 prepares CODEOWNERS/PR-template/required-review settings or checks to implement this policy using verified real accounts and available repository capabilities. It must cover both teammate-authored and Aadyant-authored PRs without creating a self-approval loophole or blocking legitimate independent review. Merely listing several owners does not require every listed owner to approve; GitHub documents that any one matching owner may satisfy its code-owner approval requirement. [GitHub code-owner documentation](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners).
+Agents may prepare review reports and handoff drafts, but cannot impersonate reviewers or publish messages/approvals without authority. Engineering review does not grant OAuth access or approve a learner's playlist; FR-5's trusted exact-proposal human interaction is unchanged.
 
-Verify the author/reviewer matrix, changed-version re-review and absent-approval refusal before claiming repository enforcement. Do not invent GitHub handles, change remote settings as part of this local planning edit, or claim existing protection/approvals were inspected. Until configuration is actually verified, this is the documented workflow and its enforcement evidence remains pending.
+## Implementation and workload
 
-## Workload and scheduling
+The 24 A2/J2/P2 tasks, owners, dependencies and 56–80-hour implementation ranges are unchanged. Author verification includes Aadyant's AI-assisted personal checks. His centralized review/coordination of teammate work is additional and separately tracked; equal total workload is not claimed. P2-06 documents the two review modes and verifies any eventual repository enforcement using real accounts without silently disabling existing protections. Actual settings, review decisions and instructor acceptance remain unverified until evidenced.
 
-The eight tasks and 56–80-hour range per person describe the equal implementation baseline, including tests/docs/integration, author self-checks, review preparation and feedback fixes. They exclude Aadyant's centralized lead-review/coordination time and independent reviews of Aadyant's PRs. Track those review hours separately. Total workload is therefore not asserted equal after this leadership assignment. At G1/G3 and weekly checkpoints, Aadyant schedules review capacity and records any explicitly agreed remaining-work adjustment; no agent silently reallocates coding or removes a review gate to meet a date.
-
-Basis: [18-team-lead-review-governance](../../brain/resources/18-team-lead-review-governance.md), [12-engineering-and-knowledge-workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), [ADR-0007](../adr/0007-team-lead-review-and-deliverable-acceptance.md). The author/reviewer policy is also represented in [tasks.json](tasks.json).
+SRS submission was reported by the user on 21 November as about a week earlier. Exact date and submitted rendition were not specified; do not invent them or edit any SRS source/output. Basis: [source note 19](../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md), [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), [ADR-0008](../adr/0008-owner-ai-assisted-review-and-frozen-srs.md), and [tasks.json](tasks.json).

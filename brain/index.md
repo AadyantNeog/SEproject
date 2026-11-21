@@ -12,6 +12,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-16-implementation-master-plan]]
 - [[2026-11-19-equal-workload-revision]]
 - [[2026-11-21-team-lead-review-update]]
+- [[2026-11-21-own-pr-review-clarification]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
@@ -34,6 +35,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[16-official-api-design-check-2026-11-16]]
 - [[17-equal-team-allocation]]
 - [[18-team-lead-review-governance]]
+- [[19-owner-ai-assisted-review-and-submitted-srs]]
 
 ## Structure
 
@@ -41,4 +43,4 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 
 ## Current evidence
 
-SRS preparation and the implementation planning records exist. Current version 2.1 retains the equal implementation allocation from 19 November and adds Aadyant-led review on 21 November; see [[17-equal-team-allocation]], [[18-team-lead-review-governance]] and [[2026-11-21-team-lead-review-update]]. The earlier unequal plan remains a historical session record. See [[srs-baseline]] for the member roster. Individual human contributions/reviews, product implementation, actual CI, GitHub Issues/PRs, live acceptance and submission remain pending; no remote review or release is implied by local files.
+SRS preparation and the implementation planning records exist. Current version 2.2 retains the equal implementation allocation from 19 November and adds Aadyant-led review on 21 November; see [[17-equal-team-allocation]], [[18-team-lead-review-governance]] and [[2026-11-21-team-lead-review-update]]. The earlier unequal plan remains a historical session record. See [[srs-baseline]] for the member roster. The user confirmed on 21 November that the SRS was submitted about a week earlier; exact date/rendition was not specified. Its topic and requirements remain frozen. Product implementation, actual human PR reviews/CI, live acceptance and later-stage release remain pending; no remote review or release is implied by local files.

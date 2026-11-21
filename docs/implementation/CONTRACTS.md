@@ -1,8 +1,8 @@
 # Shared implementation contracts
 
-Version 2.1 · 21 November 2026 · Ownership: shared across the three engineering tracks · Status: design, implementation pending
+Version 2.2 · 21 November 2026 · Ownership: shared across the three engineering tracks · Status: design, implementation pending
 
-Read with [MASTER_PLAN.md](MASTER_PLAN.md), [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md), [tasks.json](tasks.json) and [TASK_MIGRATION.md](TASK_MIGRATION.md). A2-01 turns the common contracts into validated models/protocols/examples, with Jeswin/Paul providing affected-owner technical input and an eligible non-author independently reviewing the Aadyant-authored foundation. Consumer merges use that reviewed baseline. Later changes have a named editor, affected-owner technical input plus the required human review and updated examples/tests. Documentation version 2.1 adds team-lead review under [REVIEW_POLICY.md](REVIEW_POLICY.md); the application schema below remains version 1. No implementation is claimed here.
+Read with [MASTER_PLAN.md](MASTER_PLAN.md), [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md), [tasks.json](tasks.json) and [TASK_MIGRATION.md](TASK_MIGRATION.md). A2-01 turns the common contracts into validated models/protocols/examples, with Jeswin/Paul providing affected-owner technical input and Aadyant using his chosen AI reviewer and recording his personal human review of the foundation. Consumer merges use that reviewed baseline. Later changes have a named editor, affected-owner technical input plus the required human review and updated examples/tests. Documentation version 2.1 adds team-lead review under [REVIEW_POLICY.md](REVIEW_POLICY.md); the application schema below remains version 1. No implementation is claimed here.
 
 Basis: [lead-review governance](../../brain/resources/18-team-lead-review-governance.md), [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [partial writes](../../brain/resources/07-playlist-writes-and-partial-failure.md), [planning boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), [equal allocation](../../brain/resources/17-equal-team-allocation.md).
 
@@ -229,3 +229,5 @@ Planned commands, implemented by the corresponding tasks:
 | `python scripts/check_local.py --provider fixture` | Five-step local-check with process cleanup |
 
 No command is asserted to exist yet. `serve --provider live` is operator configuration only after prerequisites, never a model's mode override. There is no `--yes`, `--approved`, `--auto-confirm` or headless live write command.
+
+Current own-work review clarification: [source note 19](../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.

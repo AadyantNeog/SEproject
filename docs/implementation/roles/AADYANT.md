@@ -1,10 +1,10 @@
 # Aadyant: ranking, planning and MCP engineering brief
 
-Version 2.1 · 21 November 2026 · Owner: Aadyant Neog (BT2024186)
+Version 2.2 · 21 November 2026 · Owner: Aadyant Neog (BT2024186)
 
 This equal-workload brief replaces the earlier A01–A12 assignment. Read root AGENTS.md, the unchanged SRS, brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own A2-01–A2-08: eight tasks, 56–80 planned hours, one third of the implementation baseline. Actual human contribution/review remains yours; this AI-authored brief is not evidence you completed anything.
 
-Start A2-01 with G0 checks: inspect the checkout/environment, preserve existing SRS/PDF work, use the canonical Python 3.13 interpreter, establish locked packaging/common protocols/strict DTOs and a fixture stdio smoke. Jeswin/Paul provide provider/account and storage/quota/approval technical input; one eligible non-author independently reviews your foundation PR. Publish immutable LibrarySnapshot, Video, Proposal/ResumeProposal and error examples so both can implement in parallel.
+Start A2-01 with G0 checks: inspect the checkout/environment, preserve existing SRS/PDF work, use the canonical Python 3.13 interpreter, establish locked packaging/common protocols/strict DTOs and a fixture stdio smoke. Jeswin/Paul provide provider/account and storage/quota/approval technical input; you use your chosen AI and record your own actual human review of the foundation PR. Publish immutable LibrarySnapshot, Video, Proposal/ResumeProposal and error examples so both can implement in parallel.
 
 After the contract PR merges, give Paul an early A2-06 full preview and expose A2-05's minimal selected-client stdio shell. Implement A2-02 video/channel ranking, A2-03 preference scoring and A2-04 strict playlist proposals. Ranking/planning domain code is pure; use Jeswin's provider/library/normalisers and Paul's repositories/quota rather than implementing another network/state layer. Treat language/duration evidence and unknowns exactly as specified. No live-derived claim until D-02 is resolved.
 
@@ -14,6 +14,8 @@ Each feature includes your independently expected synthetic fixtures, unit/servi
 
 Commit regularly after coherent verified steps and before handoff, use a task branch/Issue and meaningful messages, and prepare a real human-reviewed PR. Re-estimate actual effort at G1/G3; explicitly coordinate a bounded reallocation if tracks diverge. Record significant AI sessions as AI-authored, write your own human reflection personally and explain your code. No fabricated approval, team identity, live result or release.
 
-Team lead review: you personally review every Jeswin/Paul PR and deliverable, coordinate the queue and stage acceptance, and record actual current-version decisions. Track this leadership load separately from the equal implementation hours. Your authored/materially coauthored work needs eligible independent non-author review; no self-approval. See [REVIEW_POLICY.md](../REVIEW_POLICY.md).
+Team lead review: you review all Jeswin/Paul PRs and deliverables. Neither teammate is assigned to your PRs. Use your chosen AI model for automated review, then personally read/verify the diff, resolve findings and record your own human owner review against the exact commit. Keep AI findings separate from your manual verification; do not claim independent GitHub approval. The submitted SRS's human-review requirement remains. Lead-review/coordination time is additional to the equal implementation baseline.
 
 Distilled basis: [18-team-lead-review-governance](../../../brain/resources/18-team-lead-review-governance.md), [17-equal-team-allocation](../../../brain/resources/17-equal-team-allocation.md), [02-metadata-based-similarity](../../../brain/resources/02-metadata-based-similarity.md), [04-duration-and-language-constraints](../../../brain/resources/04-duration-and-language-constraints.md), [12-engineering-and-knowledge-workflow](../../../brain/resources/12-engineering-and-knowledge-workflow.md).
+
+Current own-work review clarification: [source note 19](../../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](../REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.

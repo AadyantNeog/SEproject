@@ -4,7 +4,9 @@ Date: 21 November 2026 · Author: Codex · Status: user-directed review responsi
 
 ## Context
 
-The user identified Aadyant as team lead and directed that he review all teammate PRs and everything they produce. The previous plan rotated reviews and coordination. SRS GOV-03 requires actual human-reviewed PRs; the project also retains an independent non-author review rule. Equal implementation ownership does not imply equal total workload once centralized review is added.
+Own-work amendment: [ADR-0008](0008-owner-ai-assisted-review-and-frozen-srs.md) removes the former named teammate requirement and retains actual human owner verification after chosen-AI assistance. The submitted SRS is unchanged.
+
+The user identified Aadyant as team lead and directed that he review all teammate PRs and everything they produce. The previous plan rotated reviews and coordination. SRS GOV-03 requires actual human-reviewed PRs; the project also retains an AI-assisted recorded human owner review rule. Equal implementation ownership does not imply equal total workload once centralized review is added.
 
 Distilled basis: [18-team-lead-review-governance](../../brain/resources/18-team-lead-review-governance.md), [12-engineering-and-knowledge-workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), [17-equal-team-allocation](../../brain/resources/17-equal-team-allocation.md).
 
@@ -12,9 +14,9 @@ Distilled basis: [18-team-lead-review-governance](../../brain/resources/18-team-
 
 Aadyant reviews all Jeswin/Paul PRs and deliverables, including tests, fixtures, contracts/design, docs, skills, brain records and acceptance evidence. Authors prepare reviewable versions, fix feedback and request re-review after material changes. Technical feedback, CI and AI review do not replace Aadyant's actual approval. He coordinates review scheduling and stage/release acceptance; module owners still implement, integrate, document and repair their own work.
 
-Aadyant-authored work needs an independent review from a non-author Jeswin or Paul. If Aadyant materially coauthors teammate work, another eligible non-author reviews the combined change while Aadyant retains lead oversight of the teammate delivery. No self-approval, fabricated reviewer or review inferred from an earlier version is accepted.
+Aadyant uses his chosen AI reviewer and personally records his own actual human review of his changes. Jeswin/Paul are not assigned to his PRs. Coauthorship is disclosed; no AI report or owner self-check is labelled independent GitHub approval. Material revisions require renewed review, and no human decision is fabricated.
 
-Keep the A2/J2/P2 task IDs, owners, dependency graph and equal 56–80-hour implementation estimates. Track lead review/coordination and independent review separately; do not claim total hours remain equal. P2-06 prepares verified real-account review enforcement later, covering the author exceptions without weakening the lead gate. No remote settings are changed by this planning revision.
+Keep the A2/J2/P2 task IDs, owners, dependency graph and equal 56–80-hour implementation estimates. Centralized lead review/coordination is additional; own AI-assisted manual verification remains author work. P2-06 documents both review modes without bypassing actual repository protections. No remote settings or SRS requirements are changed by this planning revision.
 
 ## Consequences and supersession
 

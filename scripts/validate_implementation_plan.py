@@ -43,19 +43,21 @@ def run() -> int:
     tasks = data['tasks']
     task_map = {t['id']: t for t in tasks}
     expected_ids = {f'{prefix}2-{i:02}' for prefix in PEOPLE.values() for i in range(1, 9)}
-    check('Current task register', data['plan_version'] == '2.1' and len(tasks) == len(task_map) == 24 and set(task_map) == expected_ids, '24 unique A2/J2/P2 implementation tasks under governance version 2.1, eight for each member')
+    check('Current task register', data['plan_version'] == '2.2' and len(tasks) == len(task_map) == 24 and set(task_map) == expected_ids, '24 unique A2/J2/P2 implementation tasks under governance version 2.2, eight for each member')
     counts = Counter(t['owner'] for t in tasks)
     check('Equal task counts', counts == Counter({person: 8 for person in PEOPLE}), str(dict(counts)))
     totals = {person: [sum(t['hours'][i] for t in tasks if t['owner'] == person) for i in (0, 1)] for person in PEOPLE}
-    check('Equal implementation effort arithmetic', all(bounds == [56, 80] for bounds in totals.values()), f'Implementation hours including tests/docs/integration, self-checks, handoffs and feedback fixes: {totals}; midpoint 68 each, 33.33% each; centralized lead review/coordination and independent PR review are additional')
+    check('Equal implementation effort arithmetic', all(bounds == [56, 80] for bounds in totals.values()), f'Implementation hours including tests/docs/integration, AI-assisted author verification, handoffs and feedback fixes: {totals}; midpoint 68 each, 33.33% each; centralized lead review/coordination is additional')
     policy = data['review_policy']
-    reviewer_matrix = {'Aadyant': ['Jeswin', 'Paul'], 'Jeswin': ['Aadyant'], 'Paul': ['Aadyant']}
-    check('Lead reviewer matrix', policy['team_lead'] == 'Aadyant' and policy['teammate_work_requires_lead_review'] is True and policy['eligible_reviewers_by_author'] == reviewer_matrix and policy['approvals_required'] == 1, 'Aadyant required for Jeswin/Paul work; one eligible independent Jeswin/Paul reviewer for his own work')
-    check('Independent and current-version review', all(policy[key] is True for key in ('independent_non_author_review_required', 'material_coauthor_is_not_independent', 'lead_coauthored_teammate_work_requires_other_non_author_review', 'material_changes_require_re_review')), 'Authorship/coauthorship cannot self-approve; changed artefacts require re-review')
+    reviewer_matrix = {'Aadyant': [], 'Jeswin': ['Aadyant'], 'Paul': ['Aadyant']}
+    check('Lead and own-work reviewer matrix', policy['team_lead'] == 'Aadyant' and policy['teammate_work_requires_lead_review'] is True and policy['eligible_reviewers_by_author'] == reviewer_matrix and policy['teammate_human_approvals_required'] == 1 and policy['do_not_assign_jeswin_or_paul_to_lead_prs'] is True, 'Aadyant reviews teammate work; Jeswin/Paul are not assigned to his PRs')
+    check('Human owner review and current-version integrity', all(policy[key] is True for key in ('human_review_required_by_srs','ai_review_does_not_replace_human_review','owner_review_is_not_independent_github_approval','coauthorship_disclosed','material_changes_require_re_review','existing_repository_protections_must_be_respected')) and policy['own_work_review_mode'] == 'chosen_ai_review_plus_recorded_human_owner_review', 'Actual human verification retained; AI findings and owner review are not independent GitHub approval; protections remain')
     expected_scope = {'pull_requests', 'code', 'tests_and_fixtures', 'designs_and_contracts', 'documentation', 'skills', 'brain_notes', 'reports_and_demos', 'stage_and_release_evidence'}
     check('All teammate deliverables reviewed', set(policy['scope']) == expected_scope and set(policy['evidence']) == {'reviewer_identity', 'commit_or_artifact_version', 'actual_decision', 'review_link'}, 'Lead review includes every listed deliverable type with real reviewer/version/decision/link evidence')
     check('Review workload disclosure', 'excludes centralized lead review/coordination' in data['effort_unit'] and 'additional' in policy['lead_review_effort'] and 'pending' in policy['remote_enforcement_status'], 'Equal implementation estimates do not claim equal total workload or existing repository enforcement')
-    check('Every task has required human reviewer', all(t['eligible_reviewers'] == reviewer_matrix[t['owner']] and t['review_status'] == 'pending_human_review' and 'independent non-author' in t['review_requirement'] for t in tasks), 'All 24 tasks carry the correct eligible-reviewer gate and honest pending status')
+    check('Every task retains actual human review', all(t['eligible_reviewers'] == reviewer_matrix[t['owner']] and t['human_review_responsible'] == 'Aadyant' and t['review_status'] == ('pending_ai_and_human_owner_review' if t['owner']=='Aadyant' else 'pending_lead_human_review') and ('actual recorded human owner review' in t['review_requirement'] if t['owner']=='Aadyant' else 'human lead review by Aadyant' in t['review_requirement']) for t in tasks), 'Own tasks require chosen-AI plus actual recorded owner review; teammate tasks require actual lead review; no invented completion')
+    srs_state = data['srs_status']
+    check('Submitted SRS status and freeze', srs_state['state']=='submitted_user_reported' and srs_state['baseline_changes_authorized'] is False and srs_state['exact_submission_date'] is None and srs_state['submitted_rendition'] is None, 'User-reported submission recorded without invented date/rendition or SRS editing authority')
     check('Task scope and ownership', all(t['owner'] in PEOPLE and t['id'].startswith(PEOPLE[t['owner']] + '2-') and 0 < t['hours'][0] <= t['hours'][1] and t['deliverable'] and t['paths'] for t in tasks), 'Each task has a real owner, positive range, deliverable and path targets')
     unknown = [(t['id'], dep) for t in tasks for dep in t['depends_on'] + t['integration_requires'] if dep not in task_map or dep == t['id']]
     check('Dependency references', not unknown, f'Prerequisite/integration references: {unknown or "all registered, no self-dependencies"}')
@@ -82,8 +84,8 @@ def run() -> int:
     row_ids = [r['requirement_id'] for r in rows]
     check('Exact requirement coverage', len(rows) == len(set(row_ids)) == len(source) == 46 and set(row_ids) == set(source), '46 unchanged numbered requirements, no duplicates/missing/extra IDs')
     check('Requirement text identity', all(r['requirement_title'] == source[r['requirement_id']]['title'] and r['srs_verification'] == source[r['requirement_id']]['verification'] for r in rows), 'Exact source titles and verification strings preserved')
-    check('Current coverage task references', all(r['plan_version'] == '2.1' and set(r['task_ids'].split(';')) <= set(task_map) and r['planned_test_or_evidence_paths'] for r in rows), 'Every governance-v2.1 planning row uses registered A2/J2/P2 tasks and planned evidence targets')
-    check('Requirement review gates', all('Aadyant reviews all teammate artefacts' in r['review_gate'] and 'independent non-author review' in r['review_gate'] and '18-team-lead-review-governance' in r['brain_notes'] for r in rows), 'All 46 requirement rows retain lead review and independent own-work review')
+    check('Current coverage task references', all(r['plan_version'] == '2.2' and set(r['task_ids'].split(';')) <= set(task_map) and r['planned_test_or_evidence_paths'] for r in rows), 'Every governance-v2.2 planning row uses registered A2/J2/P2 tasks and planned evidence targets')
+    check('Requirement review gates', all('Aadyant reviews all teammate artefacts' in r['review_gate'] and 'recorded human owner review' in r['review_gate'] and 'Jeswin/Paul not assigned' in r['review_gate'] and '19-owner-ai-assisted-review-and-submitted-srs' in r['brain_notes'] for r in rows), 'All 46 rows retain human review while removing teammate assignment to lead PRs')
     check('Coverage owner consistency', all(set(r['primary_owner'].split(';')) <= {task_map[tid]['owner'] for tid in r['task_ids'].split(';')} for r in rows), 'Each stated requirement owner owns at least one mapped task')
     mapped_tasks = {tid for r in rows for tid in r['task_ids'].split(';')}
     check('All tasks traced', mapped_tasks == set(task_map), 'All 24 tasks appear in requirement coverage')
@@ -103,7 +105,7 @@ def run() -> int:
             role_errors.append(person)
     check('Role workload agreement', not role_errors, f'Role ranges, engineering/integration/review ownership agree; errors: {role_errors}')
     root_agents = (ROOT / 'AGENTS.md').read_text(encoding='utf-8')
-    check('Agent coordination and commit rules', all(f'{p}2-01–{p}2-08' in root_agents for p in PEOPLE.values()) and 'commit regularly' in root_agents and 'affected-owner technical input' in root_agents and 'one third' in root_agents and 'team lead and required human reviewer' in root_agents and 'Aadyant-authored work needs independent human review' in root_agents, 'Implementation ownership/regular commits preserved; actual team-lead and independent own-work review required')
+    check('Agent coordination and commit rules', all(f'{p}2-01–{p}2-08' in root_agents for p in PEOPLE.values()) and 'commit regularly' in root_agents and 'affected-owner technical input' in root_agents and 'one third' in root_agents and 'team lead and required human reviewer' in root_agents and 'Jeswin and Paul must not be assigned to review Aadyant' in root_agents and 'AI output alone does not satisfy SRS GOV-03' in root_agents, 'Regular commits/implementation ownership and actual human review retained; no teammate review assignment to lead PRs')
     migration = (PLAN / 'TASK_MIGRATION.md').read_text(encoding='utf-8')
     legacy = {f'A{i:02}' for i in range(1, 13)} | {f'{p}{i:02}' for p in ('J', 'P') for i in range(1, 5)}
     check('Retired task migration', set(re.findall(r'^\| ([AJP]\d{2}) \|', migration, flags=re.M)) == legacy, 'All 20 earlier IDs mapped; history and existing authorship not reassigned')
@@ -117,7 +119,7 @@ def run() -> int:
     check('Unique substantive note stems', all(len(entries) == 1 for entries in notes.values()), f'{len(notes)} substantive note stems checked')
     check('Coverage distilled-note links', all(stem in notes and notes[stem][0][1]['status'] == 'distilled' for r in rows for stem in r['brain_notes'].split(';')), 'Every row links existing distilled notes, including current allocation')
 
-    new_notes = [ROOT / 'brain/resources/17-equal-team-allocation.md', ROOT / 'brain/projects/youtube-mcp/2026-11-19-equal-workload-revision.md', ROOT / 'brain/resources/18-team-lead-review-governance.md', ROOT / 'brain/projects/youtube-mcp/2026-11-21-team-lead-review-update.md']
+    new_notes = [ROOT / 'brain/resources/17-equal-team-allocation.md', ROOT / 'brain/projects/youtube-mcp/2026-11-19-equal-workload-revision.md', ROOT / 'brain/resources/18-team-lead-review-governance.md', ROOT / 'brain/projects/youtube-mcp/2026-11-21-team-lead-review-update.md', ROOT / 'brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md', ROOT / 'brain/projects/youtube-mcp/2026-11-21-own-pr-review-clarification.md']
     required = {'id', 'type', 'title', 'created', 'author', 'status', 'sources', 'requirements'}
     fm_errors = []
     for path in new_notes:
@@ -157,7 +159,7 @@ def run() -> int:
                 cited.append(resolved)
         if not cited:
             adr_errors.append(path.name)
-    check('ADR distilled basis', len(adrs) == 7 and not adr_errors, f'Seven ADRs cite distilled notes; errors: {adr_errors}')
+    check('ADR distilled basis', len(adrs) == 8 and not adr_errors, f'Eight ADRs cite distilled notes; errors: {adr_errors}')
 
     active = [ROOT / 'AGENTS.md', PLAN / 'MASTER_PLAN.md', PLAN / 'CONTRACTS.md', PLAN / 'TEAM_WORKPLAN.md', *(PLAN / 'roles').glob('*.md'), *adrs]
     stale = []
@@ -183,13 +185,13 @@ def run() -> int:
     if args.write_report:
         report = '# Implementation plan integrity checks\n\n'
         report += f'Plan/governance version {data["plan_version"]} · Checked {args.checked_on} · Author: Codex\n\n'
-        report += 'This report supersedes the earlier planning reports. It verifies implementation-allocation/review-policy/document integrity only: **no product tests, actual CI/live API runs, human review or release are claimed**. Matching implementation estimates are not measured equal productivity or equal total workload; lead-review/coordination and independent PR review are additional.\n\n'
+        report += 'This report supersedes earlier planning reports. It verifies implementation-allocation/review-policy/document integrity only: **no product tests, actual CI/live API runs, human review or release are claimed**. Matching implementation estimates are not measured equal productivity or equal total workload; centralized lead-review/coordination is additional. The user reported SRS submission; the baseline is frozen.\n\n'
         report += '| Check | Observed result | Evidence |\n| --- | --- | --- |\n'
         for name, ok, detail in results:
             report += f'| {name} | {"PASS" if ok else "FAIL"} | {detail.replace("|", "/")} |\n'
         report += '\nReproduce with the canonical/local compatible Python and PyYAML: `python scripts/validate_implementation_plan.py`. For a new dated report use `--write-report --checked-on YYYY-MM-DD`. The preservation reference is [protected-baseline-2026-11-19.json](protected-baseline-2026-11-19.json); [tasks.json](tasks.json) and [coverage.csv](coverage.csv) remain planning data.\n\n'
-        report += 'Manual scope review: each member retains their implementation/tests/docs/integration and feedback fixes. Aadyant reviews every teammate PR/deliverable and coordinates acceptance; his authored/materially coauthored work gets independent non-author review. The SRS technical requirements, algorithms, API-only boundary and playlist human approval remain unchanged. Earlier session/log records retain historical results with supersession notices.\n\n'
-        report += 'Pending: dependency lock/client/native proof, policy D-02, actual credentials/runner/quota/review-enforcement configuration, product implementation/performance/live tests, real Issues/PRs/CI/human reviews, member contributions and submission/release. API/SDK source checks remain dated 16 November; GitHub review facts were checked 21 November and cited in REVIEW_POLICY.md. No environment installation was performed.\n'
+        report += 'Manual scope review: each member retains implementation/tests/docs/integration and feedback fixes. Aadyant reviews teammate work; his own workflow uses chosen-AI findings plus his actual recorded human owner review, without assigning Jeswin/Paul or claiming independent GitHub approval. SRS requirements, algorithms, API-only boundary and playlist human approval remain unchanged. Earlier records remain historical.\n\n'
+        report += 'Pending: dependency lock/client/native proof, D-02, actual credentials/runner/quota/review-enforcement configuration, implementation/performance/live tests, actual PR/CI/human-review evidence and later-stage release. SRS submission is user-reported; exact date/rendition not supplied. The SDLC brief page 2 was checked for human-review wording; API/SDK facts remain dated 16 November. No environment installation was performed.\n'
         (PLAN / 'PLAN_QA.md').write_text(report, encoding='utf-8')
     print(json.dumps(summary, indent=2))
     if failed:

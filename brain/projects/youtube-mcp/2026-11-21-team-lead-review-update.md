@@ -11,6 +11,8 @@ requirements: ["GOV-01", "GOV-02", "GOV-03", "GOV-04", "GOV-05"]
 
 # Team lead review policy update
 
+Subsequent clarification in this chat: the user rejected the named teammate-reviewer rule for his own PRs and confirmed the SRS was already submitted. The current version 2.2 interpretation is recorded in [[2026-11-21-own-pr-review-clarification]] and [[19-owner-ai-assisted-review-and-submitted-srs]]. The version 2.1 outcome/checks below remain historical; no SRS requirement was edited.
+
 ## Goal
 
 Make Aadyant, the user-designated team lead, the required reviewer of all teammate PRs/deliverables and revise the affected plan/agent instructions without silently changing the equal implementation assignment or SRS.

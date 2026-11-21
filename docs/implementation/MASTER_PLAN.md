@@ -1,6 +1,6 @@
 # YouTube Video Intelligence MCP Server: implementation master plan
 
-Version 2.1 · 21 November 2026 · Team Random Stuff · Author: Codex
+Version 2.2 · 21 November 2026 · Team Random Stuff · Author: Codex
 
 Status: local implementation proposal, ready for team review. This is a design and work plan, not an implementation, passed test report, human approval, or changed SRS. The user revised the allocation on 19 November: divide engineering equally among Aadyant, Jeswin and Paul, including complex production work, tests, documentation, integration and review. That equal implementation allocation and its A2/J2/P2 task IDs remain. On 21 November Aadyant was designated team lead and required reviewer of all teammate work, replacing review rotation; see REVIEW_POLICY.md for his own-work exception.
 
@@ -41,7 +41,7 @@ Deliver one installable local stdio MCP server for one authorised YouTube accoun
 | FR-4 Engagement analysis | Collection counts, runtime statistics and supported timestamp comparisons | Jeswin collection and analytics; Aadyant report rendering |
 | FR-5 Playlist creation | Clarification, strict planning, complete preview, human approval and recoverable writes | Aadyant planning/preview/product skill; Paul approval/writes/recovery; Jeswin identity/HTTP |
 
-The equal allocation is eight tasks and 56–80 planned hours per member (one third each at midpoint). Aadyant owns algorithms/planning/MCP/presentation, Jeswin owns provider/identity/library/analytics, and Paul owns state/quota/authority/execution/recovery. All three supply their own fixtures/tests/docs/integration, author self-checks, handoffs and feedback fixes. Aadyant reviews every teammate deliverable and coordinates acceptance; his own work needs eligible non-author Jeswin/Paul review. Central lead-review/coordination and independent review hours are additional to these implementation estimates, so equal total workload is not claimed. See the review policy and team workplan.
+The equal allocation is eight tasks and 56–80 planned hours per member (one third each at midpoint). Aadyant owns algorithms/planning/MCP/presentation, Jeswin owns provider/identity/library/analytics, and Paul owns state/quota/authority/execution/recovery. All three supply their own fixtures/tests/docs/integration, author self-checks, handoffs and feedback fixes. Aadyant reviews every teammate deliverable and coordinates acceptance; his own work needs his chosen AI review plus his own recorded human review. Central lead-review/coordination hours are additional; own AI-assisted human verification remains author work, so equal total workload is not claimed. See the review policy and team workplan.
 
 No custom web app, public service, media player, model training, embeddings service, transcripts, downloads, scraping or extra account mutation belongs in this baseline. Do not build a REST API just to connect the modules; stdio is the product interface. The native confirmation dialog is a narrow approval control, not a second application.
 
@@ -396,7 +396,7 @@ Test behaviour at four boundaries: pure domain functions, application services w
 | AT-17 | 1 warm-up + at least 30 runs, hardware/methodology and p95 targets | Each owner measures own targets; Paul harness |
 | AT-18 | Offline CI, valid notes/links/skills, each skill's positive/negative/authority cases | Jeswin knowledge; Paul CI/local-check; Aadyant product skill |
 | AT-19 | Windows/client setup, consent, all five features and live skill/local-check walkthrough | All three demonstrate their own features and skills |
-| AT-20 | Requirement → Issue → PR → test/skill/note links, human review, ADRs, diagrams and release | Owners maintain evidence; Aadyant reviews teammate deliverables and leads acceptance; his own work gets independent review |
+| AT-20 | Requirement → Issue → PR → test/skill/note links, human review, ADRs, diagrams and release | Owners maintain evidence; Aadyant reviews teammate deliverables and leads acceptance; his own work gets AI-assisted human owner review |
 
 Property/fault tests must establish: no invalid proposal is written; total and individual duration never exceed caps; identical fixtures/settings produce stable rankings; no grant can authorise another digest/account/operation; repeated operation IDs cannot create new playlists; accounting cannot overspend a tracked bucket. Simulate time rather than wait ten minutes or thirty days.
 
@@ -408,13 +408,13 @@ The SRS also requires a separately **scheduled** live workflow with an authorise
 
 ## 10. Skills, client setup and team evidence
 
-Keep canonical skills in `.agents/skills/`. Every SKILL.md has valid name/description frontmatter, version metadata, invocation conditions, inputs, steps, outputs/failures, and a distilled-note citation. Jeswin maintains brain-ingest and implements brain-refine/brain-query plus knowledge validation; Paul implements local-check and its process/benchmark tooling; Aadyant implements video-to-playlist and the client adapter. Each owner supplies positive/negative/evidence evaluations and corresponding docs. Aadyant reviews all teammate skills/evaluations; Paul/Jeswin provide technical input and an eligible non-author reviews Aadyant's product skill and client adapter. Passing evaluations or technical feedback are not lead approval.
+Keep canonical skills in `.agents/skills/`. Every SKILL.md has valid name/description frontmatter, version metadata, invocation conditions, inputs, steps, outputs/failures, and a distilled-note citation. Jeswin maintains brain-ingest and implements brain-refine/brain-query plus knowledge validation; Paul implements local-check and its process/benchmark tooling; Aadyant implements video-to-playlist and the client adapter. Each owner supplies positive/negative/evidence evaluations and corresponding docs. Aadyant reviews all teammate skills/evaluations; Paul/Jeswin provide technical input and Aadyant uses his chosen AI and records his own human review of the product skill and client adapter. Passing evaluations or technical feedback are not lead approval.
 
 For the chosen Claude Code local demonstration, generate/copy skill folders into the client-recognised `.claude/skills/` location with a documented adapter script. Compare hashes against canonical content to prevent divergent copies. Do not assume root AGENTS.md is auto-loaded by every model; the teammate must explicitly instruct their agent to read it. A lightweight client instruction file may point to it; it must not duplicate or weaken project rules. Server resources also expose read-only help/skill text, with no secrets. Actual SDK-specific/client-specific configuration is tested in A2-05/P2-03 before instructions are declared working [S13, S14].
 
 `local-check` reports five separate steps: package validation/build; automated tests; start local server; read-only fetch via MCP; stop resources started. Steps use pass/fail/blocked, fixture default and explicit live quota disclosure. It never treats merely importing a module as a client connection. `video-to-playlist` states that summaries use title/description metadata; it cannot claim watched content or forge human approval. Each skill has success, negative and evidence/authority evaluation cases before applicable stage submissions.
 
-Human contribution means an owned implementation/documentation change, meaningful tests/evidence, an individually explainable demonstration, an authored human knowledge contribution and review under the person's real identity. AI-generated content is labelled AI-assisted/AI-authored as appropriate; an agent must not write notes or review approvals pretending to be Jeswin or Paul. Each teammate authors their own human reflection and commits their own work. No member or coding agent silently implements and attributes another member's tasks for them. Owners still integrate and explain their contributions. Aadyant coordinates review scheduling and stage/release acceptance, personally reviewing every teammate artefact; his authored/coauthored work retains independent non-author review.
+Human contribution means an owned implementation/documentation change, meaningful tests/evidence, an individually explainable demonstration, an authored human knowledge contribution and review under the person's real identity. AI-generated content is labelled AI-assisted/AI-authored as appropriate; an agent must not write notes or review approvals pretending to be Jeswin or Paul. Each teammate authors their own human reflection and commits their own work. No member or coding agent silently implements and attributes another member's tasks for them. Owners still integrate and explain their contributions. Aadyant coordinates review scheduling and stage/release acceptance, personally reviewing every teammate artefact; his authored/coauthored portions use AI-assisted recorded human owner review.
 
 ## 11. Risk register and decisions still requiring evidence
 
@@ -453,3 +453,5 @@ API/SDK technical-source access date: 16 November 2026, retained without a fresh
 - S13: [Claude Code local MCP](https://code.claude.com/docs/en/mcp).
 - S14: [Claude Code project skills](https://code.claude.com/docs/en/skills).
 - S15: [YouTube developer policies](https://developers.google.com/youtube/terms/developer-policies).
+
+Current own-work review clarification: [source note 19](../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.

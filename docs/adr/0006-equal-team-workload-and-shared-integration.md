@@ -12,13 +12,13 @@ Distilled basis: [17-equal-team-allocation](../../brain/resources/17-equal-team-
 
 ## Decision
 
-Allocate eight tasks and 56–80 estimated hours to each member, covering complex production code plus tests/fixtures/docs/integration, author self-checks, handoffs and feedback fixes; centralized lead-review and independent PR review time are tracked separately:
+Allocate eight tasks and 56–80 estimated hours to each member, covering complex production code plus tests/fixtures/docs/integration, AI-assisted author checks, handoffs and feedback fixes; centralized lead-review/coordination is tracked separately:
 
 - Aadyant: common bootstrap/contracts/MCP, similarity/recommendations, strict proposal planning, shared presentation and product skill.
 - Jeswin: input parsing/accounted HTTP, official read/fixture provider, OAuth/vault/account, library collection, analytics, knowledge workflows and privacy/live-read setup.
 - Paul: repositories/cache/retention, project quota/sessions, native human approval, guarded writes/journal/recovery, CI and local-check/measurement tooling.
 
-Use versioned task IDs A2-01–A2-08, J2-01–J2-08, P2-01–P2-08. Retire the earlier IDs with a mapping. A2-01 publishes reviewed contracts first; all three then implement in parallel with isolated fixtures. Every service owner supplies their handler integration and fixes, rather than delegating all assembly to the composition owner. Share documentation/evaluations; Aadyant leads review of all teammate work and stage acceptance under ADR-0007, while his authored/coauthored work retains independent non-author review. Judge actual workload by effort/complexity/defects/reviews, not equal counts alone; re-estimate at G1/G3.
+Use versioned task IDs A2-01–A2-08, J2-01–J2-08, P2-01–P2-08. Retire the earlier IDs with a mapping. A2-01 publishes reviewed contracts first; all three then implement in parallel with isolated fixtures. Every service owner supplies their handler integration and fixes, rather than delegating all assembly to the composition owner. Share documentation/evaluations; Aadyant leads review of all teammate work and stage acceptance under ADR-0007, while his authored/coauthored portions use AI-assisted recorded human owner review. Judge actual workload by effort/complexity/defects/reviews, not equal counts alone; re-estimate at G1/G3.
 
 ## Consequences
 

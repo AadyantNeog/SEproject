@@ -1,6 +1,6 @@
 # Jeswin: provider, identity, library and analytics engineering brief
 
-Version 2.1 · 21 November 2026 · Owner: Jeswin Jose (BT2024142)
+Version 2.2 · 21 November 2026 · Owner: Jeswin Jose (BT2024142)
 
 This equal-workload brief replaces the earlier J01–J04 assignment. Read root AGENTS.md, SRS/brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own J2-01–J2-08: eight tasks, 56–80 planned hours and one third of implementation responsibility, including substantial security-sensitive production code.
 
@@ -14,8 +14,10 @@ J2-06 maintains brain-ingest and implements brain-refine/query plus the knowledg
 
 Own auth, parsers, HTTP/redaction, read provider/fixture engine, library/analytics services, read/account/analysis MCP handlers and corresponding fixtures/tests/docs/evidence. Implement your own handler integration and defect repairs; Aadyant is not your default integration engineer. Use Paul's storage/quota/approval and Aadyant's ranking/presentation instead of taking over their modules. Critical shared changes require affected-owner technical input plus the required human review.
 
-Commit regularly after coherent verified steps and before handoff with task/Issue references. Run actual scoped checks and report isolated-test versus real-integration status honestly. Supply own stage/release evidence and personally authored human reflection. AI notes identify the AI, and Aadyant personally provides required review for your work; you or Paul may independently review his authored work when eligible. Review/rebalance effort with the team at G1/G3.
+Commit regularly after coherent verified steps and before handoff with task/Issue references. Run actual scoped checks and report isolated-test versus real-integration status honestly. Supply own stage/release evidence and personally authored human reflection. AI notes identify the AI, and Aadyant personally provides required review for your work; you and Paul are not assigned to review his PRs. Review/rebalance effort with the team at G1/G3.
 
-Team lead review: submit every PR and deliverable to Aadyant, including tests/fixtures, docs/designs, skills/brain notes and observed evidence. Fix his findings and request re-review after material changes. CI, AI or another teammate's feedback is not his approval. Review Aadyant-authored work only when assigned and independently eligible; do not take over his required review of teammate work. See [REVIEW_POLICY.md](../REVIEW_POLICY.md).
+Team lead review: submit every PR and deliverable to Aadyant, including tests/fixtures, docs/designs, skills/brain notes and observed evidence. Fix his findings and request re-review after material changes. CI, AI or another teammate's feedback is not his approval. Do not review or request assignment to Aadyant's PRs; he uses his chosen AI plus his recorded personal human review. Continue submitting all of your own work to him. See [REVIEW_POLICY.md](../REVIEW_POLICY.md).
 
 Distilled basis: [18-team-lead-review-governance](../../../brain/resources/18-team-lead-review-governance.md), [17-equal-team-allocation](../../../brain/resources/17-equal-team-allocation.md), [03-authorised-preference-signals](../../../brain/resources/03-authorised-preference-signals.md), [05-time-based-analysis](../../../brain/resources/05-time-based-analysis.md), [08-oauth-and-secret-handling](../../../brain/resources/08-oauth-and-secret-handling.md), [12-engineering-and-knowledge-workflow](../../../brain/resources/12-engineering-and-knowledge-workflow.md).
+
+Current own-work review clarification: [source note 19](../../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](../REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.

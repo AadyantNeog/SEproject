@@ -1,6 +1,6 @@
 # Paul: persistence, quota and safe-write engineering brief
 
-Version 2.1 · 21 November 2026 · Owner: Paul T Mathew (BT2024135)
+Version 2.2 · 21 November 2026 · Owner: Paul T Mathew (BT2024135)
 
 This equal-workload brief replaces the earlier P01–P04 assignment. Read root AGENTS.md, SRS/brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own P2-01–P2-08: eight tasks, 56–80 planned hours and one third of implementation responsibility, including reliability/security code, tests/docs/integration, self-checks, review preparation and feedback fixes.
 
@@ -18,6 +18,8 @@ P2-06 owns early/offline CI, secret scanning and shared denied-network test infr
 
 Own storage/cache/clock/quota/workflow, approval, creation/recovery, write adapters/fixture-write scripts, execution handlers and corresponding tests/docs. Shared manifests/contracts have coordinated editors and affected-owner technical input plus the required human review. Commit coherent verified increments regularly and before handoff on a task branch; report real checks/remaining blocks and get genuine non-author human PR review. Rebalance actual remaining workload at G1/G3 if needed. AI sessions name the AI; personally author your human reflection and explain the state machine in the demo.
 
-Team lead review: submit every PR and deliverable to Aadyant, including tests/fixtures, docs/designs, skills/brain notes and observed evidence. Fix his findings and request re-review after material changes. CI, AI or another teammate's feedback is not his approval. Review Aadyant-authored work only when assigned and independently eligible; do not take over his required review of teammate work. See [REVIEW_POLICY.md](../REVIEW_POLICY.md).
+Team lead review: submit every PR and deliverable to Aadyant, including tests/fixtures, docs/designs, skills/brain notes and observed evidence. Fix his findings and request re-review after material changes. CI, AI or another teammate's feedback is not his approval. Do not review or request assignment to Aadyant's PRs; he uses his chosen AI plus his recorded personal human review. Continue submitting all of your own work to him. See [REVIEW_POLICY.md](../REVIEW_POLICY.md).
 
 Distilled basis: [18-team-lead-review-governance](../../../brain/resources/18-team-lead-review-governance.md), [17-equal-team-allocation](../../../brain/resources/17-equal-team-allocation.md), [06-preview-and-human-approval](../../../brain/resources/06-preview-and-human-approval.md), [07-playlist-writes-and-partial-failure](../../../brain/resources/07-playlist-writes-and-partial-failure.md), [09-quota-buckets-and-budgeting](../../../brain/resources/09-quota-buckets-and-budgeting.md), [12-engineering-and-knowledge-workflow](../../../brain/resources/12-engineering-and-knowledge-workflow.md).
+
+Current own-work review clarification: [source note 19](../../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](../REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.

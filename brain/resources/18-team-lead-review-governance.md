@@ -11,6 +11,8 @@ requirements: ["GOV-01", "GOV-02", "GOV-03", "GOV-04", "GOV-05"]
 
 # Team lead review governance
 
+Later user clarification on 21 November: the earlier named-peer requirement for Aadyant's own work below is superseded by [[19-owner-ai-assisted-review-and-submitted-srs]]. Jeswin/Paul are not assigned to his PRs; chosen-AI review plus his actual recorded human owner review preserves the submitted human-review baseline. This is a chronological amendment, not a rewrite of the earlier source check.
+
 ## Finding
 
 On 21 November the user identified himself, Aadyant, as team lead and directed that he review all teammate PRs and deliverables. This replaces review rotation; the equal implementation assignment itself was not revoked. GOV-03 still requires real human review, and project history/evidence cannot manufacture human approval.
