@@ -1,0 +1,23 @@
+{
+  "schema_version": "1",
+  "video_id": "fixture0001",
+  "channel_id": "UCfixture000000000000001",
+  "title": "How B-trees support indexes",
+  "channel_title": "Synthetic Database Lessons",
+  "canonical_url": "https://www.youtube.com/watch?v=fixture0001",
+  "description": "A synthetic example about database indexing.",
+  "tags": [
+    "databases",
+    "B-tree"
+  ],
+  "category_id": "27",
+  "published_at": "2026-01-15T12:00:00Z",
+  "duration_seconds": 720,
+  "default_audio_language": "en-US",
+  "default_metadata_language": null,
+  "language_evidence": "audio",
+  "availability": "available",
+  "live_status": "recorded",
+  "fetched_at": "2026-11-21T09:00:00Z",
+  "evidence_warnings": []
+}

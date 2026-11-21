@@ -1,0 +1,59 @@
+{
+  "schema_version": "1",
+  "ref": {
+    "proposal_id": "fixture-proposal",
+    "version": 1
+  },
+  "binding": {
+    "installation_id": "fixture-installation",
+    "credential_binding_id": "fixture-binding",
+    "channel_id": "UCfixture000000000000001",
+    "mode": "fixture"
+  },
+  "destination_channel_title": "Synthetic Database Lessons",
+  "body": {
+    "title": "Database indexing practice",
+    "description": "Synthetic fixture playlist",
+    "privacy": "private"
+  },
+  "constraints": {
+    "topic": "database indexing",
+    "max_total_seconds": 1800,
+    "max_video_seconds": 1200,
+    "language": "en",
+    "duration_mode": "max"
+  },
+  "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "created_at": "2026-11-21T09:00:00Z",
+  "expires_at": "2026-11-21T09:10:00Z",
+  "state": "proposed",
+  "warnings": [],
+  "purpose": "create",
+  "candidate_set_id": "fixture-candidates",
+  "items": [
+    {
+      "video_id": "fixture0001",
+      "title": "How B-trees support indexes",
+      "channel_title": "Synthetic Database Lessons",
+      "duration_seconds": 720,
+      "audio_language": "en-US",
+      "topic_evidence": "Database indexing in the synthetic title and tags"
+    },
+    {
+      "video_id": "fixture0002",
+      "title": "Index selection examples",
+      "channel_title": "Synthetic Database Lessons",
+      "duration_seconds": 600,
+      "audio_language": "en-US",
+      "topic_evidence": "Index selection in the synthetic title"
+    }
+  ],
+  "total_seconds": 1320,
+  "unused_seconds": 480,
+  "exclusions": {
+    "duration": 1
+  },
+  "algorithm_versions": {
+    "planner": "synthetic-v1"
+  }
+}
