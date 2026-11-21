@@ -25,7 +25,8 @@ type ChannelId = Annotated[str, StringConstraints(pattern=r"^UC[A-Za-z0-9_-]{22}
 type PlaylistId = OpaqueId
 type Digest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 type LanguageTag = Annotated[
-    str, StringConstraints(pattern=r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$", max_length=64)
+    str,
+    StringConstraints(pattern=r"^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$", max_length=64),
 ]
 
 
@@ -39,12 +40,16 @@ def freeze_mapping[K, V](value: Mapping[K, V]) -> Mapping[K, V]:
 
 type UtcDateTime = Annotated[datetime, AwareDatetime, AfterValidator(to_utc)]
 type FrozenMap[K, V] = Annotated[
-    Mapping[K, V], AfterValidator(freeze_mapping), PlainSerializer(lambda value: dict(value))
+    Mapping[K, V],
+    AfterValidator(freeze_mapping),
+    PlainSerializer(lambda value: dict(value)),
 ]
 
 
 class Contract(BaseModel):
-    model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
+    model_config = ConfigDict(
+        extra="forbid", strict=True, frozen=True, allow_inf_nan=False
+    )
 
 
 class VersionedContract(Contract):

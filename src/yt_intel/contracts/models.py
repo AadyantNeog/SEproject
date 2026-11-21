@@ -49,8 +49,13 @@ class Video(VersionedContract):
             raise ValueError("video URL must be canonical and match video_id")
         if self.language_evidence == "audio" and self.default_audio_language is None:
             raise ValueError("audio language evidence requires an audio language tag")
-        if self.language_evidence == "metadata_only" and self.default_metadata_language is None:
-            raise ValueError("metadata language evidence requires a metadata language tag")
+        if (
+            self.language_evidence == "metadata_only"
+            and self.default_metadata_language is None
+        ):
+            raise ValueError(
+                "metadata language evidence requires a metadata language tag"
+            )
         return self
 
 
@@ -79,7 +84,9 @@ class Coverage(Contract):
     usable: NonNegative
     inaccessible: NonNegative
     unknown: NonNegative
-    limits: FrozenMap[Label, NonNegative] = Field(default_factory=dict, validate_default=True)
+    limits: FrozenMap[Label, NonNegative] = Field(
+        default_factory=dict, validate_default=True
+    )
     sampled_sources: Warnings = ()
     completeness_basis: Label
     continuation_ref: OpaqueId | None = None
@@ -105,10 +112,15 @@ class ChannelSample(Contract):
 
     @model_validator(mode="after")
     def check_sample(self) -> Self:
-        if len(set(self.video_ids)) != len(self.video_ids) or len(self.video_ids) != self.usable:
+        if (
+            len(set(self.video_ids)) != len(self.video_ids)
+            or len(self.video_ids) != self.usable
+        ):
             raise ValueError("sample must identify each usable video exactly once")
         if self.usable + self.skipped != self.attempted:
-            raise ValueError("usable and skipped must account for all attempted samples")
+            raise ValueError(
+                "usable and skipped must account for all attempted samples"
+            )
         return self
 
 
@@ -141,7 +153,10 @@ class SubscriptionSignal(Contract):
 
     @model_validator(mode="after")
     def check_channel(self) -> Self:
-        if self.topic_sample is not None and self.topic_sample.channel.channel_id != self.channel_id:
+        if (
+            self.topic_sample is not None
+            and self.topic_sample.channel.channel_id != self.channel_id
+        ):
             raise ValueError("subscription sample must use the subscribed channel")
         return self
 
@@ -169,14 +184,18 @@ class LibrarySnapshot(VersionedContract):
         if not self.started_at <= self.fetched_at < self.retained_until:
             raise ValueError("snapshot timestamps are out of order")
         if set(self.sources) != {"likes", "subscriptions", "playlists"}:
-            raise ValueError("snapshot must include a coverage state for each library source")
+            raise ValueError(
+                "snapshot must include a coverage state for each library source"
+            )
         if any(video.video_id != key for key, video in self.videos.items()):
             raise ValueError("video map keys must match the video IDs")
         owned = set(self.owned_playlist_ids)
         if len(owned) != len(self.owned_playlist_ids):
             raise ValueError("owned playlist IDs must be unique")
         if any(item.playlist_id not in owned for item in self.playlist_occurrences):
-            raise ValueError("playlist occurrences must belong to the selected owned playlists")
+            raise ValueError(
+                "playlist occurrences must belong to the selected owned playlists"
+            )
         return self
 
 

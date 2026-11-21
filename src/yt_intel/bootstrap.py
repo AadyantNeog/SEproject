@@ -19,7 +19,9 @@ class FixtureStatus(Contract):
 def create_fixture_server() -> MCPServer:
     server = MCPServer("YouTube Video Intelligence")
 
-    @server.tool(annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False))
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
+    )
     def fixture_status(
         ctx: Context[None, object],
     ) -> Annotated[CallToolResult, ResultEnvelope[FixtureStatus]]:
@@ -33,7 +35,11 @@ def create_fixture_server() -> MCPServer:
                 safe_next_action="Call fixture_status with an empty arguments object.",
             )
             result = ResultEnvelope[FixtureStatus](
-                mode="fixture", request_id=request_id, status="error", data=None, error=problem
+                mode="fixture",
+                request_id=request_id,
+                status="error",
+                data=None,
+                error=problem,
             )
             return CallToolResult(
                 is_error=True,
@@ -45,7 +51,9 @@ def create_fixture_server() -> MCPServer:
         )
         return CallToolResult(
             structured_content=result.model_dump(),
-            content=[TextContent(type="text", text=f"The {result.mode} server is available.")],
+            content=[
+                TextContent(type="text", text=f"The {result.mode} server is available.")
+            ],
         )
 
     @server.resource(HELP_URI, name="Fixture server help", mime_type="text/plain")

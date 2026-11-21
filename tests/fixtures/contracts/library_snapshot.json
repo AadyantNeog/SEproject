@@ -1,0 +1,74 @@
+{
+  "schema_version": "1",
+  "snapshot_id": "fixture-snapshot",
+  "binding": {
+    "installation_id": "fixture-installation",
+    "credential_binding_id": "fixture-binding",
+    "channel_id": "UCfixture000000000000001",
+    "mode": "fixture"
+  },
+  "started_at": "2026-11-21T08:59:55Z",
+  "fetched_at": "2026-11-21T09:00:00Z",
+  "likes": {
+    "fixture0001": null
+  },
+  "subscriptions": [],
+  "owned_playlist_ids": [],
+  "playlist_occurrences": [],
+  "videos": {
+    "fixture0001": {
+      "schema_version": "1",
+      "video_id": "fixture0001",
+      "channel_id": "UCfixture000000000000001",
+      "title": "How B-trees support indexes",
+      "channel_title": "Synthetic Database Lessons",
+      "canonical_url": "https://www.youtube.com/watch?v=fixture0001",
+      "description": "A synthetic example about database indexing.",
+      "tags": [
+        "databases",
+        "B-tree"
+      ],
+      "category_id": "27",
+      "published_at": "2026-01-15T12:00:00Z",
+      "duration_seconds": 720,
+      "default_audio_language": "en-US",
+      "default_metadata_language": null,
+      "language_evidence": "audio",
+      "availability": "available",
+      "live_status": "recorded",
+      "fetched_at": "2026-11-21T09:00:00Z",
+      "evidence_warnings": []
+    }
+  },
+  "sources": {
+    "likes": {
+      "state": "retrieved",
+      "coverage": {
+        "complete": true,
+        "paginated": false,
+        "sampled": false,
+        "truncated": false,
+        "retrieved": 1,
+        "usable": 1,
+        "inaccessible": 0,
+        "unknown": 0,
+        "limits": {
+          "pages": 1
+        },
+        "sampled_sources": [],
+        "completeness_basis": "Synthetic likes fixture",
+        "continuation_ref": null,
+        "warnings": []
+      }
+    },
+    "subscriptions": {
+      "state": "not_requested",
+      "coverage": null
+    },
+    "playlists": {
+      "state": "denied",
+      "coverage": null
+    }
+  },
+  "retained_until": "2026-11-22T09:00:00Z"
+}

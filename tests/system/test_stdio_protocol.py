@@ -37,9 +37,15 @@ async def test_fixture_stdio_negotiates_and_serves_tool_and_resource():
             envelope = ResultEnvelope[FixtureStatus].model_validate_json(
                 json.dumps(result.structured_content)
             )
-            assert (envelope.schema_version, envelope.mode, envelope.status) == ("1", "fixture", "ok")
+            assert (envelope.schema_version, envelope.mode, envelope.status) == (
+                "1",
+                "fixture",
+                "ok",
+            )
             assert envelope.data == FixtureStatus()
-            assert result.content == [TextContent(type="text", text="The fixture server is available.")]
+            assert result.content == [
+                TextContent(type="text", text="The fixture server is available.")
+            ]
 
             invalid = await client.call_tool("fixture_status", {"mode": "live"})
             assert invalid.is_error
