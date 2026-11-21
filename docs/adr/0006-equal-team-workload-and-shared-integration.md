@@ -2,6 +2,8 @@
 
 Date: 19 November 2026 · Author: Codex · Status: user-directed allocation; implementation details pending human review
 
+Review governance amended 21 November under [ADR-0007](0007-team-lead-review-and-deliverable-acceptance.md); equal implementation ownership/task IDs remain.
+
 ## Context
 
 The original 16 November planning allocation placed most difficult engineering with Aadyant and smaller analytics/workflow assignments with Jeswin/Paul. On 19 November the user explicitly changed that preference to an equal split and requested all planning documents be revised. The fixed SRS still requires all five features, authority/quota/security boundaries, reviews and attributable contributions.
@@ -10,13 +12,13 @@ Distilled basis: [17-equal-team-allocation](../../brain/resources/17-equal-team-
 
 ## Decision
 
-Allocate eight tasks and 56–80 estimated hours to each member, covering complex production code plus tests, fixtures, docs, integration and reviews:
+Allocate eight tasks and 56–80 estimated hours to each member, covering complex production code plus tests/fixtures/docs/integration, author self-checks, handoffs and feedback fixes; centralized lead-review and independent PR review time are tracked separately:
 
 - Aadyant: common bootstrap/contracts/MCP, similarity/recommendations, strict proposal planning, shared presentation and product skill.
 - Jeswin: input parsing/accounted HTTP, official read/fixture provider, OAuth/vault/account, library collection, analytics, knowledge workflows and privacy/live-read setup.
 - Paul: repositories/cache/retention, project quota/sessions, native human approval, guarded writes/journal/recovery, CI and local-check/measurement tooling.
 
-Use versioned task IDs A2-01–A2-08, J2-01–J2-08, P2-01–P2-08. Retire the earlier IDs with a mapping. A2-01 publishes reviewed contracts first; all three then implement in parallel with isolated fixtures. Every service owner supplies their handler integration and fixes, rather than delegating all assembly to the composition owner. Share documentation/evaluations and rotate reviews/phase coordination. Judge actual workload by effort/complexity/defects/reviews, not equal counts alone; re-estimate at G1/G3.
+Use versioned task IDs A2-01–A2-08, J2-01–J2-08, P2-01–P2-08. Retire the earlier IDs with a mapping. A2-01 publishes reviewed contracts first; all three then implement in parallel with isolated fixtures. Every service owner supplies their handler integration and fixes, rather than delegating all assembly to the composition owner. Share documentation/evaluations; Aadyant leads review of all teammate work and stage acceptance under ADR-0007, while his authored/coauthored work retains independent non-author review. Judge actual workload by effort/complexity/defects/reviews, not equal counts alone; re-estimate at G1/G3.
 
 ## Consequences
 

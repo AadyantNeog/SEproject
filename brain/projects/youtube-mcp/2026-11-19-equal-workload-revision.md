@@ -11,6 +11,8 @@ requirements: ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "NFR-11", "GOV-01", "GOV-
 
 # Equal workload implementation-plan revision
 
+Historical review arrangement: the 19 November implementation allocation and observed checks below are preserved. On 21 November the user replaced review rotation with Aadyant-led review; see [[2026-11-21-team-lead-review-update]] and [[18-team-lead-review-governance]]. Current planning files are version 2.1 with the same A2/J2/P2 implementation IDs.
+
 ## Goal
 
 Replace the earlier unequal allocation with equal engineering responsibility and revise all affected active planning/agent/coverage/decision documents, preserving the fixed SRS and actual project history.

@@ -1,10 +1,10 @@
 # Shared implementation contracts
 
-Version 2.0 · 19 November 2026 · Ownership: shared across the three engineering tracks · Status: design, implementation pending
+Version 2.1 · 21 November 2026 · Ownership: shared across the three engineering tracks · Status: design, implementation pending
 
-Read with [MASTER_PLAN.md](MASTER_PLAN.md), [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md), [tasks.json](tasks.json) and [TASK_MIGRATION.md](TASK_MIGRATION.md). A2-01 turns the common contracts into validated models/protocols/examples, with Jeswin reviewing provider/account and Paul reviewing quota/approval/repository boundaries. Consumer merges use that reviewed baseline. Later changes have a named editor, affected-owner review and updated examples/tests. Documentation version 2.0 changes allocation; the application schema below remains version 1. No implementation is claimed here.
+Read with [MASTER_PLAN.md](MASTER_PLAN.md), [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md), [tasks.json](tasks.json) and [TASK_MIGRATION.md](TASK_MIGRATION.md). A2-01 turns the common contracts into validated models/protocols/examples, with Jeswin/Paul providing affected-owner technical input and an eligible non-author independently reviewing the Aadyant-authored foundation. Consumer merges use that reviewed baseline. Later changes have a named editor, affected-owner technical input plus the required human review and updated examples/tests. Documentation version 2.1 adds team-lead review under [REVIEW_POLICY.md](REVIEW_POLICY.md); the application schema below remains version 1. No implementation is claimed here.
 
-Basis: [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [partial writes](../../brain/resources/07-playlist-writes-and-partial-failure.md), [planning boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), [equal allocation](../../brain/resources/17-equal-team-allocation.md).
+Basis: [lead-review governance](../../brain/resources/18-team-lead-review-governance.md), [MCP contracts](../../brain/resources/11-mcp-and-agent-skill-contracts.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [partial writes](../../brain/resources/07-playlist-writes-and-partial-failure.md), [planning boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), [equal allocation](../../brain/resources/17-equal-team-allocation.md).
 
 ## 1. Shared rules
 

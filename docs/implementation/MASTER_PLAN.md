@@ -1,8 +1,8 @@
 # YouTube Video Intelligence MCP Server: implementation master plan
 
-Version 2.0 · 19 November 2026 · Team Random Stuff · Author: Codex
+Version 2.1 · 21 November 2026 · Team Random Stuff · Author: Codex
 
-Status: local implementation proposal, ready for team review. This is a design and work plan, not an implementation, passed test report, human approval, or changed SRS. The user revised the allocation on 19 November: divide engineering equally among Aadyant, Jeswin and Paul, including complex production work, tests, documentation, integration and review. This supersedes the earlier allocation and chat prompts; use the version 2 task IDs.
+Status: local implementation proposal, ready for team review. This is a design and work plan, not an implementation, passed test report, human approval, or changed SRS. The user revised the allocation on 19 November: divide engineering equally among Aadyant, Jeswin and Paul, including complex production work, tests, documentation, integration and review. That equal implementation allocation and its A2/J2/P2 task IDs remain. On 21 November Aadyant was designated team lead and required reviewer of all teammate work, replacing review rotation; see REVIEW_POLICY.md for his own-work exception.
 
 ## 1. How to use this plan
 
@@ -16,7 +16,8 @@ The execution documents are:
 | [TEAM_WORKPLAN.md](TEAM_WORKPLAN.md) | Owned tasks, estimates, dependency order, review and delivery gates |
 | [coverage.csv](coverage.csv) | One current-owner/task planning row for each of the 46 numbered requirements |
 | [tasks.json](tasks.json) | 24 current tasks, equal effort ranges and explicit dependencies |
-| [TASK_MIGRATION.md](TASK_MIGRATION.md) | Retired-task mapping and new starting prompts/order |
+| [TASK_MIGRATION.md](TASK_MIGRATION.md) | Retired-task mapping and current starting order |
+| [REVIEW_POLICY.md](REVIEW_POLICY.md) | Aadyant-led review, own-work exception and versioned acceptance |
 | [PLAN_QA.md](PLAN_QA.md) | Observed planning integrity checks and remaining evidence limits |
 | [Aadyant brief](roles/AADYANT.md) | Ranking/recommendations/planning, MCP and presentation engineering |
 | [Jeswin brief](roles/JESWIN.md) | HTTP/provider/OAuth/library/analytics and privacy engineering |
@@ -26,7 +27,7 @@ The execution documents are:
 
 Names and paths below describe planned files unless they already exist. Do not mistake a directory tree, task ID, or future command for an implemented capability. Implementation Issue/PR/test links remain pending until created. The older SRS traceability register remains intact; reconcile it with this planning register as real work lands.
 
-Decision basis: [metadata similarity](../../brain/resources/02-metadata-based-similarity.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [quota](../../brain/resources/09-quota-buckets-and-budgeting.md), [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), and [implementation boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), and [equal allocation](../../brain/resources/17-equal-team-allocation.md).
+Decision basis: [lead-review governance](../../brain/resources/18-team-lead-review-governance.md), [metadata similarity](../../brain/resources/02-metadata-based-similarity.md), [approval](../../brain/resources/06-preview-and-human-approval.md), [quota](../../brain/resources/09-quota-buckets-and-budgeting.md), [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), and [implementation boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md), and [equal allocation](../../brain/resources/17-equal-team-allocation.md).
 
 ## 2. Product boundary and completion target
 
@@ -40,7 +41,7 @@ Deliver one installable local stdio MCP server for one authorised YouTube accoun
 | FR-4 Engagement analysis | Collection counts, runtime statistics and supported timestamp comparisons | Jeswin collection and analytics; Aadyant report rendering |
 | FR-5 Playlist creation | Clarification, strict planning, complete preview, human approval and recoverable writes | Aadyant planning/preview/product skill; Paul approval/writes/recovery; Jeswin identity/HTTP |
 
-The equal allocation is eight tasks and 56–80 planned hours per member (one third each at midpoint). Aadyant owns algorithms/planning/MCP/presentation, Jeswin owns provider/identity/library/analytics, and Paul owns state/quota/authority/execution/recovery. All three supply their own fixtures/tests/docs/integration and review another track. See the team workplan for checkpoints and handoffs.
+The equal allocation is eight tasks and 56–80 planned hours per member (one third each at midpoint). Aadyant owns algorithms/planning/MCP/presentation, Jeswin owns provider/identity/library/analytics, and Paul owns state/quota/authority/execution/recovery. All three supply their own fixtures/tests/docs/integration, author self-checks, handoffs and feedback fixes. Aadyant reviews every teammate deliverable and coordinates acceptance; his own work needs eligible non-author Jeswin/Paul review. Central lead-review/coordination and independent review hours are additional to these implementation estimates, so equal total workload is not claimed. See the review policy and team workplan.
 
 No custom web app, public service, media player, model training, embeddings service, transcripts, downloads, scraping or extra account mutation belongs in this baseline. Do not build a REST API just to connect the modules; stdio is the product interface. The native confirmation dialog is a narrow approval control, not a second application.
 
@@ -142,7 +143,7 @@ docs/             implementation/, adr/, developer/, user/, evidence/
 .github/          workflows/, CODEOWNERS, pull_request_template.md
 ```
 
-Existing SRS-generation scripts stay in place. No implementation directory should acquire placeholder code that pretends to pass acceptance. Each member owns the substantial track and handler integration in their brief. Aadyant supplies common composition/contracts; Jeswin supplies HTTP/read provider/account/library/analytics; Paul supplies state/quota/approval/write/recovery. All three own their feature tests, fixtures, docs and integration fixes. Shared files have a named editor and affected-owner review per PR.
+Existing SRS-generation scripts stay in place. No implementation directory should acquire placeholder code that pretends to pass acceptance. Each member owns the substantial track and handler integration in their brief. Aadyant supplies common composition/contracts; Jeswin supplies HTTP/read provider/account/library/analytics; Paul supplies state/quota/approval/write/recovery. All three own their feature tests, fixtures, docs and integration fixes. Shared files have a named editor and affected-owner technical input plus the required human review per PR.
 
 ### Operational defaults
 
@@ -395,7 +396,7 @@ Test behaviour at four boundaries: pure domain functions, application services w
 | AT-17 | 1 warm-up + at least 30 runs, hardware/methodology and p95 targets | Each owner measures own targets; Paul harness |
 | AT-18 | Offline CI, valid notes/links/skills, each skill's positive/negative/authority cases | Jeswin knowledge; Paul CI/local-check; Aadyant product skill |
 | AT-19 | Windows/client setup, consent, all five features and live skill/local-check walkthrough | All three demonstrate their own features and skills |
-| AT-20 | Requirement → Issue → PR → test/skill/note links, human review, ADRs, diagrams and release | All three maintain own traceability/reviews; rotating coordination |
+| AT-20 | Requirement → Issue → PR → test/skill/note links, human review, ADRs, diagrams and release | Owners maintain evidence; Aadyant reviews teammate deliverables and leads acceptance; his own work gets independent review |
 
 Property/fault tests must establish: no invalid proposal is written; total and individual duration never exceed caps; identical fixtures/settings produce stable rankings; no grant can authorise another digest/account/operation; repeated operation IDs cannot create new playlists; accounting cannot overspend a tracked bucket. Simulate time rather than wait ten minutes or thirty days.
 
@@ -403,17 +404,17 @@ Performance: measure validation p95 ≤100 ms; ranking up to 200 candidates and 
 
 PR CI is credential-free and runs on every PR: validate install/build, Ruff, mypy, units, integration/system/security fixture tests, secret scan and knowledge/skill validators. CI emits JUnit/coverage/build artefacts without private payloads. No arbitrary coverage percentage substitutes for the acceptance matrix. Pin actions by reviewed commit SHA and packages/scanner by verified version; use minimal `contents: read` permissions and avoid secrets on untrusted PRs.
 
-The SRS also requires a separately **scheduled** live workflow with an authorised test account and a fixed configurable budget. Jeswin prepares its scheduled configuration and privacy/consent documentation; an authorised human operator provisions it only after policy/account approval. Paul reviews runner/CI permissions and quota integration. Prefer a scheduled self-hosted Windows runner with protected OS credentials, no PR-code execution and a read-only live smoke budget of 40 general/6 search units per run. The actual workflow still preflights its smaller bounded call plan. A manual trigger may supplement the schedule, not replace it. Scheduled runs do not obtain human playlist approval or perform writes. Live creation is a supervised, separately budgeted demonstration of the exact approved proposal. Missing credentials/runner/policy decision is `blocked`, not a fake green live run.
+The SRS also requires a separately **scheduled** live workflow with an authorised test account and a fixed configurable budget. Jeswin prepares its scheduled configuration and privacy/consent documentation; an authorised human operator provisions it only after policy/account approval. Paul supplies runner/CI/quota technical input; Aadyant performs required review of Jeswin's scheduled-check deliverable. Prefer a scheduled self-hosted Windows runner with protected OS credentials, no PR-code execution and a read-only live smoke budget of 40 general/6 search units per run. The actual workflow still preflights its smaller bounded call plan. A manual trigger may supplement the schedule, not replace it. Scheduled runs do not obtain human playlist approval or perform writes. Live creation is a supervised, separately budgeted demonstration of the exact approved proposal. Missing credentials/runner/policy decision is `blocked`, not a fake green live run.
 
 ## 10. Skills, client setup and team evidence
 
-Keep canonical skills in `.agents/skills/`. Every SKILL.md has valid name/description frontmatter, version metadata, invocation conditions, inputs, steps, outputs/failures, and a distilled-note citation. Jeswin maintains brain-ingest and implements brain-refine/brain-query plus knowledge validation; Paul implements local-check and its process/benchmark tooling; Aadyant implements video-to-playlist and the client adapter. Each owner supplies positive/negative/evidence evaluations and corresponding docs. Paul reviews product-skill write authority, Jeswin reviews data/consent and Aadyant reviews presentation/composition assumptions.
+Keep canonical skills in `.agents/skills/`. Every SKILL.md has valid name/description frontmatter, version metadata, invocation conditions, inputs, steps, outputs/failures, and a distilled-note citation. Jeswin maintains brain-ingest and implements brain-refine/brain-query plus knowledge validation; Paul implements local-check and its process/benchmark tooling; Aadyant implements video-to-playlist and the client adapter. Each owner supplies positive/negative/evidence evaluations and corresponding docs. Aadyant reviews all teammate skills/evaluations; Paul/Jeswin provide technical input and an eligible non-author reviews Aadyant's product skill and client adapter. Passing evaluations or technical feedback are not lead approval.
 
 For the chosen Claude Code local demonstration, generate/copy skill folders into the client-recognised `.claude/skills/` location with a documented adapter script. Compare hashes against canonical content to prevent divergent copies. Do not assume root AGENTS.md is auto-loaded by every model; the teammate must explicitly instruct their agent to read it. A lightweight client instruction file may point to it; it must not duplicate or weaken project rules. Server resources also expose read-only help/skill text, with no secrets. Actual SDK-specific/client-specific configuration is tested in A2-05/P2-03 before instructions are declared working [S13, S14].
 
 `local-check` reports five separate steps: package validation/build; automated tests; start local server; read-only fetch via MCP; stop resources started. Steps use pass/fail/blocked, fixture default and explicit live quota disclosure. It never treats merely importing a module as a client connection. `video-to-playlist` states that summaries use title/description metadata; it cannot claim watched content or forge human approval. Each skill has success, negative and evidence/authority evaluation cases before applicable stage submissions.
 
-Human contribution means an owned implementation/documentation change, meaningful tests/evidence, an individually explainable demonstration, an authored human knowledge contribution and review under the person's real identity. AI-generated content is labelled AI-assisted/AI-authored as appropriate; an agent must not write notes or review approvals pretending to be Jeswin or Paul. Each teammate authors their own human reflection and commits their own work. No member or coding agent silently implements and attributes another member's tasks for them. Stage integration/evidence and human reviews are shared obligations with rotating coordination.
+Human contribution means an owned implementation/documentation change, meaningful tests/evidence, an individually explainable demonstration, an authored human knowledge contribution and review under the person's real identity. AI-generated content is labelled AI-assisted/AI-authored as appropriate; an agent must not write notes or review approvals pretending to be Jeswin or Paul. Each teammate authors their own human reflection and commits their own work. No member or coding agent silently implements and attributes another member's tasks for them. Owners still integrate and explain their contributions. Aadyant coordinates review scheduling and stage/release acceptance, personally reviewing every teammate artefact; his authored/coauthored work retains independent non-author review.
 
 ## 11. Risk register and decisions still requiring evidence
 
@@ -424,7 +425,7 @@ Human contribution means an owned implementation/documentation change, meaningfu
 | Windows helper/client authority cannot be proven | Early P2-03 proof using A2-05/A2-06; native human confirmation and restricted client automation. Block writes if unavailable. Paul + Aadyant, G1. |
 | API write timeout has no remote idempotency key | Journal intent/IDs, stop on ambiguity, bounded reconciliation and human-assisted unknown-create recovery. Paul, G4. |
 | Shared-project quota or changing cost profile | Persistent shared ledger, dated configurable costs, external-usage warnings and fail-safe provider errors. Paul ledger + Jeswin executor, G2/G4. |
-| Equal estimates diverge or cross-owner interfaces arrive late | Eight tasks and 56–80 hours each; early contracts/fixtures, small PRs, actual-effort checkpoints at G1/G3 and rotating integration/reviews. Rebalance remaining work explicitly; no hidden central integrator. |
+| Equal estimates diverge or cross-owner interfaces arrive late | Eight tasks and 56–80 hours each; early contracts/fixtures, small PRs, actual-effort checkpoints at G1/G3 and owned integration under Aadyant-led review. Track centralized review/coordination separately, not as equal coding hours. Rebalance remaining work explicitly; no hidden central integrator. |
 | Teammate agents change shared files independently | Explicit path ownership, task-sized branches, interface PR before consumer changes and role-specific prompts. All, every PR. |
 | Stage-one CI/human review not actually complete | Backfill missing real workflow evidence; do not infer completion from existing SRS PDFs. Paul CI + all human reviewers, G0/G2. |
 | Credentials unavailable or Testing-mode expiry | Fixture delivery continues; record live acceptance as blocked, handle re-authorisation without chat tokens. Jeswin account/operator setup + all live feature owners, G5. |
@@ -433,7 +434,7 @@ No instructor deadline was supplied. Use the relative, dependency-driven schedul
 
 ## 12. Primary references checked for this plan
 
-Technical-source access date: 16 November 2026; retained without a fresh upstream check in this allocation-only revision on 19 November. These references support specific technical facts; algorithms, ownership, caps and file organisation above are project design choices. Recheck volatile facts at implementation time and record any discrepancy instead of editing the submitted SRS silently.
+API/SDK technical-source access date: 16 November 2026, retained without a fresh API/SDK check in the later allocation/governance revisions. GitHub review facts were checked on 21 November and are cited in REVIEW_POLICY.md. These references support specific technical facts; algorithms, ownership, caps and file organisation above are project design choices. Recheck volatile facts at implementation time and record any discrepancy instead of editing the submitted SRS silently.
 
 - S1: [Official MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) and [SDK documentation](https://py.sdk.modelcontextprotocol.io/get-started/).
 - S2: [MCP PyPI release metadata](https://pypi.org/project/mcp/) and [SRS-pinned tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).

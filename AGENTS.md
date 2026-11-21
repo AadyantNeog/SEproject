@@ -5,11 +5,11 @@ These instructions apply to every coding agent working in this repository. `AGEN
 ## Read before implementation
 
 1. `docs/requirements/SRS.md` and `brain/index.md`.
-2. `docs/implementation/MASTER_PLAN.md`, `CONTRACTS.md`, `TEAM_WORKPLAN.md`, `tasks.json`, `TASK_MIGRATION.md`, and `coverage.csv`.
+2. `docs/implementation/MASTER_PLAN.md`, `CONTRACTS.md`, `TEAM_WORKPLAN.md`, `tasks.json`, `TASK_MIGRATION.md`, `REVIEW_POLICY.md`, and `coverage.csv`.
 3. Your assigned brief under `docs/implementation/roles/` and the relevant ADRs in `docs/adr/`.
 4. Any additional applicable directory instructions. Inspect git status and existing environments before edits; preserve unrelated work and existing SRS/PDF changes.
 
-The current implementation plan is version 2.0, revised 19 November 2026 for an equal workload. It is a local design baseline, not completed work or a replacement SRS. Use A2-01–A2-08, J2-01–J2-08 and P2-01–P2-08; earlier task IDs/prompts are retired, with the mapping in TASK_MIGRATION.md. Planned paths, commands and tests may not exist yet. A2-01 creates the package/common contracts; each task owner implements their own tools/checks. Record discrepancies instead of inventing files or passing results.
+The current implementation plan is version 2.1, revised 21 November 2026 for equal implementation ownership and Aadyant-led review. It is a local design baseline, not completed work or a replacement SRS. Use A2-01–A2-08, J2-01–J2-08 and P2-01–P2-08; earlier task IDs/prompts are retired, with the mapping in TASK_MIGRATION.md. Planned paths, commands and tests may not exist yet. A2-01 creates the package/common contracts; each task owner implements their own tools/checks. Record discrepancies instead of inventing files or passing results.
 
 ## Project requirements
 
@@ -21,14 +21,16 @@ The current implementation plan is version 2.0, revised 19 November 2026 for an 
 
 ## Team ownership and coordination
 
-- Divide work equally: each member owns eight tasks, 56–80 planned hours and one third of responsibility, including substantial production code, tests, synthetic fixtures, docs, integration, reviews and a demonstration. Compare actual effort at G1/G3 and rebalance remaining work explicitly if it diverges; equal task counts alone are insufficient.
+- Keep equal implementation ownership: each member owns eight tasks and 56–80 planned engineering hours, one third of the implementation baseline, including code/tests/fixtures/docs/integration, author self-checks, review preparation and feedback fixes. Aadyant's centralized lead-review/coordination time and independent reviews of his PRs are additional and tracked separately; total workload is not asserted equal. Compare actual effort at G1/G3 and record any explicit rebalancing.
 - Aadyant Neog (BT2024186) owns A2-01–A2-08: common bootstrap/MCP contracts, ranking/discovery/recommendations, strict playlist planning, shared presentation, product skill and feature integration. Follow `docs/implementation/roles/AADYANT.md`.
 - Jeswin Jose (BT2024142) owns J2-01–J2-08: parsers/accounted HTTP/read provider/fixture dispatch, OAuth/secrets/account lifecycle, authorised library retrieval, analytics, knowledge skills/validation and privacy/live-read setup. Follow `docs/implementation/roles/JESWIN.md`.
 - Paul T Mathew (BT2024135) owns P2-01–P2-08: SQLite/repositories/cache/retention, quota/workflow sessions, native approval, playlist write adapters/execution/recovery, CI, local-check and measurement tooling. Follow `docs/implementation/roles/PAUL.md`.
-- Work only on the assigned dependency-ready task. Do not silently take over a teammate's work or misattribute it. Propose shared contract/manifest changes with a named editor and affected-owner review; coordination is shared, not automatically assigned to Aadyant.
+- Work only on the assigned dependency-ready task. Do not silently take over a teammate's work or misattribute it. Propose shared contract/manifest changes with a named editor and affected-owner technical input. Aadyant coordinates the review queue and stage readiness as team lead; module owners still implement/integrate/fix their own work.
 - Start consumer implementation from merged A2-01 contracts using synthetic snapshots. All three can then implement their tracks in parallel without live credentials. Use separate branches/checkouts for simultaneous agents; do not race over uncommitted files.
 - Every owner supplies their own feature fixtures/oracles/tests/docs and service/MCP-handler integration. Jeswin owns the read/fixture dispatch core and Paul its separate write adapters; all provider traffic uses Jeswin's one quota-accounted executor and Paul's ledger. Aadyant's composition role does not make him responsible for everyone's integration fixes.
-- Rotate reviews and coordination: Jeswin reviews Aadyant, Paul reviews Jeswin, Aadyant reviews Paul; add affected specialists for critical shared boundaries. Each member supplies their share of stage/release evidence and human reflection. Agents cannot stand in for actual human reviewers.
+- Aadyant Neog is the team lead and required human reviewer for every Jeswin/Paul PR and deliverable: code, tests/fixtures, designs/contracts/ADRs, docs, skills, brain notes, reports, demos and stage/release evidence. Teammates submit exact commits/versions, fix his feedback and request re-review after material changes; CI, AI review or peer feedback cannot replace his approval.
+- Aadyant-authored work needs independent human review from a non-author Jeswin or Paul. If he materially coauthors teammate work, another eligible non-author reviews the combined change while he retains lead oversight. No self-approval or fabricated review; if no eligible reviewer is available, keep the PR unmerged.
+- Follow docs/implementation/REVIEW_POLICY.md and the tasks.json reviewer matrix. Affected owners may give technical input, but teammates cannot substitute their approval for Aadyant's required review of other teammate work. Agents may prepare handoffs but cannot impersonate reviewers, submit approvals on their behalf, infer approval from silence or mark unreviewed work accepted.
 - Shared-contract changes require compatible consumers, examples and tests. Scope/ownership changes are recorded team decisions, never an agent's unilateral redistribution.
 
 ## Architecture and implementation rules
@@ -76,13 +78,13 @@ The current implementation plan is version 2.0, revised 19 November 2026 for an 
 
 - Use real Issues for work/defects, task-sized branches and incremental commits. Default agent branch prefix is `codex/`. No direct main pushes, teammate branch overwrites or unrelated destructive cleanup.
 - During implementation, commit regularly on your task branch after each coherent, verified step and before switching tasks or handing work off. Keep commits small, use descriptive messages referencing the task/Issue, and stage only changes belonging to that commit. Do not wait until the entire task or project is finished to commit.
-- Every code/document/brain/skill change needs a PR and at least one real human review before merge. Agent review is assistance, never a fabricated human approval. Local preparation may continue without pretending that review occurred.
+- Every code/document/brain/skill change needs a PR and the current-version human review required by REVIEW_POLICY.md before merge: Aadyant for teammate work; an eligible independent Jeswin/Paul review for his own work. Record actual reviewer identity, commit/artefact version, decision and link; material changes require re-review. Local preparation or an agent report is not human approval.
 - Keep requirement → Issue → PR → test → skill → distilled-note links current. Mark uncreated links pending; planned test paths are not passed tests. Update ADRs when significant design choices change and review scope against the unchanged SRS.
 - Task completion requires its concrete workplan exit criteria, actual check results, appropriate docs/traceability, human review and an explainable attributable contribution. A blocked live prerequisite is not a passed acceptance case.
 - For a handoff, report task ID, changed files/behaviour, checks actually run, limitations, pending links and next dependency. Never claim team authorship, submission, review, release or instructor approval from generated files.
 
-Distilled basis for these agent instructions: [[12-engineering-and-knowledge-workflow]], [[06-preview-and-human-approval]], [[09-quota-buckets-and-budgeting]], [[15-implementation-boundaries-and-contracts]], [[17-equal-team-allocation]].
+Distilled basis for these agent instructions: [[12-engineering-and-knowledge-workflow]], [[06-preview-and-human-approval]], [[09-quota-buckets-and-budgeting]], [[15-implementation-boundaries-and-contracts]], [[17-equal-team-allocation]], [[18-team-lead-review-governance]].
 
 ## Current state
 
-The SRS/research and detailed implementation plan exist; the equal-workload revision is prepared locally on 19 November 2026. The team is Random Stuff: Aadyant Neog (BT2024186), Jeswin Jose (BT2024142), and Paul T Mathew (BT2024135). Product implementation, CI, human review, live acceptance and submission remain pending. No release, member contribution or approval is implied by generated files.
+The SRS/research and detailed implementation plan exist; equal implementation ownership was planned on 19 November and team-lead review governance is revised locally on 21 November 2026. The team is Random Stuff: Aadyant Neog (BT2024186), Jeswin Jose (BT2024142), and Paul T Mathew (BT2024135). Product implementation, CI, human review, live acceptance and submission remain pending. No release, member contribution or approval is implied by generated files.

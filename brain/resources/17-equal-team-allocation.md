@@ -11,6 +11,8 @@ requirements: ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "NFR-11", "GOV-01", "GOV-
 
 # Equal team allocation and shared integration
 
+Review-governance amendment, 21 November: the equal implementation tracks remain, but the earlier rotating-review arrangement below is historical. Aadyant now leads review of every teammate PR/deliverable; his own work needs independent non-author review. Lead-review/coordination hours are tracked in addition to the implementation baseline. See [[18-team-lead-review-governance]] and [[2026-11-21-team-lead-review-update]].
+
 ## Finding
 
 On 19 November 2026 the user replaced the earlier unequal workload preference with an equal split. The SRS fixes project behaviour and genuine team contribution/review, but does not require Aadyant to implement most modules. A change of allocation does not authorise a scope change or rewrite actual authorship/history.
