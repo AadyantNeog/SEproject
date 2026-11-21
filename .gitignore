@@ -1,6 +1,7 @@
 tmp/
 __pycache__/
 .venv/
+/dist/
 .env
 .env.*
 !.env.example

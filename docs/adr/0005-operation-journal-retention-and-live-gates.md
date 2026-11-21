@@ -2,6 +2,8 @@
 
 Date: 16 November 2026 · Author: Codex · Status: proposed for human review
 
+Task/ownership references amended 19 November 2026 under [ADR-0006](0006-equal-team-workload-and-shared-integration.md); recovery/retention/live gates unchanged.
+
 ## Context
 
 YouTube playlist and item writes are separate remote operations; a timeout can leave a write applied without a saved response. FR-5.7 requires duplicate prevention and truthful partial state. NFR-05 requires deleting/refreshing API data within retention limits. D-02 remains an unresolved dependency for affected live-derived processing.
@@ -24,4 +26,4 @@ The application provides safe duplicate prevention and disclosed uncertainty, no
 
 ## Verification and links
 
-Requirements: FR-5.6/5.7, FR-6, NFR-02–06, NFR-11, GOV-05. Tasks: A04/A05/A09–A12, P04. Acceptance: AT-08/09/11/12/14/20. Real Issue/PR, cleanup, crash and live evidence: pending. [Full recovery design](../implementation/MASTER_PLAN.md).
+Requirements: FR-5.6/5.7, FR-6, NFR-02–06, NFR-11, GOV-05. Tasks: P2-01/P2-03/P2-04/P2-05/P2-08, J2-03/J2-07/J2-08, A2-08. Paul owns durable safe writes/retention, Jeswin identity/privacy/live-read setup, and all three their actual integration/review evidence. Acceptance: AT-08/09/11/12/14/20. Real Issue/PR, cleanup, crash and live evidence: pending. [Full recovery design](../implementation/MASTER_PLAN.md).

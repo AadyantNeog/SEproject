@@ -10,6 +10,10 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-09-srs-submission-review]]
 - [[2026-11-12-srs-condensation]]
 - [[2026-11-16-implementation-master-plan]]
+- [[2026-11-19-equal-workload-revision]]
+- [[2026-11-21-team-lead-review-update]]
+- [[2026-11-21-own-pr-review-clarification]]
+- [[2026-11-21-a2-01-foundation]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
@@ -30,6 +34,9 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[14-ieee-srs-template-structure]]
 - [[15-implementation-boundaries-and-contracts]]
 - [[16-official-api-design-check-2026-11-16]]
+- [[17-equal-team-allocation]]
+- [[18-team-lead-review-governance]]
+- [[19-owner-ai-assisted-review-and-submitted-srs]]
 
 ## Structure
 
@@ -37,4 +44,4 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 
 ## Current evidence
 
-SRS preparation and the detailed implementation plan are complete locally, including the team details supplied by the user for Random Stuff. See [[srs-baseline]] for the member roster and [[2026-11-16-implementation-master-plan]] for the planning outcome and checks. Individual human notes, product implementation, CI, GitHub issues/PR review, live acceptance and submission remain pending. No GitHub mutation is implied by these local files.
+SRS preparation and the implementation planning records exist. Current version 2.2 retains the equal implementation allocation from 19 November and adds Aadyant-led review on 21 November. See [[17-equal-team-allocation]], [[18-team-lead-review-governance]] and [[2026-11-21-team-lead-review-update]]. The earlier unequal plan remains a historical session record. See [[srs-baseline]] for the member roster. The user confirmed on 21 November that the SRS was submitted about a week earlier. The exact date and rendition were unspecified. Its topic and requirements remain frozen. A2-01 foundation implementation and synthetic verification have started under [[2026-11-21-a2-01-foundation]]. Human PR review, CI, live acceptance and later-stage release remain pending.

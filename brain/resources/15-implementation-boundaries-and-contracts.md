@@ -11,6 +11,8 @@ requirements: ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "NFR-03", "NFR-11", "GOV-
 
 # Implementation boundaries and team contracts
 
+Allocation supersession, 19 November 2026: the original allocation described below is historical. The user's new equal-workload direction is distilled in [[17-equal-team-allocation]] and implemented in version 2 planning documents. Architecture/authority findings remain applicable; use current task IDs and owners rather than the original allocation.
+
 ## Finding
 
 The fixed SRS couples difficult cross-cutting concerns: authenticated provider calls, bounded workflow quota, immutable account-bound proposals, trusted human approval, partial remote writes and account-data retention. These need a coherent application boundary; independent agents must not implement different approval or quota rules.

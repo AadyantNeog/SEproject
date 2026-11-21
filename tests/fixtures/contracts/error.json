@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "mode": "fixture",
+  "request_id": "fixture-error",
+  "status": "blocked",
+  "data": null,
+  "warnings": [],
+  "coverage": null,
+  "error": {
+    "code": "QUOTA_INSUFFICIENT",
+    "message": "The fixture workflow exceeds its available quota reservation.",
+    "retryable": false,
+    "safe_next_action": "Narrow the workflow bounds and request a new preflight."
+  },
+  "quota": {
+    "estimated": true,
+    "profile_id": "youtube-2026-11-16"
+  }
+}

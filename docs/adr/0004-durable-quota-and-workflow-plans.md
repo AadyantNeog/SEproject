@@ -2,6 +2,8 @@
 
 Date: 16 November 2026 · Author: Codex · Status: proposed for human review
 
+Task/ownership references amended 19 November 2026 under [ADR-0006](0006-equal-team-workload-and-shared-integration.md); preflight/accounting rules unchanged.
+
 ## Context
 
 FR-7 requires rejection before the first provider call if any applicable quota bucket cannot fund the bounded workflow. NFR-12 requires configurable dated costs, separate general/search buckets, restart persistence and the provider's reset boundary. Read retries and nested pagination make per-request guesses insufficient.
@@ -22,4 +24,4 @@ Conservative worst-case reservation may reject work that might succeed with fewe
 
 ## Verification and links
 
-Requirements: FR-7, NFR-06/09/12, TQ-6. Tasks: A03/A05/A10, P01. Acceptance: AT-13/15/16. Concurrent/restart/DST/cost-change fixture tests and Issue/PR links: pending. [Budget formulas and examples](../implementation/MASTER_PLAN.md).
+Requirements: FR-7, NFR-06/09/12, TQ-6. Tasks: P2-01/P2-02/P2-04, J2-01, A2-07. Paul owns the ledger/sessions, Jeswin the accounted executor and Aadyant the composed product skill; each supplies their fixtures/tests and the actual cross-owner path is verified. Acceptance: AT-13/15/16. Concurrent/restart/DST/cost-change fixture tests and Issue/PR links: pending. [Budget formulas and examples](../implementation/MASTER_PLAN.md).

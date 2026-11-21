@@ -2,6 +2,8 @@
 
 Date: 16 November 2026 · Author: Codex · Status: proposed for human review
 
+Task/ownership references amended 19 November 2026 under [ADR-0006](0006-equal-team-workload-and-shared-integration.md); algorithms/constraints unchanged.
+
 ## Context
 
 FR-1/FR-2 require computed similarity, FR-3 authorised preference signals, and FR-5 verifiable topic/duration/language constraints. API metadata can be incomplete. No official related-content endpoint, watched-content claim or exact-fill promise is available to bridge missing evidence.
@@ -20,4 +22,4 @@ Scores are explainable and fixture-repeatable, but metadata relevance is approxi
 
 ## Verification and links
 
-Requirements: FR-1.1–FR-3.3, FR-5.1–FR-5.3. Tasks: A06–A08, P01. Acceptance: AT-02/03/04/07/10/15. Real Issue/PR/test links and measured ranking results: pending. [Full algorithm specification](../implementation/MASTER_PLAN.md).
+Requirements: FR-1.1–FR-3.3, FR-5.1–FR-5.3. Tasks: A2-02/A2-03/A2-04, J2-01/J2-02/J2-04; each owner supplies their fixtures/tests. Acceptance: AT-02/03/04/07/10/15. Real Issue/PR/test links and measured ranking results: pending. [Full algorithm specification](../implementation/MASTER_PLAN.md).

@@ -11,6 +11,8 @@ requirements: ["FR-1", "FR-2", "FR-3", "FR-4", "FR-5", "NFR-01", "NFR-03", "NFR-
 
 # Detailed implementation master plan and team agent instructions
 
+Historical record: the allocation and observed checks below describe 16 November 2026. The user replaced that allocation on 19 November; see [[2026-11-19-equal-workload-revision]] and [[17-equal-team-allocation]]. Current planning/QA files contain version 2; this note preserves the original outcome and does not assign current work.
+
 ## Goal
 
 Prepare a detailed SRS-based architecture/technology/implementation plan. Give Aadyant most difficult engineering and smaller substantive assignments to Jeswin and Paul. Maintain shared instructions for their separate coding agents, preserving the fixed project requirements and actual authorship.
