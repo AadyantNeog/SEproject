@@ -95,3 +95,8 @@ Subsequent operations must append their actual outcome here.
 
 - Implemented fixture-tested creation and recovery previews, ranked results, report sections and typed errors for [issue #6](https://github.com/AadyantNeog/SEproject/issues/6). The handoff shows how to render fixture previews for the native-dialog proof. See [[2026-11-26-a2-06-presentation]].
 - Passed 28 offline tests, scoped Ruff lint and formatting, strict mypy and the wheel build on Windows. Published [draft PR #7](https://github.com/AadyantNeog/SEproject/pull/7). The real report adapter, handler routing, native dialog and human review remain pending.
+
+## 2026-11-26 A2-05 early fixture shell
+
+- Added the checkout-backed synthetic preview and canonical skill resources and the Claude Code skill sync command for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). See [[2026-11-26-a2-05-fixture-shell]].
+- Claude Code 2.1.143 connected over stdio in an isolated Windows profile. Passed 31 offline tests, scoped Ruff, strict mypy and the locked wheel build. Published [draft PR #9](https://github.com/AadyantNeog/SEproject/pull/9). Product integration, trusted native approval proof and human owner review remain pending.
