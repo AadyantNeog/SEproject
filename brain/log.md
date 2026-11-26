@@ -144,3 +144,17 @@ Subsequent operations must append their actual outcome here.
 - For Aadyant's review follow-up on PR #23, removed `maxResults` from ID-batch lookups, made the live provider reject `mode="fixture"` requests before debit/dispatch, made unsupported fixture writes fail clearly (`PROVIDER_UNAVAILABLE` / HTTP 501), and rejected malformed API responses (`items`/`nextPageToken`/`pageInfo`) with `PROVIDER_UNAVAILABLE`. Re-verified 11 J2-02 contract tests, 240 total offline tests, strict `mypy src` (48 source files), and scoped Ruff checks. Re-review by Aadyant remains pending.
 
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
+
+## 2026-11-26 A2-05 Codex demonstration client
+
+- Aadyant selected Codex Desktop for the Windows demonstration. Recorded the selection in ADR-0009 and updated the fixture setup. See [[2026-11-26-a2-05-codex-demo-client]].
+- The Windows Codex app server read the synthetic creation preview and canonical skill resource at Paul's PR #17 head. The operator's second attempt returned no grant and exit code 0 for both manual window close and Reject.
+- Updated PR #20 with `main` at `b54573e`, preserving both teammate records. The Windows preview and skill resource probe, 229 offline tests, all 34 planning checks, scoped Ruff and mypy passed. The manual dismissal result is from the earlier fixture run.
+
+## 2026-11-26 A2-07 video-to-playlist fixture slice
+
+- Wrote the canonical product skill, the Codex walkthrough and the evaluation record for [issue #22](https://github.com/AadyantNeog/SEproject/issues/22). The fixture check verified discovery and preview, and the Codex refusal stopped before seed retrieval when the reservation tool was absent. See [[2026-11-26-a2-07-video-to-playlist]] for the evidence and blocked end-to-end cases.
+
+## 2026-11-26 A2-03 recommendation MCP fixture
+
+- Exposed the existing recommendation service over fixture MCP for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). Codex called the tool and reported the expected English result, liked-video evidence and 120 unused seconds. All 234 offline tests, scoped Ruff, mypy and all 34 planning checks passed. See [[2026-11-26-a2-03-recommendation-stdio]].

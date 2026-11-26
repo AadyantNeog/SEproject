@@ -67,7 +67,7 @@ Natural-language ambiguity is handled before proposal construction. The client a
 | Quality/build | Ruff, mypy, `build`, pip-tools; pinned secret scanner | Repeatable lint/type/package/secret checks and a resolved dependency lock |
 | CI | GitHub Actions, Windows reference job plus Linux fixture job | Windows-native approval/secret integration is verified separately from portable fixture tests |
 | Documentation | Markdown, Mermaid UML/state/ER diagrams, CSV traceability, versioned SKILL.md folders | Reviewable source artefacts; no additional authoring service required |
-| Demonstration client | Claude Code local client, subject to A2-05/P2-03 compatibility proof | Official docs cover local stdio MCP and project skills; native server confirmation remains mandatory [S13, S14] |
+| Demonstration client | Codex Desktop on Windows, subject to A2-05/P2-03 compatibility proof | Supports local stdio MCP and repository skills; native server confirmation remains mandatory [S13, S14] |
 
 Only the MCP release above was a specifically verified package selection in the original 16 November technical research. This 19 November revision changes allocation and has not reverified upstream release/API facts. Other package names and major families are choices, not invented exact release numbers. A2-01 must resolve compatible, non-prerelease versions on Python 3.13, inspect SDK-version-specific APIs, record them in `docs/developer/dependencies.md`, and commit hashed runtime/dev locks. Do not mix v1 FastMCP examples with the selected v2 `MCPServer` API. A tested ADR update is required if the chosen SDK cannot satisfy the SRS protocol contract.
 
@@ -410,7 +410,7 @@ The SRS also requires a separately **scheduled** live workflow with an authorise
 
 Keep canonical skills in `.agents/skills/`. Every SKILL.md has valid name/description frontmatter, version metadata, invocation conditions, inputs, steps, outputs/failures, and a distilled-note citation. Jeswin maintains brain-ingest and implements brain-refine/brain-query plus knowledge validation; Paul implements local-check and its process/benchmark tooling; Aadyant implements video-to-playlist and the client adapter. Each owner supplies positive/negative/evidence evaluations and corresponding docs. Aadyant reviews all teammate skills/evaluations; Paul/Jeswin provide technical input and Aadyant uses his chosen AI and records his own human review of the product skill and client adapter. Passing evaluations or technical feedback are not lead approval.
 
-For the chosen Claude Code local demonstration, generate/copy skill folders into the client-recognised `.claude/skills/` location with a documented adapter script. Compare hashes against canonical content to prevent divergent copies. Do not assume root AGENTS.md is auto-loaded by every model; the teammate must explicitly instruct their agent to read it. A lightweight client instruction file may point to it; it must not duplicate or weaken project rules. Server resources also expose read-only help/skill text, with no secrets. Actual SDK-specific/client-specific configuration is tested in A2-05/P2-03 before instructions are declared working [S13, S14].
+For the Codex Desktop demonstration, keep canonical project skills under `.agents/skills/`. The [Codex fixture runbook](../developer/codex-fixture.md) records the local stdio setup and verification. A teammate whose client does not load root AGENTS.md must explicitly ask it to read that file. Server resources expose the same read-only help and skill text. A2-05/P2-03 verify the selected-client setup and native helper boundary before live writes [S13, S14]. The earlier [Claude Code fixture experiment](../developer/claude-code-fixture.md) remains available as historical evidence.
 
 `local-check` reports five separate steps: package validation/build; automated tests; start local server; read-only fetch via MCP; stop resources started. Steps use pass/fail/blocked, fixture default and explicit live quota disclosure. It never treats merely importing a module as a client connection. `video-to-playlist` states that summaries use title/description metadata; it cannot claim watched content or forge human approval. Each skill has success, negative and evidence/authority evaluation cases before applicable stage submissions.
 
@@ -450,8 +450,8 @@ API/SDK technical-source access date: 16 November 2026, retained without a fresh
 - S10b: [playlistItems.insert](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/insert).
 - S11: [Playlist item timestamp semantics](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems).
 - S12: [Subscription timestamp semantics](https://developers.google.com/youtube/data/reference/rest/v3/subscriptions).
-- S13: [Claude Code local MCP](https://code.claude.com/docs/en/mcp).
-- S14: [Claude Code project skills](https://code.claude.com/docs/en/skills).
+- S13: [Codex local MCP](https://developers.openai.com/codex/mcp).
+- S14: [Codex repository skills](https://developers.openai.com/codex/skills).
 - S15: [YouTube developer policies](https://developers.google.com/youtube/terms/developer-policies).
 
 Current own-work review clarification: [source note 19](../../brain/resources/19-owner-ai-assisted-review-and-submitted-srs.md); [review policy](REVIEW_POLICY.md). No Jeswin/Paul assignment to Aadyant PRs; the human-review baseline is retained.
