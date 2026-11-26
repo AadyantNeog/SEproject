@@ -93,5 +93,5 @@ Subsequent operations must append their actual outcome here.
 
 ## 2026-11-26 P2-01 SQLite storage
 
-- Implemented versioned SQLite migrations and account-bound snapshot/proposal/cache/operation repositories on `codex/p2-01-sqlite-storage`; added simulated-time restart, expiry, isolation, deletion and replay tests plus an implementation handoff. Session: [[2026-11-26-p2-01-storage]].
-- Verification so far: Python 3.14.6 syntax compilation passed. Full pytest/ruff/mypy could not run because the checkout has no Python 3.13 interpreter or project dependencies. Issue, draft PR, and Aadyant review remain pending.
+- Implemented versioned SQLite migrations and account-bound snapshot/proposal/cache/operation repositories on `codex/p2-01-sqlite-storage`; added restart, expiry, isolation, deletion and replay tests plus an implementation handoff. Aadyant requested changes on commit `852bd6f`; the fixture loader now uses JSON-mode validation, and regressions cover multiprocess startup, open-reader cleanup, stale completed-operation updates, and superseding an approved proposal. Session: [[2026-11-26-p2-01-storage]].
+- Verification under isolated WSL Python 3.13.18: 26 offline tests passed; Ruff lint/format passed on changed P2-01 Python files; mypy passed on `src` (18 files). Repository-wide Ruff reported 182 findings before changes to this task's files, mostly outside P2-01; unrelated files were left untouched. Issue/PR URLs are pending inclusion in this local traceability note. No live API/OAuth/write data was used.

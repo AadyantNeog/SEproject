@@ -25,8 +25,16 @@ the OS user-data directory and never defaults to a path in the checkout.
 
 Repositories receive the existing `Clock` protocol. Tests inject a synthetic
 clock and use temporary databases to cover restart, expiry, account isolation,
-and replay behavior. The real quota ledger and OAuth disconnect caller are
-later integrations; their work is not claimed by this task.
+and replay behavior. Startup migrations serialize in-process, use SQLite's
+write lock across processes, and retry transient WAL-mode contention. An open
+reader may keep old pages visible in its snapshot; deletion commits account
+row removal but raises `StorageCleanupPending` until WAL truncation can finish.
+Callers must report that cleanup is pending and retry after readers close.
+Operation updates use monotonic revisions and cannot overwrite a newer or
+completed state. A revalidated approved proposal can transition to
+`superseded`; the replacement is stored as a new immutable version. The real
+quota ledger and OAuth disconnect caller are later integrations; their work is
+not claimed by this task.
 
 ## Retention
 
@@ -37,4 +45,23 @@ Operation payloads are similarly removed after 30 days while a minimal
 tombstone prevents replay. `purge_expired(now)` is the explicit cleanup hook;
 startup/periodic scheduling belongs to application composition.
 
-Issue: pending. Draft PR: pending. Aadyant human review: pending.
+## Verification
+
+The storage suite covers fixture loading, database restart, cache and object
+expiry, account isolation, tombstones, process-level concurrent startup,
+deletion while a reader is open, stale completed-operation updates, and
+superseding an approved proposal after revalidation. Run from the repository
+root with an isolated Python 3.13 environment and the hashed dev lock:
+
+```powershell
+wsl -d Ubuntu-22.04 -- bash -lc 'uv python install 3.13'
+wsl -d Ubuntu-22.04 -- bash -lc 'uv venv ~/.venvs/seproject-p2-01 --python 3.13'
+wsl -d Ubuntu-22.04 -- bash -lc 'uv pip install --python ~/.venvs/seproject-p2-01/bin/python --require-hashes -r "/mnt/c/mei/SE Lab/SEproject/requirements-dev.lock"'
+wsl -d Ubuntu-22.04 -- bash -lc 'uv pip install --python ~/.venvs/seproject-p2-01/bin/python --no-deps --editable "/mnt/c/mei/SE Lab/SEproject"'
+wsl -d Ubuntu-22.04 --cd "/mnt/c/mei/SE Lab/SEproject" -- ~/.venvs/seproject-p2-01/bin/python -m pytest -m "not live" -q
+wsl -d Ubuntu-22.04 --cd "/mnt/c/mei/SE Lab/SEproject" -- ~/.venvs/seproject-p2-01/bin/ruff check src/yt_intel/infrastructure tests/security/test_retention_and_deletion.py
+wsl -d Ubuntu-22.04 --cd "/mnt/c/mei/SE Lab/SEproject" -- ~/.venvs/seproject-p2-01/bin/ruff format --check src/yt_intel/infrastructure tests/security/test_retention_and_deletion.py
+```
+
+Issue and PR URLs are recorded in the repository's GitHub conversation; add
+their exact links to the brain log when available in the checkout.

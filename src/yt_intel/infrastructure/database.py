@@ -1,14 +1,17 @@
+import sqlite3
+import sys
 from collections.abc import Iterator
 from contextlib import closing, contextmanager
 from pathlib import Path
-import sqlite3
-import sys
+from threading import Lock
+from time import monotonic, sleep
 
 from platformdirs import user_data_path
 
 from yt_intel.contracts.common import Mode
 
 SCHEMA_VERSION = 1
+_MIGRATION_LOCK = Lock()
 _MIGRATIONS: tuple[str, ...] = (
     """
     CREATE TABLE accounts (
@@ -55,6 +58,7 @@ _MIGRATIONS: tuple[str, ...] = (
         binding_key TEXT NOT NULL REFERENCES accounts(binding_key) ON DELETE CASCADE,
         digest TEXT NOT NULL,
         state TEXT NOT NULL,
+        revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         retained_until TEXT NOT NULL,
@@ -73,7 +77,9 @@ _MIGRATIONS: tuple[str, ...] = (
 
 def default_database_path(mode: Mode) -> Path:
     """Return a per-user, per-mode path outside the repository checkout."""
-    return user_data_path("YouTubeIntelligence", appauthor=False) / mode / "state.sqlite3"
+    return (
+        user_data_path("YouTubeIntelligence", appauthor=False) / mode / "state.sqlite3"
+    )
 
 
 class Database:
@@ -95,25 +101,25 @@ class Database:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA busy_timeout = 5000")
         connection.execute("PRAGMA secure_delete = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
         if sys.platform != "win32":
             self.path.chmod(0o600)
         return connection
 
     def migrate(self) -> None:
-        with closing(self.connect()) as connection:
-            connection.execute(
-                "CREATE TABLE IF NOT EXISTS schema_migrations "
-                "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
-            )
-            version = connection.execute(
-                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
-            ).fetchone()[0]
-            if version > SCHEMA_VERSION:
-                raise RuntimeError("database schema is newer than this application")
-            for next_version in range(version + 1, SCHEMA_VERSION + 1):
-                connection.execute("BEGIN IMMEDIATE")
-                try:
+        with _MIGRATION_LOCK, closing(self.connect()) as connection:
+            self._enable_wal(connection)
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                connection.execute(
+                    "CREATE TABLE IF NOT EXISTS schema_migrations "
+                    "(version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)"
+                )
+                version = connection.execute(
+                    "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+                ).fetchone()[0]
+                if version > SCHEMA_VERSION:
+                    raise RuntimeError("database schema is newer than this application")
+                for next_version in range(version + 1, SCHEMA_VERSION + 1):
                     for statement in _MIGRATIONS[next_version - 1].split(";"):
                         if statement.strip():
                             connection.execute(statement)
@@ -122,10 +128,26 @@ class Database:
                         "VALUES (?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))",
                         (next_version,),
                     )
-                    connection.commit()
-                except BaseException:
-                    connection.rollback()
+                connection.commit()
+            except BaseException:
+                connection.rollback()
+                raise
+
+    @staticmethod
+    def _enable_wal(connection: sqlite3.Connection) -> None:
+        deadline = monotonic() + 10
+        while True:
+            try:
+                mode = connection.execute("PRAGMA journal_mode = WAL").fetchone()[0]
+                if mode.lower() != "wal":
+                    raise RuntimeError("SQLite refused write-ahead logging mode")
+                return
+            except sqlite3.OperationalError as error:
+                if not any(word in str(error).lower() for word in ("locked", "busy")):
                     raise
+                if monotonic() >= deadline:
+                    raise
+                sleep(0.025)
 
     @contextmanager
     def transaction(self, *, immediate: bool = True) -> Iterator[sqlite3.Connection]:
@@ -142,7 +164,17 @@ class Database:
 
     def checkpoint_and_truncate(self) -> None:
         with closing(self.connect()) as connection:
-            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            busy, _, _ = connection.execute(
+                "PRAGMA wal_checkpoint(TRUNCATE)"
+            ).fetchone()
+            if busy:
+                raise StorageCleanupPending(
+                    "SQLite data is deleted, but an open reader prevents WAL truncation"
+                )
 
     def close(self) -> None:
         """Compatibility hook; connections are scoped to each operation."""
+
+
+class StorageCleanupPending(RuntimeError):
+    """Rows were deleted, but an open SQLite reader delays physical cleanup."""

@@ -1,13 +1,20 @@
-from datetime import datetime, timedelta
 import hashlib
 import json
 import sqlite3
+from datetime import datetime, timedelta
 from typing import Literal
 
-from pydantic import TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from yt_intel.contracts.approval import ApprovableProposal
-from yt_intel.contracts.common import AccountBinding, Contract, Digest, OpaqueId, UtcDateTime
+from yt_intel.contracts.common import (
+    AccountBinding,
+    Contract,
+    Digest,
+    NonNegative,
+    OpaqueId,
+    UtcDateTime,
+)
 from yt_intel.contracts.models import LibrarySnapshot
 from yt_intel.contracts.proposals import ProposalRef
 from yt_intel.contracts.repositories import (
@@ -39,6 +46,10 @@ class OperationResultExpired(RuntimeError):
     """Only an expired operation tombstone remains; execution cannot be replayed."""
 
 
+class StaleOperationUpdate(RuntimeError):
+    """An operation update was based on an earlier persisted revision."""
+
+
 class OperationIntent(Contract):
     """Small durable operation identity persisted before any external write."""
 
@@ -46,10 +57,20 @@ class OperationIntent(Contract):
     binding: AccountBinding
     digest: Digest
     state: Literal[
-        "not_started", "awaiting_approval", "creating", "completed", "partial",
-        "unknown", "verification_pending", "rejected", "expired",
-        "failed_preflight", "failed",
+        "not_started",
+        "awaiting_approval",
+        "preflighting",
+        "creating",
+        "completed",
+        "partial",
+        "unknown",
+        "verification_pending",
+        "rejected",
+        "expired",
+        "failed_preflight",
+        "failed",
     ]
+    revision: NonNegative = 0
     created_at: UtcDateTime
     updated_at: UtcDateTime
     retained_until: UtcDateTime
@@ -61,6 +82,7 @@ class OperationIntent(Contract):
                 "binding": self.binding.model_dump(mode="json"),
                 "digest": self.digest,
                 "state": self.state,
+                "revision": self.revision,
                 "created_at": _timestamp(self.created_at),
                 "updated_at": _timestamp(self.updated_at),
                 "retained_until": _timestamp(self.retained_until),
@@ -85,8 +107,10 @@ def _binding_key(binding: AccountBinding) -> str:
     return hashlib.sha256(stable).hexdigest()
 
 
-def _canonical(model: object) -> str:
-    return json.dumps(model.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))  # type: ignore[attr-defined]
+def _canonical(model: BaseModel) -> str:
+    return json.dumps(
+        model.model_dump(mode="json"), sort_keys=True, separators=(",", ":")
+    )
 
 
 def _ensure_account(
@@ -126,7 +150,9 @@ class SqliteAccountDataRepository(AccountDataRepository):
                     "(operation_id, digest, expired_at, status) VALUES (?, ?, ?, 'disconnected')",
                     (row["operation_id"], row["digest"], _timestamp(self.clock.now())),
                 )
-            connection.execute("DELETE FROM accounts WHERE binding_key = ?", (_binding_key(binding),))
+            connection.execute(
+                "DELETE FROM accounts WHERE binding_key = ?", (_binding_key(binding),)
+            )
         self.database.checkpoint_and_truncate()
 
     async def purge_expired(self, now: UtcDateTime) -> None:
@@ -142,10 +168,18 @@ class SqliteAccountDataRepository(AccountDataRepository):
                     "(operation_id, digest, expired_at, status) VALUES (?, ?, ?, 'expired')",
                     (row["operation_id"], row["digest"], stamp),
                 )
-            connection.execute("DELETE FROM snapshots WHERE retained_until <= ?", (stamp,))
-            connection.execute("DELETE FROM proposals WHERE retained_until <= ?", (stamp,))
-            connection.execute("DELETE FROM cache_entries WHERE retained_until <= ?", (stamp,))
-            connection.execute("DELETE FROM operations WHERE retained_until <= ?", (stamp,))
+            connection.execute(
+                "DELETE FROM snapshots WHERE retained_until <= ?", (stamp,)
+            )
+            connection.execute(
+                "DELETE FROM proposals WHERE retained_until <= ?", (stamp,)
+            )
+            connection.execute(
+                "DELETE FROM cache_entries WHERE retained_until <= ?", (stamp,)
+            )
+            connection.execute(
+                "DELETE FROM operations WHERE retained_until <= ?", (stamp,)
+            )
         self.database.checkpoint_and_truncate()
 
 
@@ -166,7 +200,9 @@ class SqliteSnapshotRepository(SnapshotRepository):
             ).fetchone()
             if prior is not None:
                 if prior["binding_key"] != key or prior["payload"] != payload:
-                    raise RepositoryConflict("snapshot ID is immutable and account-bound")
+                    raise RepositoryConflict(
+                        "snapshot ID is immutable and account-bound"
+                    )
                 return
             connection.execute(
                 "INSERT INTO snapshots(snapshot_id, binding_key, fetched_at, retained_until, payload) "
@@ -209,7 +245,9 @@ class SqliteProposalRepository(ProposalRepository):
             ).fetchone()
             if prior is not None:
                 if prior["binding_key"] != key or prior["digest"] != proposal.digest:
-                    raise RepositoryConflict("proposal versions are immutable and account-bound")
+                    raise RepositoryConflict(
+                        "proposal versions are immutable and account-bound"
+                    )
                 previous_fields = json.loads(prior["payload"])
                 new_fields = json.loads(payload)
                 previous_state = previous_fields.pop("state")
@@ -220,7 +258,7 @@ class SqliteProposalRepository(ProposalRepository):
                     return
                 allowed = {
                     "proposed": {"approved", "rejected", "expired", "superseded"},
-                    "approved": set(),
+                    "approved": {"expired", "superseded"},
                     "rejected": set(),
                     "expired": set(),
                     "superseded": set(),
@@ -230,7 +268,13 @@ class SqliteProposalRepository(ProposalRepository):
                 connection.execute(
                     "UPDATE proposals SET state = ?, payload = ? "
                     "WHERE proposal_id = ? AND version = ? AND binding_key = ?",
-                    (new_state, payload, proposal.ref.proposal_id, proposal.ref.version, key),
+                    (
+                        new_state,
+                        payload,
+                        proposal.ref.proposal_id,
+                        proposal.ref.version,
+                        key,
+                    ),
                 )
                 return
             connection.execute(
@@ -299,14 +343,22 @@ class SqliteCacheRepository(CacheRepository):
     ) -> None:
         now = self.clock.now()
         if not now < expires_at <= retained_until <= now + _MAX_RETENTION:
-            raise ValueError("cache expiry must be future and hard retention at most 30 days")
+            raise ValueError(
+                "cache expiry must be future and hard retention at most 30 days"
+            )
         with self.database.transaction() as connection:
             binding_key = _ensure_account(connection, binding, now)
             connection.execute(
                 "INSERT INTO cache_entries(binding_key, cache_key, expires_at, retained_until, payload) "
                 "VALUES (?, ?, ?, ?, ?) ON CONFLICT(binding_key, cache_key) DO UPDATE SET "
                 "expires_at=excluded.expires_at, retained_until=excluded.retained_until, payload=excluded.payload",
-                (binding_key, key, _timestamp(expires_at), _timestamp(retained_until), value),
+                (
+                    binding_key,
+                    key,
+                    _timestamp(expires_at),
+                    _timestamp(retained_until),
+                    value,
+                ),
             )
 
     async def put_with_default_ttl(
@@ -361,15 +413,22 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
                 (operation_id,),
             ).fetchone()
             if existing is not None:
-                if existing["binding_key"] != _binding_key(binding) or existing["digest"] != digest:
-                    raise OperationConflict("operation ID is already bound to different content")
+                if (
+                    existing["binding_key"] != _binding_key(binding)
+                    or existing["digest"] != digest
+                ):
+                    raise OperationConflict(
+                        "operation ID is already bound to different content"
+                    )
                 if existing["retained_until"] <= stamp:
                     connection.execute(
                         "INSERT OR IGNORE INTO operation_tombstones "
                         "(operation_id, digest, expired_at, status) VALUES (?, ?, ?, 'expired')",
                         (operation_id, digest, stamp),
                     )
-                    connection.execute("DELETE FROM operations WHERE operation_id = ?", (operation_id,))
+                    connection.execute(
+                        "DELETE FROM operations WHERE operation_id = ?", (operation_id,)
+                    )
                     expired = True
                 else:
                     result = OperationIntent.from_json(existing["payload"])
@@ -380,7 +439,9 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
                 ).fetchone()
                 if tombstone is not None:
                     if tombstone["digest"] != digest:
-                        raise OperationConflict("expired operation ID cannot be reused for new content")
+                        raise OperationConflict(
+                            "expired operation ID cannot be reused for new content"
+                        )
                     expired = True
                 else:
                     key = _ensure_account(connection, binding, now)
@@ -389,6 +450,7 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
                         binding=binding,
                         digest=digest,
                         state="not_started",
+                        revision=0,
                         created_at=now,
                         updated_at=now,
                         retained_until=now + _MAX_RETENTION,
@@ -409,24 +471,38 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
                         ),
                     )
         if expired:
-            raise OperationResultExpired("operation detail expired; the ID cannot be replayed")
+            raise OperationResultExpired(
+                "operation detail expired; the ID cannot be replayed"
+            )
         assert result is not None
         return result
 
-    async def update_operation(self, intent: OperationIntent) -> None:
+    async def update_operation(self, intent: OperationIntent) -> OperationIntent:
+        updated = intent.model_copy(update={"revision": intent.revision + 1})
         with self.database.transaction() as connection:
             cursor = connection.execute(
-                "UPDATE operations SET state = ?, updated_at = ?, payload = ? "
-                "WHERE operation_id = ? AND binding_key = ? AND digest = ? AND retained_until > ?",
+                "UPDATE operations SET state = ?, revision = revision + 1, updated_at = ?, payload = ? "
+                "WHERE operation_id = ? AND binding_key = ? AND digest = ? AND revision = ? "
+                "AND state <> 'completed' AND retained_until > ?",
                 (
-                    intent.state,
-                    _timestamp(intent.updated_at),
-                    intent.to_json(),
+                    updated.state,
+                    _timestamp(updated.updated_at),
+                    updated.to_json(),
                     intent.operation_id,
                     _binding_key(intent.binding),
                     intent.digest,
+                    intent.revision,
                     _timestamp(self.clock.now()),
                 ),
             )
             if cursor.rowcount != 1:
-                raise OperationResultExpired("operation is missing, expired, or belongs to another account")
+                existing = connection.execute(
+                    "SELECT state FROM operations WHERE operation_id = ? AND binding_key = ?",
+                    (intent.operation_id, _binding_key(intent.binding)),
+                ).fetchone()
+                if existing is not None and existing["state"] == "completed":
+                    raise StaleOperationUpdate("completed operations cannot be changed")
+                raise StaleOperationUpdate(
+                    "operation revision is stale or no longer writable"
+                )
+        return updated
