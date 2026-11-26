@@ -4,20 +4,24 @@ from sqlite3 import Error as SqliteError
 from uuid import uuid4
 
 from yt_intel.contracts.common import OpaqueId
-from yt_intel.contracts.models import CandidateSet
+from yt_intel.contracts.models import CandidateSet, Coverage
 from yt_intel.contracts.proposals import PROPOSAL_LIFETIME, PlaylistProposal
 from yt_intel.contracts.repositories import ProposalRepository
 from yt_intel.domain.constraints import PlaylistRequest, planning_error
 from yt_intel.domain.language import normalize_language_tag
 from yt_intel.domain.proposals import PlaylistPlanner
 from yt_intel.infrastructure.repositories import RepositoryConflict
+from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 
 class FixturePlanningService:
-    """Build a local preview from a bundled candidate set and persist its exact content."""
+    """Resolve synthetic candidates and persist the exact local preview."""
 
     def __init__(
-        self, catalog: CandidateSet, proposals: Callable[[], ProposalRepository]
+        self,
+        catalog: CandidateSet,
+        proposals: Callable[[], ProposalRepository],
+        candidate_sets: FixtureCandidateSets,
     ) -> None:
         if catalog.binding.mode != "fixture" or catalog.source != "synthetic":
             raise ValueError(
@@ -25,26 +29,32 @@ class FixturePlanningService:
             )
         self._catalog = catalog
         self._proposals = proposals
+        self._candidate_sets = candidate_sets
         self._planner = PlaylistPlanner(normalize_language_tag)
 
     async def propose(
         self, request: PlaylistRequest, candidate_set_id: OpaqueId | None
-    ) -> PlaylistProposal:
-        if (
-            candidate_set_id is not None
-            and candidate_set_id != self._catalog.candidate_set_id
-        ):
-            raise planning_error(
-                "CONTENT_UNAVAILABLE",
-                "The requested candidate set is unavailable in this fixture.",
-                "Omit candidate_set_id to use the bundled synthetic candidates.",
-            )
+    ) -> tuple[PlaylistProposal, Coverage]:
         now = datetime.now(UTC)
-        # Replay the static synthetic catalog. The resulting proposal expires
-        # against the current clock used by the SQLite repository.
-        candidates = self._catalog.model_copy(
-            update={"created_at": now, "expires_at": now + PROPOSAL_LIFETIME}
-        )
+        if (
+            candidate_set_id is None
+            or candidate_set_id == self._catalog.candidate_set_id
+        ):
+            # Replay only the bundled synthetic catalog. Discovery records retain their expiry.
+            candidates = self._catalog.model_copy(
+                update={"created_at": now, "expires_at": now + PROPOSAL_LIFETIME}
+            )
+        else:
+            loaded = await self._candidate_sets.load(
+                candidate_set_id, self._catalog.binding, now=now
+            )
+            if loaded is None:
+                raise planning_error(
+                    "CONTENT_UNAVAILABLE",
+                    "The requested candidate set is missing or expired.",
+                    "Run similar-video discovery again and use the returned candidate set ID.",
+                )
+            candidates = loaded
         proposal = self._planner.plan(
             request,
             candidates,
@@ -61,4 +71,4 @@ class FixturePlanningService:
                 "The synthetic proposal could not be saved to local storage.",
                 "Check access to the fixture database and try again.",
             ) from error
-        return proposal
+        return proposal, candidates.coverage

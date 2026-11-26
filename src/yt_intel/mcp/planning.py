@@ -16,11 +16,15 @@ from yt_intel.infrastructure.database import Database
 from yt_intel.infrastructure.repositories import SqliteProposalRepository
 from yt_intel.presentation.previews import render_proposal
 from yt_intel.presentation.results import render_error
+from yt_intel.services.fixture_candidates import FixtureCandidateSets
 from yt_intel.services.planning import FixturePlanningService
 
 
 def register_fixture_planning(
-    server: MCPServer[None], project_root: Path, fixture_db: Path | None
+    server: MCPServer[None],
+    project_root: Path,
+    fixture_db: Path | None,
+    candidate_sets: FixtureCandidateSets,
 ) -> None:
     candidate_path = project_file(
         project_root, Path("tests/fixtures/recommendations/candidates.json")
@@ -29,7 +33,9 @@ def register_fixture_planning(
         return
     catalog = CandidateSet.model_validate_json(candidate_path.read_bytes())
     service = FixturePlanningService(
-        catalog, lambda: SqliteProposalRepository(Database(fixture_db))
+        catalog,
+        lambda: SqliteProposalRepository(Database(fixture_db)),
+        candidate_sets,
     )
 
     @server.tool(
@@ -50,12 +56,12 @@ def register_fixture_planning(
         include_seed: bool = False,
         candidate_set_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, ResultEnvelope[PlaylistProposal]]:
-        """Store and preview a synthetic proposal locally without creating a playlist."""
+        """Preview a playlist from synthetic discovery candidates or the bundled set."""
         request_id = uuid4().hex
         fields = dict((ctx.request_context.params or {}).get("arguments", {}))
         candidate_reference = fields.pop("candidate_set_id", None)
         try:
-            proposal = await service.propose(
+            proposal, coverage = await service.propose(
                 parse_playlist_request(fields), candidate_reference
             )
         except ContractError as error:
@@ -81,7 +87,7 @@ def register_fixture_planning(
             status="ok",
             data=proposal,
             warnings=proposal.warnings,
-            coverage=catalog.coverage,
+            coverage=coverage,
         )
         return CallToolResult(
             structured_content=result.model_dump(),

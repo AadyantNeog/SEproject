@@ -20,7 +20,9 @@ With a checkout supplied as `--project-root`, the [Codex fixture server](codex-f
 | `find_similar_videos` | `{"video": "https://youtu.be/vidIndex001", "limit": 1}` | PostgreSQL B-Tree Index Scan Tuning, 1,201 seconds, audio language unknown |
 | `find_similar_channels` | `{"channel": "@SystemsStudyLab", "limit": 1}` | Query Craft, with one usable video from its returned uploads page |
 
-These standalone fixture calls use a request-local attempt budget and mock transport. The shared P2-02 reservations and the stored, account-bound candidate-set handoff remain integration work for [video-to-playlist](../../.agents/skills/video-to-playlist/SKILL.md). Live ranking stays blocked pending D-02.
+`find_similar_videos` also returns `candidate_set_id` beside the ranked results. The fixture SQLite cache keeps the full usable discovery pool for 24 hours under the synthetic account. The display limit still controls how many ranked results are shown. The stored pool keeps the seed when there is room under the candidate cap, so planning can consider it on explicit request. The ranking still excludes the seed.
+
+These standalone fixture calls use a request-local attempt budget and mock transport. The [playlist planning walkthrough](playlist-planning.md#preview-from-discovery) shows how to pass the saved reference. The shared P2-02 reservations remain integration work for [video-to-playlist](../../.agents/skills/video-to-playlist/SKILL.md). Live ranking stays blocked pending D-02.
 
 [Ranking tests](../../tests/unit/test_metadata_ranking.py) check topical mismatches, ties, exact term weights, missing evidence, and a hand-calculated cosine. [Discovery tests](../../tests/integration/test_ranking_discovery.py) check caps, provider call order, one-page channel sampling, and typed preflight refusals. [Stdio tests](../../tests/system/test_discovery_stdio.py) exercise both published tools and check coverage, sampling, and typed errors. These tests provide fixture evidence for part of AT-02, AT-03, and AT-10.
 

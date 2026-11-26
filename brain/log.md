@@ -170,3 +170,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-04 fixture playlist preview
 
 - Added `propose_playlist` over fixture MCP for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop returned a private preview of 600 seconds with 120 seconds unused. The stdio test verified the exact stored proposal and zero operation rows. All 247 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-04-playlist-preview-stdio]].
+
+## 2026-11-27 A2-02 discovery candidate handoff
+
+- Connected the discovery pool to the fixture planner using an account-scoped SQLite reference for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop resolved the reference and returned 1,200 seconds selected and 600 seconds unused. All 248 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-candidates]].

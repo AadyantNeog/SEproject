@@ -12,7 +12,7 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
 from yt_intel.client_skills import project_file
-from yt_intel.contracts.common import AccountBinding, Contract, Label, Limit
+from yt_intel.contracts.common import AccountBinding, Contract, Label, Limit, OpaqueId
 from yt_intel.contracts.errors import ContractError, ErrorDetail, ResultEnvelope
 from yt_intel.contracts.models import RankedChannel, RankedVideo
 from yt_intel.contracts.workflow import (
@@ -29,6 +29,7 @@ from yt_intel.services.discovery import (
     DiscoveryResult,
     DiscoveryService,
 )
+from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 _BOUNDS = DiscoveryBounds()
 _FIXTURE_ACCOUNT = AccountBinding(
@@ -57,6 +58,10 @@ class _VideoInput(Contract):
 class _ChannelInput(Contract):
     channel: Label
     limit: Limit = 10
+
+
+class VideoDiscoveryEnvelope(ResultEnvelope[tuple[RankedVideo, ...]]):
+    candidate_set_id: OpaqueId | None = None
 
 
 def _discovery_input[T: Contract](model: type[T], ctx: Context[None, object]) -> T:
@@ -114,7 +119,9 @@ class _FixtureAttemptBudget:
         raise NotImplementedError("The synthetic budget is discarded after the read")
 
 
-def register_fixture_discovery(server: MCPServer[None], project_root: Path) -> None:
+def register_fixture_discovery(
+    server: MCPServer[None], project_root: Path, candidate_sets: FixtureCandidateSets
+) -> None:
     catalog_path = project_file(
         project_root, Path("tests/fixtures/youtube_reads/catalog.json")
     )
@@ -123,24 +130,28 @@ def register_fixture_discovery(server: MCPServer[None], project_root: Path) -> N
     dataset = FixtureDataset.from_json_file(catalog_path)
 
     @server.tool(
-        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, open_world_hint=False
+        )
     )
     async def find_similar_videos(
         ctx: Context[None, object], video: Label, limit: Limit = 10
-    ) -> Annotated[CallToolResult, ResultEnvelope[tuple[RankedVideo, ...]]]:
-        """Rank videos related to a synthetic fixture video ID or YouTube URL."""
+    ) -> Annotated[CallToolResult, VideoDiscoveryEnvelope]:
+        """Rank fixture videos and save their candidate set for playlist planning."""
 
         async def rank(
             service: DiscoveryService, request: RequestContext
-        ) -> DiscoveryResult[RankedVideo]:
+        ) -> tuple[DiscoveryResult[RankedVideo], OpaqueId]:
             args = _discovery_input(_VideoInput, ctx)
-            return await service.videos(
+            discovery = await service.videos(
                 request, parse_video_id(args.video), limit=args.limit
             )
+            reference = await candidate_sets.publish(
+                discovery, request.binding, now=datetime.now(UTC)
+            )
+            return discovery, reference
 
-        return await _run_discovery(
-            dataset, _VIDEO_CALLS, rank, ResultEnvelope[tuple[RankedVideo, ...]]
-        )
+        return await _run_discovery(dataset, _VIDEO_CALLS, rank, VideoDiscoveryEnvelope)
 
     @server.tool(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -152,11 +163,12 @@ def register_fixture_discovery(server: MCPServer[None], project_root: Path) -> N
 
         async def rank(
             service: DiscoveryService, request: RequestContext
-        ) -> DiscoveryResult[RankedChannel]:
+        ) -> tuple[DiscoveryResult[RankedChannel], None]:
             args = _discovery_input(_ChannelInput, ctx)
-            return await service.channels(
+            discovery = await service.channels(
                 request, parse_channel_ref(args.channel), limit=args.limit
             )
+            return discovery, None
 
         return await _run_discovery(
             dataset, _CHANNEL_CALLS, rank, ResultEnvelope[tuple[RankedChannel, ...]]
@@ -166,7 +178,10 @@ def register_fixture_discovery(server: MCPServer[None], project_root: Path) -> N
 async def _run_discovery[T: (RankedVideo, RankedChannel)](
     dataset: FixtureDataset,
     calls: Mapping[Endpoint, int],
-    rank: Callable[[DiscoveryService, RequestContext], Awaitable[DiscoveryResult[T]]],
+    rank: Callable[
+        [DiscoveryService, RequestContext],
+        Awaitable[tuple[DiscoveryResult[T], OpaqueId | None]],
+    ],
     envelope: type[ResultEnvelope[tuple[T, ...]]],
 ) -> CallToolResult:
     request = RequestContext(
@@ -180,7 +195,9 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
         async with FixtureYouTubeProvider(
             dataset, quota_ledger=_FixtureAttemptBudget(request, calls)
         ) as provider:
-            ranked = await rank(DiscoveryService(provider, _BOUNDS), request)
+            ranked, candidate_set_id = await rank(
+                DiscoveryService(provider, _BOUNDS), request
+            )
     except ContractError as error:
         problem = error.detail
     else:
@@ -192,16 +209,15 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
             coverage=ranked.coverage,
             warnings=ranked.coverage.warnings,
         )
+        text = render_ranked_results(
+            ranked.results, mode="fixture", coverage=ranked.coverage
+        )
+        if isinstance(result, VideoDiscoveryEnvelope) and candidate_set_id is not None:
+            result = result.model_copy(update={"candidate_set_id": candidate_set_id})
+            text += f"\nCandidate set: {candidate_set_id}"
         return CallToolResult(
             structured_content=result.model_dump(),
-            content=[
-                TextContent(
-                    type="text",
-                    text=render_ranked_results(
-                        ranked.results, mode="fixture", coverage=ranked.coverage
-                    ),
-                )
-            ],
+            content=[TextContent(type="text", text=text)],
         )
     result = envelope(
         mode="fixture",
