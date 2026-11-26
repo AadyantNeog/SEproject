@@ -91,6 +91,22 @@ install):
 - Scoped `ruff check` and `ruff format --check` across all 10 J2-01 files:
   **All checks passed; 10 files already formatted**.
 
+Following Aadyant's review of draft PR #19, commit `9333c40` hardened
+`src/yt_intel/infrastructure/http.py` and added regression tests in
+`tests/integration/test_safe_retries.py` to: (1) re-check deadline and
+cancellation after async auth-header resolution and after quota debit so
+expired requests cannot start dispatch; (2) freeze canonical write query
+parameters and JSON body bytes at verification time and re-check the built
+request against `authority.request_digest`; and (3) treat unclear write
+outcomes (5xx, 3xx redirects, unreadable/non-object 2xx JSON, timeouts, and
+network errors) as `OPERATION_UNKNOWN` (`retryable=False`) requiring
+reconciliation. Merged `origin/main` (`b26737d`) in `54d6b24`, preserving both
+the P2-03 and J2-01 entries in `brain/index.md` and `brain/log.md`. On the
+merged branch: **140 passed** in the J2-01 suite, **224 passed** in the full
+offline suite (`pytest -m "not live" -q`), **45 source files** passed `mypy src`,
+and all 10 J2-01 files passed scoped Ruff lint and format checks. Aadyant's
+re-review of the updated PR remains pending.
+
 ## Links
 
 - J2-01 Issue: [issue #18](https://github.com/AadyantNeog/SEproject/issues/18).
