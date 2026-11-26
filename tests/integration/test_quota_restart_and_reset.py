@@ -20,8 +20,11 @@ NOW = datetime(2026, 3, 8, 8, tzinfo=UTC)
 
 
 class Clock:
+    def __init__(self, now=NOW):
+        self.current = now
+
     def now(self):
-        return NOW
+        return self.current
 
 
 class Cancellation:
@@ -178,3 +181,100 @@ async def test_real_executor_starts_only_after_full_budget_is_reserved(
         else:
             await fetch_seed()
             assert len(dispatched) == 1
+
+
+@pytest.mark.anyio
+async def test_retry_cannot_consume_the_next_logical_calls_budget(tmp_path):
+    profile = QuotaProfile.load(PROFILE_PATH)
+    plan = make_plan(profile)
+    clock = Clock()
+    ledger = SqliteQuotaLedger(Database(tmp_path / "quota.sqlite3"), profile, clock)
+    reservation = await ledger.reserve(plan)
+    ctx = RequestContext(
+        request_id="fixture-request",
+        binding=plan.binding,
+        reservation_id=reservation.reservation_id,
+        deadline=plan.deadline,
+        cancellation=Cancellation(),
+    )
+    sent = 0
+
+    def handler(request):
+        nonlocal sent
+        sent += 1
+        return httpx.Response(503 if sent == 1 else 200, json={"items": []})
+
+    async with AccountedHttpExecutor(
+        quota_ledger=ledger, transport=httpx.MockTransport(handler), clock=clock
+    ) as executor:
+        with pytest.raises(ContractError) as failed:
+            await executor.execute_youtube(ctx, "search.list", params={"q": "first"})
+        assert failed.value.detail.code == "PROVIDER_UNAVAILABLE"
+        assert sent == 1
+        await executor.execute_youtube(ctx, "search.list", params={"q": "second"})
+        assert sent == 2
+        with pytest.raises(ContractError, match="Endpoint call budget"):
+            await executor.execute_youtube(ctx, "search.list", params={"q": "third"})
+        assert sent == 2
+
+
+@pytest.mark.anyio
+async def test_youtube_exhaustion_blocks_existing_and_new_reservations_until_reset(
+    tmp_path,
+):
+    profile = QuotaProfile.load(PROFILE_PATH)
+    plan = make_plan(profile).model_copy(
+        update={
+            "endpoint_ceilings": {
+                "search.list": CallCeiling(calls=2, attempts_per_call=1),
+                "videos.list": CallCeiling(calls=1, attempts_per_call=1),
+            },
+            "buckets": {"search": 2, "general": 1},
+        }
+    )
+    clock = Clock()
+    path = tmp_path / "quota.sqlite3"
+    ledger = SqliteQuotaLedger(Database(path), profile, clock)
+    reservation = await ledger.reserve(plan)
+    ctx = RequestContext(
+        request_id="fixture-request",
+        binding=plan.binding,
+        reservation_id=reservation.reservation_id,
+        deadline=plan.deadline,
+        cancellation=Cancellation(),
+    )
+    sent = []
+
+    def handler(request):
+        sent.append(request.url.path)
+        if request.url.path.endswith("/search"):
+            return httpx.Response(
+                403, json={"error": {"errors": [{"reason": "quotaExceeded"}]}}
+            )
+        return httpx.Response(200, json={"items": []})
+
+    transport = httpx.MockTransport(handler)
+    async with AccountedHttpExecutor(
+        quota_ledger=ledger, transport=transport, clock=clock
+    ) as executor:
+        with pytest.raises(ContractError) as upstream:
+            await executor.execute_youtube(ctx, "search.list", params={"q": "fixture"})
+        assert upstream.value.detail.code == "QUOTA_EXHAUSTED"
+    assert len(sent) == 1
+
+    restarted = SqliteQuotaLedger(Database(path), profile, clock)
+    async with AccountedHttpExecutor(
+        quota_ledger=restarted, transport=transport, clock=clock
+    ) as executor:
+        with pytest.raises(ContractError) as blocked:
+            await executor.execute_youtube(ctx, "search.list", params={"q": "fixture"})
+        assert blocked.value.detail.code == "QUOTA_EXHAUSTED"
+        assert len(sent) == 1
+        await executor.execute_youtube(ctx, "videos.list", params={"id": "dQw4w9WgXcQ"})
+        assert len(sent) == 2
+    with pytest.raises(ContractError) as preflight:
+        await restarted.reserve(plan)
+    assert preflight.value.detail.code == "QUOTA_EXHAUSTED"
+    clock.current = reservation.reset_at
+    tomorrow = plan.model_copy(update={"deadline": clock.now() + timedelta(minutes=5)})
+    assert (await restarted.reserve(tomorrow)).reserved == plan.buckets

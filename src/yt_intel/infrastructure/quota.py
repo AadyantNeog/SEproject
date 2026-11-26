@@ -3,6 +3,7 @@ from hashlib import sha256
 from json import dumps
 from pathlib import Path
 from secrets import token_urlsafe
+from sqlite3 import Connection
 from typing import Self
 from zoneinfo import ZoneInfo
 
@@ -90,6 +91,19 @@ def _blocked(code: ErrorCode, message: str) -> ContractError:
     )
 
 
+def _require_available_buckets(
+    connection: Connection, project: str, day: str, buckets: BucketVector
+) -> None:
+    exhausted = connection.execute(
+        "SELECT bucket FROM quota_exhausted_buckets WHERE project_id = ? AND quota_day = ?",
+        (project, day),
+    )
+    if any(row["bucket"] in buckets for row in exhausted):
+        raise _blocked(
+            "QUOTA_EXHAUSTED", "YouTube reported quota exhaustion for this bucket."
+        )
+
+
 class SqliteQuotaLedger:
     """Persist debits before dispatch and release only unused capacity."""
 
@@ -115,6 +129,9 @@ class SqliteQuotaLedger:
         with self._database.transaction() as connection:
             now = self._clock.now().astimezone(UTC)
             day, reset = quota_period(now)
+            _require_available_buckets(
+                connection, plan.project_id, day.isoformat(), required
+            )
             if plan.deadline <= now:
                 raise _blocked("WORKFLOW_TIMEOUT", "Workflow deadline has elapsed.")
             deadline = min(reset, plan.deadline)
@@ -171,13 +188,17 @@ class SqliteQuotaLedger:
                 ),
             )
             connection.executemany(
-                "INSERT INTO quota_endpoint_ceilings VALUES (?, ?, ?)",
+                "INSERT INTO quota_endpoint_ceilings "
+                "(reservation_id, endpoint, attempts, calls, attempts_per_call) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (
                     (
                         reservation_id,
                         endpoint,
                         (ceiling.calls + plan.reconciliation_allowance.get(endpoint, 0))
                         * ceiling.attempts_per_call,
+                        ceiling.calls + plan.reconciliation_allowance.get(endpoint, 0),
+                        ceiling.attempts_per_call,
                     )
                     for endpoint, ceiling in plan.endpoint_ceilings.items()
                 ),
@@ -199,6 +220,19 @@ class SqliteQuotaLedger:
     async def debit_attempt(
         self, ctx: RequestContext, endpoint: Endpoint, attempt_id: OpaqueId
     ) -> None:
+        await self.debit_call_attempt(
+            ctx, endpoint, attempt_id, call_id=attempt_id, attempt_number=1
+        )
+
+    async def debit_call_attempt(
+        self,
+        ctx: RequestContext,
+        endpoint: Endpoint,
+        attempt_id: OpaqueId,
+        *,
+        call_id: OpaqueId,
+        attempt_number: int,
+    ) -> int:
         with self._database.transaction() as connection:
             now = self._clock.now().astimezone(UTC)
             row = connection.execute(
@@ -228,18 +262,21 @@ class SqliteQuotaLedger:
                     "The quota reservation expired or was cancelled.",
                 )
             ceiling = connection.execute(
-                "SELECT attempts FROM quota_endpoint_ceilings "
+                "SELECT calls, attempts_per_call FROM quota_endpoint_ceilings "
                 "WHERE reservation_id = ? AND endpoint = ?",
                 (ctx.reservation_id, endpoint),
             ).fetchone()
-            attempts = connection.execute(
-                "SELECT COUNT(*) FROM quota_attempts WHERE reservation_id = ? AND endpoint = ?",
-                (ctx.reservation_id, endpoint),
-            ).fetchone()[0]
-            if ceiling is None or attempts >= ceiling["attempts"]:
+            if (
+                ceiling is None
+                or not 1 <= attempt_number <= ceiling["attempts_per_call"]
+            ):
                 raise _blocked(
-                    "QUOTA_INSUFFICIENT", "Endpoint attempt budget is exhausted."
+                    "QUOTA_INSUFFICIENT", "Call attempt budget is exhausted."
                 )
+            costs = self._profile.costs[endpoint]
+            _require_available_buckets(
+                connection, row["project_id"], row["quota_day"], costs
+            )
             inserted = connection.execute(
                 "INSERT INTO quota_attempts VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
                 (ctx.reservation_id, attempt_id, endpoint),
@@ -248,7 +285,34 @@ class SqliteQuotaLedger:
                 raise _blocked(
                     "QUOTA_INSUFFICIENT", "Attempt has already been charged."
                 )
-            for bucket, units in self._profile.costs[endpoint].items():
+            if attempt_number == 1:
+                calls = connection.execute(
+                    "SELECT COUNT(*) FROM quota_calls WHERE reservation_id = ? AND endpoint = ?",
+                    (ctx.reservation_id, endpoint),
+                ).fetchone()[0]
+                if calls >= ceiling["calls"]:
+                    raise _blocked(
+                        "QUOTA_INSUFFICIENT", "Endpoint call budget is exhausted."
+                    )
+                call = connection.execute(
+                    "INSERT INTO quota_calls VALUES (?, ?, ?, 1) ON CONFLICT DO NOTHING",
+                    (ctx.reservation_id, call_id, endpoint),
+                )
+            else:
+                call = connection.execute(
+                    "UPDATE quota_calls SET attempts = ? WHERE reservation_id = ? "
+                    "AND call_id = ? AND endpoint = ? AND attempts = ?",
+                    (
+                        attempt_number,
+                        ctx.reservation_id,
+                        call_id,
+                        endpoint,
+                        attempt_number - 1,
+                    ),
+                )
+            if call.rowcount != 1:
+                raise _blocked("QUOTA_INSUFFICIENT", "Call attempt is out of sequence.")
+            for bucket, units in costs.items():
                 debited = connection.execute(
                     "UPDATE quota_reservation_buckets SET remaining = remaining - ?, "
                     "spent = spent + ? WHERE reservation_id = ? AND bucket = ? AND remaining >= ?",
@@ -258,6 +322,30 @@ class SqliteQuotaLedger:
                     raise _blocked(
                         "QUOTA_INSUFFICIENT", "Reserved bucket is exhausted."
                     )
+            return int(ceiling["attempts_per_call"])
+
+    async def mark_exhausted(
+        self, ctx: RequestContext, endpoint: Endpoint, attempt_id: OpaqueId
+    ) -> None:
+        with self._database.transaction() as connection:
+            charged = connection.execute(
+                "SELECT project_id, quota_day FROM quota_reservations "
+                "JOIN quota_attempts USING (reservation_id) "
+                "WHERE reservation_id = ? AND attempt_id = ? AND endpoint = ? "
+                "AND profile_digest = ?",
+                (ctx.reservation_id, attempt_id, endpoint, self._profile_digest),
+            ).fetchone()
+            if charged is None:
+                raise _blocked(
+                    "QUOTA_INSUFFICIENT", "No charged attempt matches the response."
+                )
+            connection.executemany(
+                "INSERT INTO quota_exhausted_buckets VALUES (?, ?, ?) ON CONFLICT DO NOTHING",
+                (
+                    (charged["project_id"], charged["quota_day"], bucket)
+                    for bucket in self._profile.costs[endpoint]
+                ),
+            )
 
     async def release(self, reservation_id: OpaqueId) -> None:
         with self._database.transaction() as connection:

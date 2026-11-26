@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Annotated, Literal, Protocol, Self
+from typing import Annotated, Literal, Protocol, Self, runtime_checkable
 
 from pydantic import Field, model_validator
 
@@ -111,3 +111,22 @@ class QuotaLedger(Protocol):
         self, ctx: RequestContext, endpoint: Endpoint, attempt_id: OpaqueId
     ) -> None: ...
     async def release(self, reservation_id: OpaqueId) -> None: ...
+
+
+@runtime_checkable
+class CallQuotaLedger(QuotaLedger, Protocol):
+    """Quota accounting for logical calls and upstream exhaustion."""
+
+    async def debit_call_attempt(
+        self,
+        ctx: RequestContext,
+        endpoint: Endpoint,
+        attempt_id: OpaqueId,
+        *,
+        call_id: OpaqueId,
+        attempt_number: int,
+    ) -> int: ...
+
+    async def mark_exhausted(
+        self, ctx: RequestContext, endpoint: Endpoint, attempt_id: OpaqueId
+    ) -> None: ...

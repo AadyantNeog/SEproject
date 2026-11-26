@@ -10,7 +10,7 @@ from platformdirs import user_data_path
 
 from yt_intel.contracts.common import Mode
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _MIGRATION_LOCK = Lock()
 _MIGRATIONS: tuple[str, ...] = (
     """
@@ -108,6 +108,25 @@ _MIGRATIONS: tuple[str, ...] = (
         PRIMARY KEY (reservation_id, attempt_id)
     );
     CREATE INDEX quota_attempts_endpoint ON quota_attempts(reservation_id, endpoint);
+    """,
+    """
+    ALTER TABLE quota_endpoint_ceilings ADD COLUMN calls INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE quota_endpoint_ceilings ADD COLUMN attempts_per_call INTEGER NOT NULL DEFAULT 1;
+    UPDATE quota_reservations SET released = 1;
+    CREATE TABLE quota_calls (
+        reservation_id TEXT NOT NULL REFERENCES quota_reservations(reservation_id),
+        call_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        attempts INTEGER NOT NULL CHECK (attempts > 0),
+        PRIMARY KEY (reservation_id, call_id)
+    );
+    CREATE INDEX quota_calls_endpoint ON quota_calls(reservation_id, endpoint);
+    CREATE TABLE quota_exhausted_buckets (
+        project_id TEXT NOT NULL,
+        quota_day TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        PRIMARY KEY (project_id, quota_day, bucket)
+    );
     """,
 )
 
