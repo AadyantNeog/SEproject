@@ -2,9 +2,8 @@
 
 Status: **Windows dismissal observations and Claude Code integration pending**.
 
-The Windows checkout's existing `.venv` can import the project and Tk 8.6
-under Python 3.13.0. The fixture stdio server and both previews are covered
-by offline MCP integration tests.
+The Windows checkout uses Python 3.13.0 and Tcl/Tk 8.6.14. The fixture stdio
+server and both previews are covered by offline MCP integration tests.
 
 ## Windows PowerShell fixture steps
 
@@ -25,6 +24,21 @@ disappeared, the terminal output, and the exit code. The expected output is
 | --- | --- |
 | Window close (X) | Pending Paul's manual run. |
 | Reject button | Pending Paul's manual run. |
+
+Paul's first launch returned `Approval unavailable. native approval helper
+failed` with exit code 1, before either dismissal could be observed.
+A separate diagnostic reproduced Tcl's failure to find `init.tcl`, although
+the Tcl/Tk library files were present under the base Python installation.
+Set these paths in the current PowerShell session before retrying:
+
+```powershell
+$pythonRoot = & '.venv/Scripts/python.exe' -c 'import sys; print(sys.base_prefix)'
+$env:TCL_LIBRARY = Join-Path $pythonRoot 'tcl/tcl8.6'
+$env:TK_LIBRARY = Join-Path $pythonRoot 'tcl/tk8.6'
+```
+
+With these paths, the headless Tcl initialization check passed. The dialog
+retry requires Paul's manual observation.
 
 ## Claude Code integration steps
 
