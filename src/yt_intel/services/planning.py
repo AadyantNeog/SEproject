@@ -3,14 +3,22 @@ from datetime import UTC, datetime
 from sqlite3 import Error as SqliteError
 from uuid import uuid4
 
+from pydantic import ValidationError
+
 from yt_intel.contracts.common import OpaqueId
 from yt_intel.contracts.models import CandidateSet, Coverage
-from yt_intel.contracts.proposals import PROPOSAL_LIFETIME, PlaylistProposal
-from yt_intel.contracts.repositories import ProposalRepository
+from yt_intel.contracts.proposals import (
+    PROPOSAL_LIFETIME,
+    PlaylistProposal,
+    ProposalRef,
+)
 from yt_intel.domain.constraints import PlaylistRequest, planning_error
 from yt_intel.domain.language import normalize_language_tag
-from yt_intel.domain.proposals import PlaylistPlanner
-from yt_intel.infrastructure.repositories import RepositoryConflict
+from yt_intel.domain.proposals import PlaylistPlanner, proposal_digest
+from yt_intel.infrastructure.repositories import (
+    RepositoryConflict,
+    SqliteProposalRepository,
+)
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 
@@ -20,7 +28,7 @@ class FixturePlanningService:
     def __init__(
         self,
         catalog: CandidateSet,
-        proposals: Callable[[], ProposalRepository],
+        proposals: Callable[[], SqliteProposalRepository],
         candidate_sets: FixtureCandidateSets,
     ) -> None:
         if catalog.binding.mode != "fixture" or catalog.source != "synthetic":
@@ -72,3 +80,27 @@ class FixturePlanningService:
                 "Check access to the fixture database and try again.",
             ) from error
         return proposal, candidates.coverage
+
+    async def current_preview(self, ref: ProposalRef) -> PlaylistProposal | None:
+        binding = self._catalog.binding
+        now = datetime.now(UTC)
+        try:
+            proposal = await self._proposals().get_current_proposal(
+                binding, ref.proposal_id, now=now
+            )
+        except (OSError, SqliteError, ValidationError) as error:
+            raise planning_error(
+                "PROVIDER_UNAVAILABLE",
+                "The local proposal store could not be read.",
+                "Check access to the fixture database and try again.",
+            ) from error
+        if (
+            not isinstance(proposal, PlaylistProposal)
+            or proposal.ref != ref
+            or proposal.binding != binding
+            or not proposal.created_at <= now < proposal.expires_at
+            or proposal.state not in {"proposed", "approved"}
+            or proposal.digest != proposal_digest(proposal)
+        ):
+            return None
+        return proposal

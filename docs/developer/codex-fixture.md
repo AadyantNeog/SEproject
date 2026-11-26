@@ -18,6 +18,10 @@ C:\path\to\SEproject
 
 Save and restart as prompted. In the project chat, ask Codex to read `yt-intel://fixture/previews/create` from `yt-intel-fixture`. It should show the synthetic **Database indexing practice** playlist. Codex also discovers project skills from `.agents/skills/` in the checkout. [Local MCP configuration](https://developers.openai.com/codex/mcp) · [Codex skills](https://developers.openai.com/codex/skills)
 
+## Reopen a saved playlist preview
+
+`propose_playlist` returns the complete preview and a link shaped like `yt-intel://proposals/{proposal_id}/{version}`. Ask Codex to read that link from `yt-intel-fixture` to reopen the exact preview. It uses the same fixture SQLite database and the current synthetic account. Older versions, expired proposals and proposals for another account are unavailable. Opening a preview reads local data only. [Playlist planning walkthrough](playlist-planning.md) · [Stdio test](../../tests/system/test_playlist_planning_stdio.py)
+
 ## Reproduce the fixture check
 
 Run the probe against the installed Windows Codex executable. It starts a separate app server, discovers tools, reads the creation preview and skill resource, and exits. It uses an isolated SQLite state directory and runs without a model turn.
