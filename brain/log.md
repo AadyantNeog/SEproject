@@ -121,3 +121,9 @@ Subsequent operations must append their actual outcome here.
 
 - Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
 - Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
+
+## 2026-11-26 P2-03 native approval
+
+- Implemented challenge-bound helper responses and process-local, exact-binding, one-use grants on `codex/p2-03-native-approval`; added close/reject/expiry/forgery/helper-failure tests and handoff/evidence docs. See [[2026-11-26-p2-03-approval]].
+- Focused Python 3.13.18 WSL checks passed: 12 tests across approval and fixture stdio; the final full offline suite passed 80 tests. Scoped Ruff lint/format and mypy on 40 source files passed. Repository Ruff reports 179 existing lint findings and six unrelated format failures; unrelated files were not changed. `git diff --check` passed. The first focused run found two issues that were fixed before the passing run.
+- Windows Claude Code proof is pending because this environment has no Windows Python 3.13 or `claude` command. The browser GitHub session required sign-in; issue and draft PR creation are pending. No confirmation control was clicked; Aadyant's human review remains pending.
