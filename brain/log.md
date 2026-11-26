@@ -90,3 +90,8 @@ Subsequent operations must append their actual outcome here.
 
 - Started [issue #1](https://github.com/AadyantNeog/SEproject/issues/1) on `codex/a2-01-foundation` from the v2.2 plan. Added the fixture MCP bootstrap, shared DTOs and infrastructure interfaces with synthetic examples. See [[2026-11-21-a2-01-foundation]].
 - Verified 19 offline tests, including the MCP 2.3.0 stdio handshake, tool calls and resource reads. The locked wheel passed a clean Windows install and console-entry-point smoke. The planning validator passed 34 checks. Published [draft PR #2](https://github.com/AadyantNeog/SEproject/pull/2). Owner input and human review are pending.
+
+## 2026-11-26 A2-06 presentation
+
+- Implemented fixture-tested creation and recovery previews, ranked results, report sections and typed errors for [issue #6](https://github.com/AadyantNeog/SEproject/issues/6). The handoff shows how to render fixture previews for the native-dialog proof. See [[2026-11-26-a2-06-presentation]].
+- Passed 28 offline tests, scoped Ruff lint and formatting, strict mypy and the wheel build on Windows. Published [draft PR #7](https://github.com/AadyantNeog/SEproject/pull/7). The real report adapter, handler routing, native dialog and human review remain pending.
