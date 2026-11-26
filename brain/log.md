@@ -166,3 +166,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-02 fixture discovery through MCP
 
 - Added the similar-video and similar-channel fixture tools for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Codex Desktop returned the expected fixture ranks for both. All 246 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-stdio]].
+
+## 2026-11-27 A2-04 fixture playlist preview
+
+- Added `propose_playlist` over fixture MCP for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop returned a private preview of 600 seconds with 120 seconds unused. The stdio test verified the exact stored proposal and zero operation rows. All 247 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-04-playlist-preview-stdio]].
