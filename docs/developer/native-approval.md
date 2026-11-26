@@ -10,9 +10,11 @@ decision timestamp. It also loads the latest account-bound proposal before
 opening the dialog and after receiving an approval. A revision or state change
 while the dialog is open requires a new preview and approval.
 
-Grants are held in a lock-protected, process-local store. Consumption checks all
-authority fields and time bounds while holding the lock, then marks the grant
-consumed. A second approval for an operation invalidates its prior outstanding
+Grants are held in a lock-protected, process-local store. The service rechecks
+the stored proposal at consumption and rejects grants for revisions or state
+changes made after issuance. The grant store checks all authority fields and
+time bounds while holding the lock, then marks the grant consumed. A second
+approval for an operation invalidates its prior outstanding
 grant. A process restart discards outstanding grants, requiring fresh human
 approval. Grants expire at the earlier of proposal expiry and ten minutes from
 the request. P2-04 must consume the grant as part of its atomic operation claim

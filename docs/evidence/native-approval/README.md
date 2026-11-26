@@ -1,12 +1,34 @@
 # P2-03 native approval evidence
 
-Status: **Windows desktop/client proof pending** (26 November 2026).
+Status: **Windows dismissal observations and Claude Code integration pending**.
 
-The checked-out environment has WSL Python 3.13 for offline tests, but no
-Windows Python 3.13 interpreter or `claude` command on PATH. The fixture stdio
-server and both previews are covered by offline MCP integration tests.
+The Windows checkout's existing `.venv` can import the project and Tk 8.6
+under Python 3.13.0. The fixture stdio server and both previews are covered
+by offline MCP integration tests.
 
-## Windows fixture steps
+## Windows PowerShell fixture steps
+
+From the repository root, run:
+
+```powershell
+& '.venv/Scripts/python.exe' scripts/show_fixture_approval.py
+$LASTEXITCODE
+```
+
+The helper uses the bundled synthetic creation preview and displays
+**YouTube playlist approval**. On the first run, close it with **X**. On the
+second run, click **Reject**. For each run, record whether the dialog
+disappeared, the terminal output, and the exit code. The expected output is
+`Dialog rejected or closed. No grant issued.` with exit code 0.
+
+| Manual Windows action | Observed result |
+| --- | --- |
+| Window close (X) | Pending Paul's manual run. |
+| Reject button | Pending Paul's manual run. |
+
+## Claude Code integration steps
+
+A teammate with Windows Claude Code access can run this separate check.
 
 1. In Windows PowerShell at the repository root, set up the locked Python
    3.13 environment and register `yt-intel-fixture` with Claude Code using the
@@ -47,6 +69,7 @@ server and both previews are covered by offline MCP integration tests.
 | Reject button callback | The helper returned `reject`. |
 | Rejection at the service | The service raised `ApprovalRejected` and did not issue a grant. |
 | Valid approval response after a revision was saved | The service refused the old proposal and asked for a new preview. |
+| Consumption after a revision was saved following grant issuance | The service raised `InvalidGrant` for the original proposal and grant. |
 
 Both callback results came from isolated Tk test doubles. The Windows close and
 Reject observations remain pending.

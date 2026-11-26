@@ -11,7 +11,7 @@ from yt_intel.contracts.common import AccountBinding, OpaqueId, UtcDateTime
 from yt_intel.contracts.workflow import Clock, RequestContext
 from yt_intel.infrastructure.clock import SystemClock
 
-from .grants import MAX_GRANT_LIFETIME, new_grant_id
+from .grants import MAX_GRANT_LIFETIME, InvalidGrant, new_grant_id
 
 
 class ApprovalUnavailable(RuntimeError):
@@ -103,15 +103,22 @@ class ApprovalService:
         return grant
 
     async def _require_current(self, proposal: ApprovableProposal) -> None:
+        if not await self._is_current(proposal):
+            raise ApprovalUnavailable("proposal changed; open a new preview")
+
+    async def _is_current(self, proposal: ApprovableProposal) -> bool:
         current = await self._proposals.get_current_proposal(
             proposal.binding, proposal.ref.proposal_id, now=self._clock.now()
         )
-        if current is None or current.state != "proposed" or current != proposal:
-            raise ApprovalUnavailable("proposal changed; open a new preview")
+        return (
+            current is not None and current.state == "proposed" and current == proposal
+        )
 
-    def consume(
+    async def consume(
         self, grant: ApprovalGrant, proposal: ApprovableProposal, operation_id: OpaqueId
     ) -> ApprovalGrant:
+        if not await self._is_current(proposal):
+            raise InvalidGrant("proposal changed; open a new preview")
         return self._grants.consume(
             grant_id=grant.grant_id,
             operation_id=operation_id,

@@ -26,7 +26,7 @@ claude mcp get yt-intel-fixture
 With `--project-root`, the two preview resources read the existing JSON examples under `tests/fixtures/contracts`. The server registers only the named preview files and the available canonical skills on its allowlist. Resources are read-only. The native prompt and authority proof belong to P2-03. Product proposal, report and operation routes wait for their account-scoped service handlers.
 
 To open the native dialog with the same synthetic creation preview, follow the
-[Windows fixture steps](../evidence/native-approval/README.md#windows-fixture-steps).
+[Windows PowerShell fixture steps](../evidence/native-approval/README.md#windows-powershell-fixture-steps).
 
 ## Make skills available to Claude Code
 

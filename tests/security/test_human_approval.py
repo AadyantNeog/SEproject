@@ -93,7 +93,7 @@ async def test_native_approval_grant_binds_exact_proposal_and_is_one_use():
     proposal, clock, ctx, _, grants, service = setup_approval()
     grant = await service.request_grant(ctx, proposal, "operation-fixture")
 
-    consumed = service.consume(grant, proposal, "operation-fixture")
+    consumed = await service.consume(grant, proposal, "operation-fixture")
     assert consumed.consumed_at == clock.now()
     assert consumed.binding == proposal.binding
     assert consumed.proposal == proposal.ref
@@ -152,6 +152,33 @@ async def test_revision_while_dialog_is_open_prevents_grant(tmp_path):
 
 
 @pytest.mark.anyio
+async def test_revision_after_grant_issuance_prevents_consumption(tmp_path):
+    proposal, clock, ctx, adapter, grants, _ = setup_approval()
+    repository = SqliteProposalRepository(
+        Database(tmp_path / "approval.sqlite3"), clock
+    )
+    await repository.save_proposal(proposal)
+    service = ApprovalService(adapter, grants, repository, clock)
+    operation_id = "operation-fixture"
+    grant = await service.request_grant(ctx, proposal, operation_id)
+
+    revised = proposal.model_copy(
+        update={
+            "ref": proposal.ref.model_copy(
+                update={"version": proposal.ref.version + 1}
+            ),
+            "body": proposal.body.model_copy(update={"title": "Revised fixture title"}),
+        }
+    )
+    await repository.save_proposal(
+        revised.model_copy(update={"digest": proposal_digest(revised)})
+    )
+
+    with pytest.raises(InvalidGrant, match="proposal changed"):
+        await service.consume(grant, proposal, operation_id)
+
+
+@pytest.mark.anyio
 async def test_rejection_and_dialog_close_never_issue_grant():
     proposal, _, ctx, _, grants, service = setup_approval("reject")
     with pytest.raises(ApprovalRejected):
@@ -173,7 +200,7 @@ async def test_expired_proposal_and_expired_grant_are_rejected():
     grant = await service.request_grant(ctx, proposal, "operation-fixture")
     clock.value = grant.expires_at
     with pytest.raises(InvalidGrant):
-        service.consume(grant, proposal, "operation-fixture")
+        await service.consume(grant, proposal, "operation-fixture")
 
 
 @pytest.mark.anyio
@@ -205,9 +232,8 @@ async def test_grant_rejects_wrong_account_proposal_version_digest_or_operation(
                 now=clock.now(),
             )
 
-    assert (
-        service.consume(grant, proposal, "operation-fixture").consumed_at == clock.now()
-    )
+    consumed = await service.consume(grant, proposal, "operation-fixture")
+    assert consumed.consumed_at == clock.now()
 
 
 @pytest.mark.anyio
