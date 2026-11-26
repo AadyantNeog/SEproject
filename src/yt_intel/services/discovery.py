@@ -12,6 +12,7 @@ from yt_intel.contracts.models import (
     PlaylistOccurrence,
     RankedChannel,
     RankedVideo,
+    Video,
 )
 from yt_intel.contracts.provider import ChannelRef, SearchHit, YouTubeReadProvider
 from yt_intel.contracts.workflow import RequestContext
@@ -35,6 +36,12 @@ class DiscoveryBounds(Contract):
 class DiscoveryResult[T]:
     results: tuple[T, ...]
     coverage: Coverage
+
+
+@dataclass(frozen=True, slots=True)
+class VideoDiscoveryResult(DiscoveryResult[RankedVideo]):
+    seed: Video
+    candidates: tuple[Video, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,7 +99,7 @@ class DiscoveryService:
 
     async def videos(
         self, ctx: RequestContext, seed_id: VideoId, *, limit: int = 10
-    ) -> DiscoveryResult[RankedVideo]:
+    ) -> VideoDiscoveryResult:
         try:
             seed_id = _VIDEO_ID.validate_python(seed_id, strict=True)
             limit = _LIMIT.validate_python(limit, strict=True)
@@ -133,7 +140,7 @@ class DiscoveryService:
                 else:
                     usable.append(video)
         results = rank_videos(seed, usable, limit=limit)
-        return DiscoveryResult(
+        return VideoDiscoveryResult(
             results,
             self._coverage(
                 pool,
@@ -145,6 +152,8 @@ class DiscoveryService:
                 if results
                 else ("No accessible candidate had overlapping video metadata.",),
             ),
+            seed,
+            tuple(usable),
         )
 
     async def channels(

@@ -8,7 +8,10 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 
 from yt_intel.contracts.common import Contract
 from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
+from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.repositories import SqliteCacheRepository
 from yt_intel.presentation.results import render_error
+from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 from .discovery import register_fixture_discovery
 from .planning import register_fixture_planning
@@ -30,8 +33,11 @@ def build_fixture_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
     )(fixture_status)
     if project_root is not None:
-        register_fixture_discovery(server, project_root)
-        register_fixture_planning(server, project_root, fixture_db)
+        candidate_sets = FixtureCandidateSets(
+            lambda: SqliteCacheRepository(Database(fixture_db))
+        )
+        register_fixture_discovery(server, project_root, candidate_sets)
+        register_fixture_planning(server, project_root, fixture_db, candidate_sets)
         register_fixture_recommendations(server, project_root)
     return server
 
