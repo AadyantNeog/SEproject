@@ -12,12 +12,14 @@ from yt_intel.contracts.errors import ContractError, ResultEnvelope
 from yt_intel.contracts.models import CandidateSet
 from yt_intel.contracts.proposals import PlaylistProposal, Privacy
 from yt_intel.domain.constraints import parse_playlist_request
-from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.database import Database, default_database_path
 from yt_intel.infrastructure.repositories import SqliteProposalRepository
 from yt_intel.presentation.previews import render_proposal
 from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 from yt_intel.services.planning import FixturePlanningService
+
+from .resources import register_saved_proposal_previews, saved_proposal_link
 
 
 def register_fixture_planning(
@@ -32,11 +34,13 @@ def register_fixture_planning(
     if not candidate_path.is_file():
         return
     catalog = CandidateSet.model_validate_json(candidate_path.read_bytes())
+    state_path = (fixture_db or default_database_path("fixture")).expanduser().resolve()
     service = FixturePlanningService(
         catalog,
-        lambda: SqliteProposalRepository(Database(fixture_db)),
+        lambda: SqliteProposalRepository(Database(state_path)),
         candidate_sets,
     )
+    register_saved_proposal_previews(server, service, state_path)
 
     @server.tool(
         annotations=ToolAnnotations(
@@ -91,5 +95,8 @@ def register_fixture_planning(
         )
         return CallToolResult(
             structured_content=result.model_dump(),
-            content=[TextContent(type="text", text=render_proposal(proposal))],
+            content=[
+                TextContent(type="text", text=render_proposal(proposal)),
+                saved_proposal_link(proposal.ref),
+            ],
         )

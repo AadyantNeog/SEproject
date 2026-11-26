@@ -174,3 +174,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-02 discovery candidate handoff
 
 - Connected the discovery pool to the fixture planner using an account-scoped SQLite reference for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop resolved the reference and returned 1,200 seconds selected and 600 seconds unused. All 248 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-candidates]].
+
+## 2026-11-27 A2-05 saved proposal preview resource
+
+- Added the versioned MCP preview link for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). Codex reopened the exact stored fixture preview. All 249 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-saved-proposal-resource]].
