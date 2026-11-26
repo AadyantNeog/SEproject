@@ -137,6 +137,12 @@ Subsequent operations must append their actual outcome here.
 - Verified 138 J2-01 synthetic tests (fake `QuotaLedger`, `httpx.MockTransport`), 208 total offline tests (`pytest -m "not live"`), strict `mypy src` (40 source files), and scoped Ruff lint/format checks on all 10 J2-01 files. Published [issue #18](https://github.com/AadyantNeog/SEproject/issues/18) and [draft PR #19](https://github.com/AadyantNeog/SEproject/pull/19). Real P2-02 quota ledger integration, J2-02/J2-03/P2-04 wiring, and Aadyant's lead review remain pending.
 - For Aadyant's review follow-up on PR #19, added pre-dispatch deadline rechecks after async auth/debit, froze canonical approved write params/body bytes with wire-digest verification, and mapped unclear write outcomes (5xx, redirects, malformed/non-object 2xx JSON, timeouts, network errors) to `OPERATION_UNKNOWN` for reconciliation (`9333c40`), then merged `origin/main` (`b26737d`) in `54d6b24` preserving both P2-03 and J2-01 log/index entries. Verified 140 J2-01 tests, 224 total offline tests, strict `mypy src` (45 source files), and scoped Ruff lint/format on all 10 J2-01 files. Re-review by Aadyant remains pending.
 
+## 2026-11-26 J2-02 official read provider and fixture engine
+
+- Implemented `LiveYouTubeReadProvider`, `LiveYouTubeProvider`, shared API-JSON normalizers (`src/yt_intel/providers/youtube.py`), and `FixtureYouTubeProvider` (`src/yt_intel/providers/fixture.py`) with API-shaped fixtures (`tests/fixtures/youtube_reads/catalog.json`) and contract/DiscoveryService integration tests (`tests/integration/test_provider_contract.py`) for [issue #21](https://github.com/AadyantNeog/SEproject/issues/21) on `codex/j2-02-read-provider`. See [[2026-11-26-j2-02-read-provider]].
+- Verified J2-02 contract tests (5 passed), full offline pytest suite (234 passed), strict `mypy src` (48 source files), and scoped Ruff lint/format checks. Published [draft PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Real P2-02 quota ledger integration, P2-04 write adapters, and Aadyant's lead review remain pending.
+- For Aadyant's review follow-up on PR #23, removed `maxResults` from ID-batch lookups, made the live provider reject `mode="fixture"` requests before debit/dispatch, made unsupported fixture writes fail clearly (`PROVIDER_UNAVAILABLE` / HTTP 501), and rejected malformed API responses (`items`/`nextPageToken`/`pageInfo`) with `PROVIDER_UNAVAILABLE`. Re-verified 11 J2-02 contract tests, 240 total offline tests, strict `mypy src` (48 source files), and scoped Ruff checks. Re-review by Aadyant remains pending.
+
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
 
 ## 2026-11-26 A2-05 Codex demonstration client
@@ -152,3 +158,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 A2-03 recommendation MCP fixture
 
 - Exposed the existing recommendation service over fixture MCP for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). Codex called the tool and reported the expected English result, liked-video evidence and 120 unused seconds. All 234 offline tests, scoped Ruff, mypy and all 34 planning checks passed. See [[2026-11-26-a2-03-recommendation-stdio]].
+
+## 2026-11-26 J2-02 provider follow-up
+
+- At Aadyant's request, Codex restored the channel batch size and gave unimplemented fixture writes a definite failure in [PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Verified on current main with 245 offline tests, scoped Ruff and mypy. See [[2026-11-26-j2-02-provider-follow-up]].

@@ -1,0 +1,308 @@
+{
+  "videos": {
+    "vidIndex001": {
+      "id": "vidIndex001",
+      "snippet": {
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "B-Tree Database Indexing Deep Dive",
+        "channelTitle": "Systems Study Lab",
+        "description": "Balanced B-tree and B+tree database indexing internals and page splits.",
+        "tags": ["database", "indexing", "b-tree"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-01T10:00:00Z",
+        "defaultAudioLanguage": "en-US",
+        "defaultLanguage": "en",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT20M"
+      },
+      "status": {
+        "privacyStatus": "public",
+        "uploadStatus": "processed"
+      }
+    },
+    "vidIndex002": {
+      "id": "vidIndex002",
+      "snippet": {
+        "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb",
+        "title": "PostgreSQL B-Tree Index Scan Tuning",
+        "channelTitle": "Query Craft",
+        "description": "Index-only scans, covering indexes, and database indexing selectivity.",
+        "tags": ["database", "indexing", "postgres"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-05T15:30:00Z",
+        "defaultLanguage": "en-GB",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT20M1S"
+      },
+      "status": {
+        "privacyStatus": "public",
+        "uploadStatus": "processed"
+      }
+    },
+    "vidLive0003": {
+      "id": "vidLive0003",
+      "snippet": {
+        "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb",
+        "title": "Live Database Indexing Q&A",
+        "channelTitle": "Query Craft",
+        "publishedAt": "2026-11-20T18:00:00Z",
+        "liveBroadcastContent": "live"
+      },
+      "contentDetails": {
+        "duration": "P0D"
+      },
+      "status": {
+        "privacyStatus": "public",
+        "uploadStatus": "processed"
+      }
+    },
+    "vidPriv0004": {
+      "id": "vidPriv0004",
+      "snippet": {
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "Private Indexing Draft",
+        "channelTitle": "Systems Study Lab",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT10M"
+      },
+      "status": {
+        "privacyStatus": "private",
+        "uploadStatus": "processed"
+      }
+    }
+  },
+  "channels": {
+    "UCaaaaaaaaaaaaaaaaaaaaaa": {
+      "id": "UCaaaaaaaaaaaaaaaaaaaaaa",
+      "snippet": {
+        "title": "Systems Study Lab",
+        "description": "Database indexing, storage engines, and query planning tutorials.",
+        "customUrl": "@SystemsStudyLab"
+      },
+      "contentDetails": {
+        "relatedPlaylists": {
+          "uploads": "UUaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    },
+    "UCbbbbbbbbbbbbbbbbbbbbbb": {
+      "id": "UCbbbbbbbbbbbbbbbbbbbbbb",
+      "snippet": {
+        "title": "Query Craft",
+        "description": "Practical PostgreSQL indexing and database performance.",
+        "customUrl": "@QueryCraft"
+      },
+      "contentDetails": {
+        "relatedPlaylists": {
+          "uploads": "UUbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      }
+    }
+  },
+  "my_channels": [
+    {
+      "id": "UCaaaaaaaaaaaaaaaaaaaaaa",
+      "snippet": {
+        "title": "Systems Study Lab",
+        "description": "Database indexing, storage engines, and query planning tutorials.",
+        "customUrl": "@SystemsStudyLab"
+      },
+      "contentDetails": {
+        "relatedPlaylists": {
+          "uploads": "UUaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      }
+    }
+  ],
+  "search_pages": {
+    "": {
+      "nextPageToken": "search-page-2",
+      "pageInfo": {
+        "totalResults": 4
+      },
+      "items": [
+        {
+          "id": { "videoId": "vidIndex001" },
+          "snippet": { "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa" }
+        },
+        {
+          "id": { "videoId": "vidIndex002" },
+          "snippet": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" }
+        }
+      ]
+    },
+    "search-page-2": {
+      "pageInfo": {
+        "totalResults": 4
+      },
+      "items": [
+        {
+          "id": { "videoId": "vidIndex002" },
+          "snippet": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" }
+        },
+        {
+          "id": { "videoId": "vidOmit0009" },
+          "snippet": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" }
+        },
+        {
+          "id": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" },
+          "snippet": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" }
+        }
+      ]
+    }
+  },
+  "likes_pages": {
+    "": {
+      "nextPageToken": "likes-page-2",
+      "pageInfo": {
+        "totalResults": 2
+      },
+      "items": [
+        {
+          "id": "vidIndex001",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "B-Tree Database Indexing Deep Dive",
+            "channelTitle": "Systems Study Lab",
+            "publishedAt": "2026-10-01T10:00:00Z",
+            "defaultAudioLanguage": "en-US",
+            "liveBroadcastContent": "none"
+          },
+          "contentDetails": { "duration": "PT20M" },
+          "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+        }
+      ]
+    },
+    "likes-page-2": {
+      "pageInfo": {
+        "totalResults": 2
+      },
+      "items": [
+        {
+          "id": "vidPriv0004",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Private Indexing Draft",
+            "channelTitle": "Systems Study Lab",
+            "liveBroadcastContent": "none"
+          },
+          "contentDetails": { "duration": "PT10M" },
+          "status": { "privacyStatus": "private", "uploadStatus": "processed" }
+        }
+      ]
+    }
+  },
+  "subscriptions_pages": {
+    "": {
+      "pageInfo": {
+        "totalResults": 1
+      },
+      "items": [
+        {
+          "id": "sub-001",
+          "snippet": {
+            "publishedAt": "2026-09-15T12:00:00Z",
+            "resourceId": {
+              "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "playlists_pages": {
+    "": {
+      "pageInfo": {
+        "totalResults": 1
+      },
+      "items": [
+        {
+          "id": "PLstudy0001",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Database Indexing Queue"
+          }
+        }
+      ]
+    }
+  },
+  "playlist_items_pages": {
+    "PLstudy0001": {
+      "": {
+        "pageInfo": {
+          "totalResults": 2
+        },
+        "items": [
+          {
+            "id": "pli-001",
+            "snippet": {
+              "playlistId": "PLstudy0001",
+              "position": 0,
+              "publishedAt": "2026-11-01T08:00:00Z",
+              "title": "B-Tree Database Indexing Deep Dive",
+              "resourceId": { "videoId": "vidIndex001" }
+            },
+            "status": { "privacyStatus": "public" }
+          },
+          {
+            "id": "pli-002",
+            "snippet": {
+              "playlistId": "PLstudy0001",
+              "position": 1,
+              "publishedAt": "2026-11-02T09:00:00Z",
+              "title": "Deleted video",
+              "resourceId": { "videoId": "vidOmit0009" }
+            },
+            "status": { "privacyStatus": "privacyStatusUnspecified" }
+          }
+        ]
+      }
+    },
+    "UUaaaaaaaaaaaaaaaaaaaaaa": {
+      "": {
+        "items": [
+          {
+            "id": "upl-a-1",
+            "snippet": {
+              "playlistId": "UUaaaaaaaaaaaaaaaaaaaaaa",
+              "position": 0,
+              "publishedAt": "2026-10-01T10:00:00Z",
+              "title": "B-Tree Database Indexing Deep Dive",
+              "resourceId": { "videoId": "vidIndex001" }
+            },
+            "status": { "privacyStatus": "public" }
+          }
+        ]
+      }
+    },
+    "UUbbbbbbbbbbbbbbbbbbbbbb": {
+      "": {
+        "items": [
+          {
+            "id": "upl-b-1",
+            "snippet": {
+              "playlistId": "UUbbbbbbbbbbbbbbbbbbbbbb",
+              "position": 0,
+              "publishedAt": "2026-10-05T15:30:00Z",
+              "title": "PostgreSQL B-Tree Index Scan Tuning",
+              "resourceId": { "videoId": "vidIndex002" }
+            },
+            "status": { "privacyStatus": "public" }
+          }
+        ]
+      }
+    }
+  },
+  "categories": {
+    "US": [
+      { "id": "27", "snippet": { "title": "Education" } },
+      { "id": "28", "snippet": { "title": "Science & Technology" } }
+    ]
+  }
+}
