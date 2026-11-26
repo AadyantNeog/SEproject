@@ -91,6 +91,12 @@ Subsequent operations must append their actual outcome here.
 - Started [issue #1](https://github.com/AadyantNeog/SEproject/issues/1) on `codex/a2-01-foundation` from the v2.2 plan. Added the fixture MCP bootstrap, shared DTOs and infrastructure interfaces with synthetic examples. See [[2026-11-21-a2-01-foundation]].
 - Verified 19 offline tests, including the MCP 2.3.0 stdio handshake, tool calls and resource reads. The locked wheel passed a clean Windows install and console-entry-point smoke. The planning validator passed 34 checks. Published [draft PR #2](https://github.com/AadyantNeog/SEproject/pull/2). Owner input and human review are pending.
 
+## 2026-11-26 P2-01 SQLite storage
+
+- Implemented versioned SQLite migrations and account-bound snapshot/proposal/cache/operation repositories on `codex/p2-01-sqlite-storage`; added restart, expiry, isolation, deletion and replay tests plus an implementation handoff. Aadyant requested changes on commit `852bd6f`; the fixture loader now uses JSON-mode validation, and regressions cover multiprocess startup, open-reader cleanup, stale completed-operation updates, and superseding an approved proposal. Session: [[2026-11-26-p2-01-storage]].
+- Initial P2-01 checks under isolated WSL Python 3.13.18 passed 26 offline tests, scoped Ruff lint/format and mypy on 18 files. After merge commit `9589ada` (latest `origin/main` at `c8f5a3b`), the full offline suite passed 70 tests; scoped P2-01 Ruff lint/format passed; mypy passed on 35 source files. The last repository-wide Ruff run before this merge reported 182 findings; no unrelated files were changed.
+- Follow-up commit `859c508` (Paul's Git identity) updated the existing draft PR after Aadyant's requested changes. Aadyant checked [commit `cded9fc`](https://github.com/AadyantNeog/SEproject/commit/cded9fca077c5ed06235d2b3d4de1ede18e5642c) and confirmed all first-review cases pass. Merged `origin/main` at `c8f5a3b` in `9589ada`, preserving the P2-01 and A2 brain index/log entries. Review of the merged branch result remains pending; no new approval is inferred. Issue/PR URLs are pending inclusion in this local traceability note. No live API/OAuth/write data was used.
+
 ## 2026-11-26 A2-06 presentation
 
 - Implemented fixture-tested creation and recovery previews, ranked results, report sections and typed errors for [issue #6](https://github.com/AadyantNeog/SEproject/issues/6). The handoff shows how to render fixture previews for the native-dialog proof. See [[2026-11-26-a2-06-presentation]].
