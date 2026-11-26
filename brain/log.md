@@ -105,3 +105,8 @@ Subsequent operations must append their actual outcome here.
 
 - Implemented bounded video and channel discovery and deterministic TF-IDF ranking for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Verified exact scoring, stable ties and fixed upload sampling using synthetic contracts. See [[2026-11-26-a2-02-ranking]].
 - Passed 42 offline tests, scoped Ruff lint and formatting, strict mypy and the locked wheel build. Published [draft PR #11](https://github.com/AadyantNeog/SEproject/pull/11). Real provider, reservation, handler integration and human owner review remain pending.
+
+## 2026-11-26 A2-04 strict playlist planning
+
+- Added strict playlist request validation, exact-second packing, metadata evidence gates and versioned proposals for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Verified the 6,420-second SRS example. See [[2026-11-26-a2-04-playlist-planning]].
+- Passed 56 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #13](https://github.com/AadyantNeog/SEproject/pull/13). Production integration and human owner review remain pending.
