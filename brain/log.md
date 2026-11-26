@@ -96,3 +96,28 @@ Subsequent operations must append their actual outcome here.
 - Implemented versioned SQLite migrations and account-bound snapshot/proposal/cache/operation repositories on `codex/p2-01-sqlite-storage`; added restart, expiry, isolation, deletion and replay tests plus an implementation handoff. Aadyant requested changes on commit `852bd6f`; the fixture loader now uses JSON-mode validation, and regressions cover multiprocess startup, open-reader cleanup, stale completed-operation updates, and superseding an approved proposal. Session: [[2026-11-26-p2-01-storage]].
 - Verification under isolated WSL Python 3.13.18: 26 offline tests passed; Ruff lint/format passed on changed P2-01 Python files; mypy passed on `src` (18 files). Repository-wide Ruff reported 182 findings before changes to this task's files, mostly outside P2-01; unrelated files were left untouched. Issue/PR URLs are pending inclusion in this local traceability note. No live API/OAuth/write data was used.
 - Follow-up commit `859c508` (Paul's Git identity) was pushed to `codex/p2-01-sqlite-storage`, updating the existing draft PR after Aadyant's requested changes. Re-review is pending; no approval is inferred.
+
+## 2026-11-26 A2-06 presentation
+
+- Implemented fixture-tested creation and recovery previews, ranked results, report sections and typed errors for [issue #6](https://github.com/AadyantNeog/SEproject/issues/6). The handoff shows how to render fixture previews for the native-dialog proof. See [[2026-11-26-a2-06-presentation]].
+- Passed 28 offline tests, scoped Ruff lint and formatting, strict mypy and the wheel build on Windows. Published [draft PR #7](https://github.com/AadyantNeog/SEproject/pull/7). The real report adapter, handler routing, native dialog and human review remain pending.
+
+## 2026-11-26 A2-05 early fixture shell
+
+- Added the checkout-backed synthetic preview and canonical skill resources and the Claude Code skill sync command for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). See [[2026-11-26-a2-05-fixture-shell]].
+- Claude Code 2.1.143 connected over stdio in an isolated Windows profile. Passed 31 offline tests, scoped Ruff, strict mypy and the locked wheel build. Published [draft PR #9](https://github.com/AadyantNeog/SEproject/pull/9). Product integration, trusted native approval proof and human owner review remain pending.
+
+## 2026-11-26 A2-02 ranking and discovery
+
+- Implemented bounded video and channel discovery and deterministic TF-IDF ranking for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Verified exact scoring, stable ties and fixed upload sampling using synthetic contracts. See [[2026-11-26-a2-02-ranking]].
+- Passed 42 offline tests, scoped Ruff lint and formatting, strict mypy and the locked wheel build. Published [draft PR #11](https://github.com/AadyantNeog/SEproject/pull/11). Real provider, reservation, handler integration and human owner review remain pending.
+
+## 2026-11-26 A2-04 strict playlist planning
+
+- Added strict playlist request validation, exact-second packing, metadata evidence gates and versioned proposals for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Verified the 6,420-second SRS example. See [[2026-11-26-a2-04-playlist-planning]].
+- Passed 56 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #13](https://github.com/AadyantNeog/SEproject/pull/13). Production integration and human owner review remain pending.
+
+## 2026-11-26 A2-03 recommendations
+
+- Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
+- Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
