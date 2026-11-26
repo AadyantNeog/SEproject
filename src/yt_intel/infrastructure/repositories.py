@@ -315,6 +315,20 @@ class SqliteProposalRepository(ProposalRepository):
             ).fetchone()
         return _PROPOSAL_ADAPTER.validate_json(row["payload"]) if row else None
 
+    async def get_current_proposal(
+        self, binding: AccountBinding, proposal_id: OpaqueId, *, now: UtcDateTime
+    ) -> ApprovableProposal | None:
+        with self.database.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT payload FROM ("
+                "SELECT payload, expires_at, retained_until FROM proposals "
+                "WHERE binding_key = ? AND proposal_id = ? "
+                "ORDER BY version DESC LIMIT 1"
+                ") WHERE expires_at > ? AND retained_until > ?",
+                (_binding_key(binding), proposal_id, _timestamp(now), _timestamp(now)),
+            ).fetchone()
+        return _PROPOSAL_ADAPTER.validate_json(row["payload"]) if row else None
+
 
 class SqliteCacheRepository(CacheRepository):
     def __init__(self, database: Database, clock: Clock | None = None) -> None:
