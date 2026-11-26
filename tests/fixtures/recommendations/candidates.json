@@ -1,0 +1,69 @@
+{
+  "schema_version": "1",
+  "candidate_set_id": "fixture-recommendations",
+  "binding": {
+    "installation_id": "fixture-installation",
+    "credential_binding_id": "fixture-binding",
+    "channel_id": "UCfixture000000000000001",
+    "mode": "fixture"
+  },
+  "videos": [
+    {
+      "schema_version": "1",
+      "video_id": "fixture0301",
+      "channel_id": "UCfixture000000000000001",
+      "title": "Database indexing with B-trees",
+      "channel_title": "Synthetic Database Lessons",
+      "canonical_url": "https://www.youtube.com/watch?v=fixture0301",
+      "description": "Practice database indexing with B-tree examples.",
+      "tags": ["databases", "B-tree"],
+      "category_id": "27",
+      "published_at": null,
+      "duration_seconds": 600,
+      "default_audio_language": "en-US",
+      "default_metadata_language": null,
+      "language_evidence": "audio",
+      "availability": "available",
+      "live_status": "recorded",
+      "fetched_at": "2026-11-21T09:00:00Z"
+    },
+    {
+      "schema_version": "1",
+      "video_id": "fixture0302",
+      "channel_id": "UCfixture000000000000001",
+      "title": "Database indexing practice (French audio)",
+      "channel_title": "Synthetic Database Lessons",
+      "canonical_url": "https://www.youtube.com/watch?v=fixture0302",
+      "description": "Practice database indexing with B-tree examples.",
+      "tags": ["databases", "B-tree"],
+      "category_id": "27",
+      "published_at": null,
+      "duration_seconds": 540,
+      "default_audio_language": "fr-FR",
+      "default_metadata_language": "en",
+      "language_evidence": "audio",
+      "availability": "available",
+      "live_status": "recorded",
+      "fetched_at": "2026-11-21T09:00:00Z"
+    }
+  ],
+  "source": "synthetic",
+  "seed_video_id": null,
+  "topic": null,
+  "coverage": {
+    "complete": true,
+    "paginated": false,
+    "sampled": false,
+    "truncated": false,
+    "retrieved": 2,
+    "usable": 2,
+    "inaccessible": 0,
+    "unknown": 0,
+    "limits": {"candidates": 2},
+    "completeness_basis": "Two synthetic recommendation candidates"
+  },
+  "ranking_version": "ranking-v1",
+  "config_version": "fixture-v1",
+  "created_at": "2026-11-21T09:00:00Z",
+  "expires_at": "2026-11-21T09:20:00Z"
+}

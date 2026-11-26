@@ -10,6 +10,7 @@ from yt_intel.contracts.common import Contract
 from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
 from yt_intel.presentation.results import render_error
 
+from .recommendations import register_fixture_recommendations
 from .resources import register_fixture_resources
 
 
@@ -24,6 +25,8 @@ def build_fixture_server(project_root: Path | None) -> MCPServer[None]:
     server.tool(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
     )(fixture_status)
+    if project_root is not None:
+        register_fixture_recommendations(server, project_root)
     return server
 
 
