@@ -14,7 +14,7 @@ requirements:
   - FR-2.1
   - NFR-11
 issue: https://github.com/AadyantNeog/SEproject/issues/21
-pull_request: pending-url
+pull_request: https://github.com/AadyantNeog/SEproject/pull/23
 ---
 
 ## Goal
@@ -78,6 +78,6 @@ Under `.venv` Python 3.13.17 on Windows (locked `requirements-dev.lock`):
 ## Links
 
 - J2-02 Issue: [issue #21](https://github.com/AadyantNeog/SEproject/issues/21).
-- Draft PR: pending URL.
+- Draft PR: [draft PR #23](https://github.com/AadyantNeog/SEproject/pull/23).
 - Aadyant lead review: pending.
 - Distilled basis: [[10-test-fixtures-and-error-cases]], [[15-implementation-boundaries-and-contracts]], [[16-official-api-design-check-2026-11-16]].
