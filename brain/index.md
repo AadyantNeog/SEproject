@@ -20,6 +20,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-26-a2-02-ranking]]
 - [[2026-11-26-a2-04-playlist-planning]]
 - [[2026-11-26-a2-03-recommendations]]
+- [[2026-11-26-j2-01-http-parsing]]
 - [[requirements-preparation-review]]
 
 ## Distilled research

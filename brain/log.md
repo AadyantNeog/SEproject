@@ -121,3 +121,8 @@ Subsequent operations must append their actual outcome here.
 
 - Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
 - Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
+
+## 2026-11-26 J2-01 input parsing and accounted HTTP executor
+
+- Implemented pure domain parsers (`identifiers.py`, `durations.py`, `language.py`) and the allowlisted, deadline-bound, quota-accounted HTTPS executor (`http.py`, `redaction.py`) on `codex/j2-01-http-parsing` from `origin/main` (`dec5d7f`). See [[2026-11-26-j2-01-http-parsing]].
+- Verified 138 J2-01 synthetic tests (fake `QuotaLedger`, `httpx.MockTransport`), 208 total offline tests (`pytest -m "not live"`), strict `mypy src` (40 source files), and scoped Ruff lint/format checks on all 10 J2-01 files. Real P2-02 quota ledger integration, J2-02/J2-03/P2-04 wiring, GitHub Issue/PR links (blocked locally on `gh auth login`), and Aadyant's lead review remain pending.
