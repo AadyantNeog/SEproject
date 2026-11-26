@@ -22,6 +22,16 @@ def _decision_dialog(request: dict[str, Any]) -> dict[str, Any]:
         text="Review the complete proposal and account before choosing.",
         wraplength=720,
     ).pack(fill="x", padx=12, pady=10)
+    account = request["binding"]
+    Label(
+        root,
+        text=(
+            f"Installation: {account['installation_id']}  |  "
+            f"Account binding: {account['credential_binding_id']}  |  "
+            f"Channel: {account['channel_id']}"
+        ),
+        wraplength=720,
+    ).pack(fill="x", padx=12, pady=(0, 10))
     frame = Frame(root)
     frame.pack(fill=BOTH, expand=True, padx=12)
     scrollbar = Scrollbar(frame)

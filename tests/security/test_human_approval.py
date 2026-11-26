@@ -124,6 +124,40 @@ async def test_expired_proposal_and_expired_grant_are_rejected():
 
 
 @pytest.mark.anyio
+async def test_grant_rejects_wrong_account_proposal_version_digest_or_operation():
+    proposal, clock, ctx, _, grants, service = setup_approval()
+    grant = await service.request_grant(ctx, proposal, "operation-fixture")
+    other_binding = proposal.binding.model_copy(
+        update={"credential_binding_id": "other-account"}
+    )
+    wrong_authorities = [
+        ("other-operation", proposal.ref, proposal.digest, proposal.binding),
+        (
+            "operation-fixture",
+            proposal.ref.model_copy(update={"version": proposal.ref.version + 1}),
+            proposal.digest,
+            proposal.binding,
+        ),
+        ("operation-fixture", proposal.ref, "0" * 64, proposal.binding),
+        ("operation-fixture", proposal.ref, proposal.digest, other_binding),
+    ]
+    for operation, ref, digest, binding in wrong_authorities:
+        with pytest.raises(InvalidGrant):
+            grants.consume(
+                grant_id=grant.grant_id,
+                operation_id=operation,
+                proposal=ref,
+                proposal_digest=digest,
+                binding=binding,
+                now=clock.now(),
+            )
+
+    assert (
+        service.consume(grant, proposal, "operation-fixture").consumed_at == clock.now()
+    )
+
+
+@pytest.mark.anyio
 @pytest.mark.parametrize(
     "mutation",
     [
