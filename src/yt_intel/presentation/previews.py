@@ -86,8 +86,9 @@ def _resume_details(proposal: ResumeProposal, surface: TextSurface) -> list[str]
 
 
 def _render_item(position: int, item: ProposalItem, surface: TextSurface) -> list[str]:
+    position_label = display_text(f"{position}.", surface)
     return [
-        f"{position}. {display_text(item.title, surface)}",
+        f"{position_label} {display_text(item.title, surface)}",
         f"   Channel: {display_text(item.channel_title, surface)}",
         f"   URL: {item.canonical_url}",
         f"   Duration: {format_duration(item.duration_seconds)}",
