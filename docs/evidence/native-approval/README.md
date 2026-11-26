@@ -1,6 +1,6 @@
 # P2-03 native approval evidence
 
-Status: **Windows dismissal observations and Claude Code integration pending**.
+Status: **Windows close observed; Reject and Claude Code integration pending**.
 
 The Windows checkout uses Python 3.13.0 and Tcl/Tk 8.6.14. The fixture stdio
 server and both previews are covered by offline MCP integration tests.
@@ -22,8 +22,8 @@ disappeared, the terminal output, and the exit code. The expected output is
 
 | Manual Windows action | Observed result |
 | --- | --- |
-| Window close (X) | Pending Paul's manual run. |
-| Reject button | Pending Paul's manual run. |
+| Window close (X) | Paul reported `Dialog rejected or closed. No grant issued.` and exit code 0 after setting the Tcl/Tk paths. |
+| Reject button | Pending. The retry used `venv` instead of `.venv` and PowerShell returned `CommandNotFoundException` before launching Python. |
 
 Paul's first launch returned `Approval unavailable. native approval helper
 failed` with exit code 1, before either dismissal could be observed.
@@ -37,8 +37,8 @@ $env:TCL_LIBRARY = Join-Path $pythonRoot 'tcl/tcl8.6'
 $env:TK_LIBRARY = Join-Path $pythonRoot 'tcl/tk8.6'
 ```
 
-With these paths, the headless Tcl initialization check passed. The dialog
-retry requires Paul's manual observation.
+With these paths, the headless Tcl initialization check passed and Paul's
+first dismissal run returned the expected output.
 
 ## Claude Code integration steps
 
@@ -85,8 +85,8 @@ A teammate with Windows Claude Code access can run this separate check.
 | Valid approval response after a revision was saved | The service refused the old proposal and asked for a new preview. |
 | Consumption after a revision was saved following grant issuance | The service raised `InvalidGrant` for the original proposal and grant. |
 
-Both callback results came from isolated Tk test doubles. The Windows close and
-Reject observations remain pending.
+Both offline callback results came from isolated Tk test doubles. The manual
+Windows Reject observation remains pending.
 
 Issue: [#16](https://github.com/AadyantNeog/SEproject/issues/16).
 Draft PR: [#17](https://github.com/AadyantNeog/SEproject/pull/17), opened
