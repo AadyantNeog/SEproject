@@ -75,6 +75,19 @@ Under `.venv` Python 3.13.17 on Windows (locked `requirements-dev.lock`):
 - Scoped `ruff check` and `ruff format --check` across `src/yt_intel/providers`
   and `tests/integration/test_provider_contract.py`: **All checks passed**.
 
+Following Aadyant's review of draft PR #23, updated `youtube.py`, `fixture.py`,
+and `test_provider_contract.py` to: (1) omit `maxResults` from `videos.list` and
+`channels.list` ID-batch lookups; (2) make `LiveYouTubeReadProvider` and
+`LiveYouTubeProvider` reject `mode="fixture"` bindings with `ACCOUNT_MISMATCH`
+before any debit or dispatch; (3) fail unsupported fixture writes clearly
+(`PROVIDER_UNAVAILABLE` when no write adapter is configured, and HTTP 501 /
+`OPERATION_UNKNOWN` on direct fixture transport write dispatch); and (4) reject
+malformed API responses (missing/non-list `items`, non-object item entries,
+malformed `nextPageToken` or `pageInfo`) with `PROVIDER_UNAVAILABLE`. Re-verified
+**11 passed** in `test_provider_contract.py`, **240 passed** in the full offline
+suite, `mypy src` across **48 source files**, and scoped Ruff lint/format checks.
+Re-review by Aadyant remains pending.
+
 ## Links
 
 - J2-02 Issue: [issue #21](https://github.com/AadyantNeog/SEproject/issues/21).

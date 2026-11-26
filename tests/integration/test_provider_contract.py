@@ -21,7 +21,10 @@ from yt_intel.contracts.workflow import (
     RequestContext,
     WorkflowPlan,
 )
-from yt_intel.infrastructure.http import AccountedHttpExecutor
+from yt_intel.infrastructure.http import (
+    AccountedHttpExecutor,
+    compute_write_request_digest,
+)
 from yt_intel.providers.fixture import (
     FixtureDataset,
     FixtureFault,
@@ -233,6 +236,7 @@ def test_get_videos_and_get_channels_batch_in_chunks_of_50() -> None:
         seen_channel_batches: list[int] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
+            assert "maxResults" not in request.url.params
             ids = [x for x in request.url.params.get("id", "").split(",") if x]
             if request.url.path == "/youtube/v3/videos":
                 seen_video_batches.append(len(ids))
@@ -351,7 +355,36 @@ def test_write_adapter_composition_fails_closed_when_absent_and_delegates_when_a
         ) as unconfigured:
             with pytest.raises(ContractError) as exc:
                 await unconfigured.create_playlist(ctx, authority, body)
-            assert exc.value.detail.code == "APPROVAL_REQUIRED"
+            assert exc.value.detail.code == "PROVIDER_UNAVAILABLE"
+            assert exc.value.detail.retryable is False
+
+            # Direct write dispatch on fixture executor without write handler fails clearly (HTTP 501 -> OPERATION_UNKNOWN)
+            write_params = {"part": "snippet,status"}
+            write_body: dict[str, object] = {
+                "snippet": {"title": "Study"},
+                "status": {"privacyStatus": "private"},
+            }
+            write_auth = ApprovedWriteContext(
+                operation_id="op-direct-1",
+                reservation_id=ctx.reservation_id,
+                binding=ctx.binding,
+                proposal=ProposalRef(proposal_id="prop-1", version=1),
+                proposal_digest="a" * 64,
+                request_digest=compute_write_request_digest(
+                    "playlists.insert", params=write_params, json_body=write_body
+                ),
+            )
+            with pytest.raises(ContractError) as direct_err:
+                await unconfigured.executor.execute_youtube(
+                    ctx,
+                    "playlists.insert",
+                    params=write_params,
+                    json_body=write_body,
+                    authority=write_auth,
+                )
+            assert direct_err.value.detail.code == "OPERATION_UNKNOWN"
+            assert unconfigured.audit_log[-1].status_code == 501
+            assert unconfigured.audit_log[-1].outcome == "unsupported_fixture_write"
 
         class _StubWriteAdapter:
             async def create_playlist(
@@ -391,7 +424,9 @@ def test_write_adapter_composition_fails_closed_when_absent_and_delegates_when_a
             assert created.playlist_id == "PLcreated01"
             assert inserted.playlist_item_id == "pli-new-1"
 
-        # LiveYouTubeProvider also fails closed without a write adapter
+        # LiveYouTubeProvider also fails closed without a write adapter (using live ctx)
+        live_ctx = _make_ctx(mode="live")
+        live_authority = _dummy_write_authority(live_ctx)
         async with AccountedHttpExecutor(
             quota_ledger=_FakeQuotaLedger(),
             transport=httpx.MockTransport(lambda req: httpx.Response(200, json={})),
@@ -400,9 +435,76 @@ def test_write_adapter_composition_fails_closed_when_absent_and_delegates_when_a
             live = LiveYouTubeProvider(executor, clock=_FixedClock())
             with pytest.raises(ContractError) as exc:
                 await live.insert_playlist_item(
-                    ctx, authority, "PLcreated01", "vidIndex001", 0
+                    live_ctx, live_authority, "PLcreated01", "vidIndex001", 0
                 )
-            assert exc.value.detail.code == "APPROVAL_REQUIRED"
+            assert exc.value.detail.code == "PROVIDER_UNAVAILABLE"
+
+    anyio.run(_run)
+
+
+def test_live_provider_rejects_fixture_mode_requests_before_debit_or_dispatch() -> None:
+    async def _run() -> None:
+        ledger = _FakeQuotaLedger()
+        calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(200, json={"items": []})
+
+        fixture_ctx = _make_ctx(mode="fixture")
+        async with AccountedHttpExecutor(
+            quota_ledger=ledger,
+            transport=httpx.MockTransport(handler),
+            clock=_FixedClock(),
+        ) as executor:
+            provider = LiveYouTubeProvider(executor, clock=_FixedClock())
+            with pytest.raises(ContractError) as exc:
+                await provider.get_videos(fixture_ctx, ("vidIndex001",))
+            assert exc.value.detail.code == "ACCOUNT_MISMATCH"
+            with pytest.raises(ContractError) as exc_search:
+                await provider.search_videos(fixture_ctx, "indexing", 10)
+            assert exc_search.value.detail.code == "ACCOUNT_MISMATCH"
+            with pytest.raises(ContractError) as exc_write:
+                await provider.create_playlist(
+                    fixture_ctx,
+                    _dummy_write_authority(fixture_ctx),
+                    PlaylistBody(title="Study", description="", privacy="private"),
+                )
+            assert exc_write.value.detail.code == "ACCOUNT_MISMATCH"
+            assert ledger.debits == []
+            assert calls == 0
+
+    anyio.run(_run)
+
+
+@pytest.mark.parametrize(
+    "bad_payload",
+    [
+        {},
+        {"items": "not-a-list"},
+        {"items": ["not-an-object"]},
+        {"items": [], "nextPageToken": 123},
+        {"items": [], "pageInfo": "bad"},
+    ],
+)
+def test_malformed_api_responses_fail_clearly(
+    bad_payload: dict[str, object],
+) -> None:
+    async def _run() -> None:
+        live_ctx = _make_ctx(mode="live")
+        async with AccountedHttpExecutor(
+            quota_ledger=_FakeQuotaLedger(),
+            transport=httpx.MockTransport(
+                lambda req: httpx.Response(200, json=bad_payload)
+            ),
+            clock=_FixedClock(),
+        ) as executor:
+            provider = LiveYouTubeReadProvider(executor, clock=_FixedClock())
+            with pytest.raises(ContractError) as exc:
+                await provider.get_videos(live_ctx, ("vidIndex001",))
+            assert exc.value.detail.code == "PROVIDER_UNAVAILABLE"
+            assert exc.value.detail.retryable is False
 
     anyio.run(_run)
 

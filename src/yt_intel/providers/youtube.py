@@ -138,13 +138,41 @@ def _parse_non_negative_int(value: object) -> int | None:
 
 def _extract_page_meta(
     payload: Mapping[str, object],
-) -> tuple[list[object], str | None, int | None]:
-    raw_items = payload.get("items")
-    items = list(raw_items) if isinstance(raw_items, list) else []
-    next_token = _as_str(payload.get("nextPageToken"))
-    if next_token is not None and not next_token:
-        next_token = None
-    page_info = _as_mapping(payload.get("pageInfo"))
+) -> tuple[list[Mapping[str, object]], str | None, int | None]:
+    if "items" not in payload or not isinstance(payload["items"], list):
+        raise _provider_error(
+            "PROVIDER_UNAVAILABLE",
+            "YouTube API response is missing a valid items list.",
+            safe_next_action="Inspect provider diagnostics and retry later.",
+        )
+    raw_items = payload["items"]
+    items: list[Mapping[str, object]] = []
+    for entry in raw_items:
+        if not isinstance(entry, Mapping):
+            raise _provider_error(
+                "PROVIDER_UNAVAILABLE",
+                "YouTube API response contains a malformed non-object item.",
+                safe_next_action="Inspect provider diagnostics and retry later.",
+            )
+        items.append(entry)
+
+    raw_next = payload.get("nextPageToken")
+    if raw_next is not None and not isinstance(raw_next, str):
+        raise _provider_error(
+            "PROVIDER_UNAVAILABLE",
+            "YouTube API response contains a malformed nextPageToken.",
+            safe_next_action="Inspect provider diagnostics and retry later.",
+        )
+    next_token = raw_next if raw_next else None
+
+    raw_page_info = payload.get("pageInfo")
+    if raw_page_info is not None and not isinstance(raw_page_info, Mapping):
+        raise _provider_error(
+            "PROVIDER_UNAVAILABLE",
+            "YouTube API response contains a malformed pageInfo object.",
+            safe_next_action="Inspect provider diagnostics and retry later.",
+        )
+    page_info = raw_page_info if isinstance(raw_page_info, Mapping) else {}
     total = _parse_non_negative_int(page_info.get("totalResults"))
     return items, next_token, total
 
@@ -474,13 +502,24 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         executor: AccountedHttpExecutor,
         *,
         clock: Clock | None = None,
+        expected_mode: Literal["live", "fixture"] = "live",
     ) -> None:
         self._executor = executor
         self._clock: Clock = clock if clock is not None else SystemClock()
+        self._expected_mode = expected_mode
+
+    def _require_mode(self, ctx: RequestContext) -> None:
+        if ctx.binding.mode != self._expected_mode:
+            raise _provider_error(
+                "ACCOUNT_MISMATCH",
+                f"Provider expects {self._expected_mode}-mode account bindings; received {ctx.binding.mode}.",
+                safe_next_action=f"Use a {self._expected_mode}-mode account binding with this provider.",
+            )
 
     async def get_videos(
         self, ctx: RequestContext, video_ids: tuple[VideoId, ...]
     ) -> VideoBatch:
+        self._require_mode(ctx)
         validated = _dedupe_preserve_order(
             [parse_video_id(video_id) for video_id in video_ids]
         )
@@ -496,14 +535,11 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
                 params={
                     "part": "snippet,contentDetails,status",
                     "id": ",".join(batch),
-                    "maxResults": str(len(batch)),
                 },
             )
             raw_items, _, _ = _extract_page_meta(resp.payload)
             for raw in raw_items:
-                normalized = normalize_video_item(
-                    _as_mapping(raw), fetched_at=fetched_at
-                )
+                normalized = normalize_video_item(raw, fetched_at=fetched_at)
                 if normalized is not None:
                     videos[normalized.video_id] = normalized
 
@@ -513,6 +549,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
     async def resolve_channel(
         self, ctx: RequestContext, channel: ChannelRef
     ) -> Channel:
+        self._require_mode(ctx)
         params: dict[str, str] = {"part": "snippet,contentDetails"}
         if isinstance(channel, ChannelById):
             ref = parse_channel_ref(channel.channel_id)
@@ -543,7 +580,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         raw_items, _, _ = _extract_page_meta(resp.payload)
         fetched_at = self._clock.now().astimezone(UTC)
         for raw in raw_items:
-            normalized = normalize_channel_item(_as_mapping(raw), fetched_at=fetched_at)
+            normalized = normalize_channel_item(raw, fetched_at=fetched_at)
             if normalized is not None:
                 return normalized
         raise _provider_error(
@@ -555,6 +592,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
     async def get_channels(
         self, ctx: RequestContext, channel_ids: tuple[ChannelId, ...]
     ) -> ChannelBatch:
+        self._require_mode(ctx)
         validated_list: list[ChannelId] = []
         for raw_id in channel_ids:
             ref = parse_channel_ref(raw_id)
@@ -579,14 +617,11 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
                 params={
                     "part": "snippet,contentDetails",
                     "id": ",".join(batch),
-                    "maxResults": str(len(batch)),
                 },
             )
             raw_items, _, _ = _extract_page_meta(resp.payload)
             for raw in raw_items:
-                normalized = normalize_channel_item(
-                    _as_mapping(raw), fetched_at=fetched_at
-                )
+                normalized = normalize_channel_item(raw, fetched_at=fetched_at)
                 if normalized is not None:
                     channels[normalized.channel_id] = normalized
 
@@ -594,6 +629,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         return ChannelBatch(channels=channels, omitted_ids=omitted)
 
     async def get_my_channels(self, ctx: RequestContext) -> tuple[Channel, ...]:
+        self._require_mode(ctx)
         resp = await self._executor.execute_youtube(
             ctx,
             "channels.list",
@@ -607,7 +643,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         fetched_at = self._clock.now().astimezone(UTC)
         channels: list[Channel] = []
         for raw in raw_items:
-            normalized = normalize_channel_item(_as_mapping(raw), fetched_at=fetched_at)
+            normalized = normalize_channel_item(raw, fetched_at=fetched_at)
             if normalized is not None:
                 channels.append(normalized)
         return tuple(channels)
@@ -620,6 +656,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         page_token: Text | None = None,
         language_hint: LanguageTag | None = None,
     ) -> Page[SearchHit]:
+        self._require_mode(ctx)
         cleaned_query = _clean_label(query)
         if cleaned_query is None:
             raise _provider_error(
@@ -644,7 +681,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         hits: list[SearchHit] = []
         omitted = 0
         for raw in raw_items[:limit]:
-            hit = normalize_search_item(_as_mapping(raw))
+            hit = normalize_search_item(raw)
             if hit is None:
                 omitted += 1
             else:
@@ -665,6 +702,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         page_size: Limit,
         page_token: Text | None = None,
     ) -> Page[LikedVideo]:
+        self._require_mode(ctx)
         limit = validate_result_limit(page_size)
         params: dict[str, str] = {
             "part": "snippet,contentDetails,status",
@@ -681,7 +719,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         omitted = 0
         inaccessible = 0
         for raw in raw_items[:limit]:
-            video = normalize_video_item(_as_mapping(raw), fetched_at=fetched_at)
+            video = normalize_video_item(raw, fetched_at=fetched_at)
             if video is None:
                 omitted += 1
                 continue
@@ -709,6 +747,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         page_size: Limit,
         page_token: Text | None = None,
     ) -> Page[SubscriptionSignal]:
+        self._require_mode(ctx)
         limit = validate_result_limit(page_size)
         params: dict[str, str] = {
             "part": "snippet",
@@ -726,7 +765,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         signals: list[SubscriptionSignal] = []
         omitted = 0
         for raw in raw_items[:limit]:
-            sig = normalize_subscription_item(_as_mapping(raw), fetched_at=fetched_at)
+            sig = normalize_subscription_item(raw, fetched_at=fetched_at)
             if sig is None:
                 omitted += 1
             else:
@@ -747,6 +786,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         page_size: Limit,
         page_token: Text | None = None,
     ) -> Page[OwnedPlaylist]:
+        self._require_mode(ctx)
         limit = validate_result_limit(page_size)
         params: dict[str, str] = {
             "part": "snippet,contentDetails",
@@ -763,7 +803,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         playlists: list[OwnedPlaylist] = []
         omitted = 0
         for raw in raw_items[:limit]:
-            pl = normalize_owned_playlist_item(_as_mapping(raw))
+            pl = normalize_owned_playlist_item(raw)
             if pl is None:
                 omitted += 1
             else:
@@ -785,6 +825,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         page_size: Limit,
         page_token: Text | None = None,
     ) -> Page[PlaylistOccurrence]:
+        self._require_mode(ctx)
         valid_playlist_id = _validate_opaque_id(playlist_id, field_name="playlist")
         limit = validate_result_limit(page_size)
         params: dict[str, str] = {
@@ -804,7 +845,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         inaccessible = 0
         for raw in raw_items[:limit]:
             occ = normalize_playlist_item_occurrence(
-                _as_mapping(raw), requested_playlist_id=valid_playlist_id
+                raw, requested_playlist_id=valid_playlist_id
             )
             if occ is None:
                 omitted += 1
@@ -829,6 +870,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
     async def get_category_labels(
         self, ctx: RequestContext, region_code: str
     ) -> Mapping[str, str]:
+        self._require_mode(ctx)
         if not isinstance(region_code, str) or not _REGION_CODE_RE.fullmatch(
             region_code.strip().upper()
         ):
@@ -845,8 +887,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         )
         raw_items, _, _ = _extract_page_meta(resp.payload)
         labels: dict[str, str] = {}
-        for raw in raw_items:
-            entry = _as_mapping(raw)
+        for entry in raw_items:
             cat_id = _as_str(entry.get("id"))
             title = _clean_label(_as_mapping(entry.get("snippet")).get("title"))
             if cat_id and title:
@@ -864,7 +905,7 @@ class LiveYouTubeProvider(LiveYouTubeReadProvider):
         write_adapter: YouTubeWriteProvider | None = None,
         clock: Clock | None = None,
     ) -> None:
-        super().__init__(executor, clock=clock)
+        super().__init__(executor, clock=clock, expected_mode="live")
         self._write_adapter = write_adapter
 
     async def create_playlist(
@@ -873,10 +914,11 @@ class LiveYouTubeProvider(LiveYouTubeReadProvider):
         authority: ApprovedWriteContext,
         body: PlaylistBody,
     ) -> CreatedPlaylist:
+        self._require_mode(ctx)
         if self._write_adapter is None:
             raise _provider_error(
-                "APPROVAL_REQUIRED",
-                "Playlist write adapter is not configured on this provider instance.",
+                "PROVIDER_UNAVAILABLE",
+                "Playlist write adapter is not configured on this live provider.",
                 safe_next_action="Configure the guarded write adapter before executing approved writes.",
             )
         return await self._write_adapter.create_playlist(ctx, authority, body)
@@ -889,10 +931,11 @@ class LiveYouTubeProvider(LiveYouTubeReadProvider):
         video_id: VideoId,
         position: NonNegative,
     ) -> InsertedPlaylistItem:
+        self._require_mode(ctx)
         if self._write_adapter is None:
             raise _provider_error(
-                "APPROVAL_REQUIRED",
-                "Playlist write adapter is not configured on this provider instance.",
+                "PROVIDER_UNAVAILABLE",
+                "Playlist write adapter is not configured on this live provider.",
                 safe_next_action="Configure the guarded write adapter before executing approved writes.",
             )
         return await self._write_adapter.insert_playlist_item(

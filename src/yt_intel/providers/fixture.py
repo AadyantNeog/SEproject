@@ -186,7 +186,9 @@ class FixtureYouTubeProvider(YouTubeProvider):
             max_backoff_seconds=max_backoff_seconds,
             on_attempt=self._on_attempt,
         )
-        self._reader = LiveYouTubeReadProvider(self._executor, clock=self._clock)
+        self._reader = LiveYouTubeReadProvider(
+            self._executor, clock=self._clock, expected_mode="fixture"
+        )
 
     @property
     def executor(self) -> AccountedHttpExecutor:
@@ -273,6 +275,26 @@ class FixtureYouTubeProvider(YouTubeProvider):
                 fault.status_code,
                 json=dict(fault.body) if fault.body is not None else {},
                 headers=dict(fault.headers) if fault.headers is not None else None,
+            )
+
+        if endpoint in {"playlists.insert", "playlistItems.insert"}:
+            self._audit.append(
+                ProviderAuditEntry(
+                    method=request.method,
+                    endpoint=endpoint,
+                    params=params,
+                    status_code=501,
+                    outcome="unsupported_fixture_write",
+                    error_code="OPERATION_UNKNOWN",
+                )
+            )
+            return httpx.Response(
+                501,
+                json={
+                    "error": {
+                        "message": "Fixture write transport handler is not configured."
+                    }
+                },
             )
 
         payload = self._dispatch_read(endpoint, params)
@@ -449,8 +471,8 @@ class FixtureYouTubeProvider(YouTubeProvider):
         if self._write_adapter is None:
             raise ContractError(
                 ErrorDetail(
-                    code="APPROVAL_REQUIRED",
-                    message="Fixture write adapter is not configured on this provider.",
+                    code="PROVIDER_UNAVAILABLE",
+                    message="Fixture write adapter is not configured; playlist writes are unsupported on this provider.",
                     retryable=False,
                     safe_next_action="Attach Paul's fixture write adapter to execute synthetic playlist writes.",
                 )
@@ -469,8 +491,8 @@ class FixtureYouTubeProvider(YouTubeProvider):
         if self._write_adapter is None:
             raise ContractError(
                 ErrorDetail(
-                    code="APPROVAL_REQUIRED",
-                    message="Fixture write adapter is not configured on this provider.",
+                    code="PROVIDER_UNAVAILABLE",
+                    message="Fixture write adapter is not configured; playlist item writes are unsupported on this provider.",
                     retryable=False,
                     safe_next_action="Attach Paul's fixture write adapter to execute synthetic playlist item writes.",
                 )
