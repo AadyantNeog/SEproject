@@ -24,6 +24,10 @@ With a checkout supplied as `--project-root`, the [Codex fixture server](codex-f
 
 These standalone fixture calls use a request-local attempt budget and mock transport. The [playlist planning walkthrough](playlist-planning.md#preview-from-discovery) shows how to pass the saved reference. The shared P2-02 reservations remain integration work for [video-to-playlist](../../.agents/skills/video-to-playlist/SKILL.md). Live ranking stays blocked pending D-02.
 
+### Progress and cancellation
+
+Clients that request MCP progress receive three updates as discovery loads the seed, collects candidate metadata and completes ranking. Video discovery reports completion after the candidate reference is saved. For a request cancelled before that save, the server stops the in-flight read and closes the fixture provider. The same MCP session remains available for another request. [Stdio checks](../../tests/system/test_discovery_stdio.py)
+
 [Ranking tests](../../tests/unit/test_metadata_ranking.py) check topical mismatches, ties, exact term weights, missing evidence, and a hand-calculated cosine. [Discovery tests](../../tests/integration/test_ranking_discovery.py) check caps, provider call order, one-page channel sampling, and typed preflight refusals. [Stdio tests](../../tests/system/test_discovery_stdio.py) exercise both published tools and check coverage, sampling, and typed errors. These tests provide fixture evidence for part of AT-02, AT-03, and AT-10.
 
 The [fixture MCP session note](../../brain/projects/youtube-mcp/2026-11-27-a2-02-discovery-stdio.md) records the Windows Codex probe and links to the distilled ranking and client references.

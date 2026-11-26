@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from pydantic import TypeAdapter, ValidationError
@@ -22,6 +22,8 @@ _VIDEO_ID = TypeAdapter(VideoId)
 _CHANNEL_REF = TypeAdapter(ChannelRef)
 _LIMIT = TypeAdapter(Limit)
 _SAMPLE_RULE = "first-accessible-uploads-v1"
+
+type DiscoveryProgress = Callable[[int, str], Awaitable[None]]
 
 
 class DiscoveryBounds(Contract):
@@ -92,10 +94,19 @@ class DiscoveryService:
     """Read workflows using a server-issued context whose budget was reserved upstream."""
 
     def __init__(
-        self, provider: YouTubeReadProvider, bounds: DiscoveryBounds = DiscoveryBounds()
+        self,
+        provider: YouTubeReadProvider,
+        bounds: DiscoveryBounds = DiscoveryBounds(),
+        *,
+        progress: DiscoveryProgress | None = None,
     ) -> None:
         self._provider = provider
         self._bounds = bounds
+        self._progress = progress
+
+    async def _report_progress(self, completed: int, message: str) -> None:
+        if self._progress is not None:
+            await self._progress(completed, message)
 
     async def videos(
         self, ctx: RequestContext, seed_id: VideoId, *, limit: int = 10
@@ -118,6 +129,7 @@ class DiscoveryService:
                 "The seed video is unavailable in this context.",
                 "Choose an accessible seed video.",
             )
+        await self._report_progress(1, "Loaded the seed video.")
 
         pool = await self._search(
             ctx,
@@ -139,6 +151,7 @@ class DiscoveryService:
                     inaccessible += 1
                 else:
                     usable.append(video)
+        await self._report_progress(2, "Collected candidate video metadata.")
         results = rank_videos(seed, usable, limit=limit)
         return VideoDiscoveryResult(
             results,
@@ -177,6 +190,7 @@ class DiscoveryService:
                 "The seed channel has no comparable description or upload text.",
                 "Choose a channel with a description or accessible uploads.",
             )
+        await self._report_progress(1, "Loaded the seed channel and its upload sample.")
 
         query = _query(
             (
@@ -202,6 +216,9 @@ class DiscoveryService:
                     unknown += 1
                 else:
                     entries.append(await self._sample(ctx, candidate))
+        await self._report_progress(
+            2, "Collected candidate channels and upload samples."
+        )
         results = rank_channels(seed, entries, limit=limit)
         return DiscoveryResult(
             results,

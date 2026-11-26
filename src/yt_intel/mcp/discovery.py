@@ -146,12 +146,16 @@ def register_fixture_discovery(
             discovery = await service.videos(
                 request, parse_video_id(args.video), limit=args.limit
             )
+            # Let a client cancellation interrupt the request before caching results.
+            await anyio.lowlevel.checkpoint()
             reference = await candidate_sets.publish(
                 discovery, request.binding, now=datetime.now(UTC)
             )
             return discovery, reference
 
-        return await _run_discovery(dataset, _VIDEO_CALLS, rank, VideoDiscoveryEnvelope)
+        return await _run_discovery(
+            ctx, dataset, _VIDEO_CALLS, rank, VideoDiscoveryEnvelope
+        )
 
     @server.tool(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -171,11 +175,16 @@ def register_fixture_discovery(
             return discovery, None
 
         return await _run_discovery(
-            dataset, _CHANNEL_CALLS, rank, ResultEnvelope[tuple[RankedChannel, ...]]
+            ctx,
+            dataset,
+            _CHANNEL_CALLS,
+            rank,
+            ResultEnvelope[tuple[RankedChannel, ...]],
         )
 
 
 async def _run_discovery[T: (RankedVideo, RankedChannel)](
+    ctx: Context[None, object],
     dataset: FixtureDataset,
     calls: Mapping[Endpoint, int],
     rank: Callable[
@@ -184,6 +193,9 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
     ],
     envelope: type[ResultEnvelope[tuple[T, ...]]],
 ) -> CallToolResult:
+    async def report_progress(completed: int, message: str) -> None:
+        await ctx.report_progress(completed, 3, message)
+
     request = RequestContext(
         request_id=uuid4().hex,
         binding=_FIXTURE_ACCOUNT,
@@ -191,43 +203,49 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
         deadline=datetime.now(UTC) + timedelta(seconds=60),
         cancellation=_FixtureCancellation(),
     )
+    provider = FixtureYouTubeProvider(
+        dataset, quota_ledger=_FixtureAttemptBudget(request, calls)
+    )
     try:
-        async with FixtureYouTubeProvider(
-            dataset, quota_ledger=_FixtureAttemptBudget(request, calls)
-        ) as provider:
-            ranked, candidate_set_id = await rank(
-                DiscoveryService(provider, _BOUNDS), request
-            )
+        ranked, candidate_set_id = await rank(
+            DiscoveryService(provider, _BOUNDS, progress=report_progress), request
+        )
     except ContractError as error:
-        problem = error.detail
-    else:
         result = envelope(
             mode="fixture",
             request_id=request.request_id,
-            status="ok" if ranked.results else "empty",
-            data=ranked.results,
-            coverage=ranked.coverage,
-            warnings=ranked.coverage.warnings,
+            status="error",
+            data=None,
+            error=error.detail,
         )
-        text = render_ranked_results(
-            ranked.results, mode="fixture", coverage=ranked.coverage
-        )
-        if isinstance(result, VideoDiscoveryEnvelope) and candidate_set_id is not None:
-            result = result.model_copy(update={"candidate_set_id": candidate_set_id})
-            text += f"\nCandidate set: {candidate_set_id}"
         return CallToolResult(
+            is_error=True,
             structured_content=result.model_dump(),
-            content=[TextContent(type="text", text=text)],
+            content=[
+                TextContent(
+                    type="text", text=render_error(error.detail, mode="fixture")
+                )
+            ],
         )
+    finally:
+        with anyio.CancelScope(shield=True):
+            await provider.aclose()
     result = envelope(
         mode="fixture",
         request_id=request.request_id,
-        status="error",
-        data=None,
-        error=problem,
+        status="ok" if ranked.results else "empty",
+        data=ranked.results,
+        coverage=ranked.coverage,
+        warnings=ranked.coverage.warnings,
     )
+    text = render_ranked_results(
+        ranked.results, mode="fixture", coverage=ranked.coverage
+    )
+    if isinstance(result, VideoDiscoveryEnvelope) and candidate_set_id is not None:
+        result = result.model_copy(update={"candidate_set_id": candidate_set_id})
+        text += f"\nCandidate set: {candidate_set_id}"
+    await report_progress(3, "Discovery complete.")
     return CallToolResult(
-        is_error=True,
         structured_content=result.model_dump(),
-        content=[TextContent(type="text", text=render_error(problem, mode="fixture"))],
+        content=[TextContent(type="text", text=text)],
     )
