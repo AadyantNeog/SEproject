@@ -143,6 +143,11 @@ Subsequent operations must append their actual outcome here.
 - Verified J2-02 contract tests (5 passed), full offline pytest suite (234 passed), strict `mypy src` (48 source files), and scoped Ruff lint/format checks. Published [draft PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Real P2-02 quota ledger integration, P2-04 write adapters, and Aadyant's lead review remain pending.
 - For Aadyant's review follow-up on PR #23, removed `maxResults` from ID-batch lookups, made the live provider reject `mode="fixture"` requests before debit/dispatch, made unsupported fixture writes fail clearly (`PROVIDER_UNAVAILABLE` / HTTP 501), and rejected malformed API responses (`items`/`nextPageToken`/`pageInfo`) with `PROVIDER_UNAVAILABLE`. Re-verified 11 J2-02 contract tests, 240 total offline tests, strict `mypy src` (48 source files), and scoped Ruff checks. Re-review by Aadyant remains pending.
 
+## 2026-11-26 J2-03 OAuth, protected secrets, and account lifecycle
+
+- Implemented `src/yt_intel/auth/{vault,oauth,account}.py`, `docs/user/privacy.md`, `tests/security/test_account_isolation.py`, and `tests/integration/test_oauth_lifecycle.py` on `codex/j2-03-oauth-account` from `origin/main` (`4c94c49`). See [[2026-11-26-j2-03-oauth-account]].
+- Verified 13 J2-03 security/integration tests (including real P2-01 `SqliteAccountDataRepository` disconnect), 258 total offline tests (`pytest -m "not live"`), strict `mypy src` (53 source files), and scoped Ruff lint/format checks. Committed locally without pushing so Jeswin can review and write the PR/comment wording; GitHub Issue/PR and Aadyant's lead review remain pending.
+
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
 
 ## 2026-11-26 A2-05 Codex demonstration client
