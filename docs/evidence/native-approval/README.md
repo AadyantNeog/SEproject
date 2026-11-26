@@ -17,4 +17,6 @@ the dialog. Record the Windows version, Python/Claude versions, fixture
 resource observed, helper process/dialog outcome and any failure here. Do not
 claim proof from `claude mcp get` alone; it establishes only the MCP connection.
 
-Issue and PR links: pending remote issue/PR creation.
+Issue: [#16](https://github.com/AadyantNeog/SEproject/issues/16).
+Draft PR: [#17](https://github.com/AadyantNeog/SEproject/pull/17), opened
+under Paul's GitHub account. Aadyant's human review is pending.
