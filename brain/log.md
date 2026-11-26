@@ -162,3 +162,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 J2-02 provider follow-up
 
 - At Aadyant's request, Codex restored the channel batch size and gave unimplemented fixture writes a definite failure in [PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Verified on current main with 245 offline tests, scoped Ruff and mypy. See [[2026-11-26-j2-02-provider-follow-up]].
+
+## 2026-11-27 A2-02 fixture discovery through MCP
+
+- Added the similar-video and similar-channel fixture tools for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Codex Desktop returned the expected fixture ranks for both. All 246 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-stdio]].
