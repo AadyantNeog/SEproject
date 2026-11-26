@@ -146,7 +146,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 J2-03 OAuth, protected secrets, and account lifecycle
 
 - Implemented `src/yt_intel/auth/{vault,oauth,account}.py`, `docs/user/privacy.md`, `tests/security/test_account_isolation.py`, and `tests/integration/test_oauth_lifecycle.py` on `codex/j2-03-oauth-account` from `origin/main` (`4c94c49`). See [[2026-11-26-j2-03-oauth-account]].
-- Verified 13 J2-03 security/integration tests (including real P2-01 `SqliteAccountDataRepository` disconnect), 258 total offline tests (`pytest -m "not live"`), strict `mypy src` (53 source files), and scoped Ruff lint/format checks. Committed locally without pushing so Jeswin can review and write the PR/comment wording; GitHub Issue/PR and Aadyant's lead review remain pending.
+- Verified 13 J2-03 security/integration tests (including real P2-01 `SqliteAccountDataRepository` disconnect), 258 total offline tests (`pytest -m "not live"`), strict `mypy src` (53 source files), and scoped Ruff lint/format checks. Published [issue #28](https://github.com/AadyantNeog/SEproject/issues/28) and [draft PR #29](https://github.com/AadyantNeog/SEproject/pull/29); Aadyant's lead review remains pending.
 
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
 
