@@ -138,3 +138,9 @@ Subsequent operations must append their actual outcome here.
 - For Aadyant's review follow-up on PR #19, added pre-dispatch deadline rechecks after async auth/debit, froze canonical approved write params/body bytes with wire-digest verification, and mapped unclear write outcomes (5xx, redirects, malformed/non-object 2xx JSON, timeouts, network errors) to `OPERATION_UNKNOWN` for reconciliation (`9333c40`), then merged `origin/main` (`b26737d`) in `54d6b24` preserving both P2-03 and J2-01 log/index entries. Verified 140 J2-01 tests, 224 total offline tests, strict `mypy src` (45 source files), and scoped Ruff lint/format on all 10 J2-01 files. Re-review by Aadyant remains pending.
 
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
+
+## 2026-11-26 A2-05 Codex demonstration client
+
+- Aadyant selected Codex Desktop for the Windows demonstration. Recorded the selection in ADR-0009 and updated the fixture setup. See [[2026-11-26-a2-05-codex-demo-client]].
+- The Windows Codex app server read the synthetic creation preview and canonical skill resource at Paul's PR #17 head. The operator's second attempt returned no grant and exit code 0 for both manual window close and Reject.
+- Updated PR #20 with `main` at `b54573e`, preserving both teammate records. The Windows preview and skill resource probe, 229 offline tests, all 34 planning checks, scoped Ruff and mypy passed. The manual dismissal result is from the earlier fixture run.

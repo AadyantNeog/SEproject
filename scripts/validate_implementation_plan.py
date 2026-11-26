@@ -159,7 +159,7 @@ def run() -> int:
                 cited.append(resolved)
         if not cited:
             adr_errors.append(path.name)
-    check('ADR distilled basis', len(adrs) == 8 and not adr_errors, f'Eight ADRs cite distilled notes; errors: {adr_errors}')
+    check('ADR distilled basis', len(adrs) >= 8 and not adr_errors, f'{len(adrs)} ADRs checked; missing distilled citations: {adr_errors}')
 
     active = [ROOT / 'AGENTS.md', PLAN / 'MASTER_PLAN.md', PLAN / 'CONTRACTS.md', PLAN / 'TEAM_WORKPLAN.md', *(PLAN / 'roles').glob('*.md'), *adrs]
     stale = []

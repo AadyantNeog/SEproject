@@ -1,6 +1,6 @@
 # P2-03 native approval evidence
 
-Status: **Windows PowerShell close and Reject verified by Paul. Claude Code integration pending.**
+Status: **Windows PowerShell dismissal verified by Paul. Windows Codex fixture dismissal also passed.**
 
 The Windows checkout uses Python 3.13.0 and Tcl/Tk 8.6.14. The fixture stdio
 server and both previews are covered by offline MCP integration tests.
@@ -42,7 +42,11 @@ dismissal runs returned the expected output. An intermediate Reject attempt
 used `venv` instead of `.venv` and returned `CommandNotFoundException` before
 launching Python. Paul corrected the path and reran the check.
 
-## Claude Code integration steps
+## Selected-client verification
+
+The team selected Codex Desktop for the Windows demo. The [Codex fixture runbook and results](../../developer/codex-fixture.md#observed-on-windows) record the successful stdio preview read and both manual dismissal outcomes. The product write workflow still requires separate verification.
+
+## Earlier Claude Code integration steps
 
 A teammate with Windows Claude Code access can run this separate check.
 
