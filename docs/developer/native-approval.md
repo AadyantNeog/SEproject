@@ -6,7 +6,9 @@ process and exchanges one JSON request/response over that child's stdin/stdout;
 the helper is not registered as an MCP tool. The response must echo a fresh,
 unpredictable challenge and the exact account binding, proposal ID/version and
 digest, and server-issued operation ID. The parent checks those values and the
-decision timestamp before issuing an internal grant.
+decision timestamp. It also loads the latest account-bound proposal before
+opening the dialog and after receiving an approval. A revision or state change
+while the dialog is open requires a new preview and approval.
 
 Grants are held in a lock-protected, process-local store. Consumption checks all
 authority fields and time bounds while holding the lock, then marks the grant

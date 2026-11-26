@@ -16,6 +16,9 @@ from yt_intel.approval.service import (
 )
 from yt_intel.contracts.approval import HumanDecision
 from yt_intel.contracts.proposals import PlaylistProposal
+from yt_intel.domain.proposals import proposal_digest
+from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.repositories import SqliteProposalRepository
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "contracts"
 
@@ -61,6 +64,14 @@ class FakeAdapter:
         return HumanDecision(**values)
 
 
+class FixtureProposalSource:
+    def __init__(self, proposal):
+        self.proposal = proposal
+
+    async def get_current_proposal(self, binding, proposal_id, *, now):
+        return self.proposal
+
+
 def setup_approval(decision: str = "approve"):
     proposal = PlaylistProposal.model_validate_json(
         (FIXTURES / "playlist_proposal.json").read_bytes()
@@ -73,7 +84,7 @@ def setup_approval(decision: str = "approve"):
     ctx.cancellation = Cancellation()
     adapter = FakeAdapter(clock, decision)
     grants = InMemoryGrantStore()
-    service = ApprovalService(adapter, grants, clock)
+    service = ApprovalService(adapter, grants, FixtureProposalSource(proposal), clock)
     return proposal, clock, ctx, adapter, grants, service
 
 
@@ -96,6 +107,48 @@ async def test_native_approval_grant_binds_exact_proposal_and_is_one_use():
             binding=proposal.binding,
             now=clock.now(),
         )
+
+
+@pytest.mark.anyio
+async def test_revision_while_dialog_is_open_prevents_grant(tmp_path):
+    proposal, clock, ctx, adapter, grants, _ = setup_approval()
+    repository = SqliteProposalRepository(
+        Database(tmp_path / "approval.sqlite3"), clock
+    )
+    await repository.save_proposal(proposal)
+    dialog_open = asyncio.Event()
+    dialog_closed = asyncio.Event()
+    original_decision = adapter.request_decision
+
+    async def delayed_decision(*args):
+        dialog_open.set()
+        await dialog_closed.wait()
+        return await original_decision(*args)
+
+    adapter.request_decision = delayed_decision
+    service = ApprovalService(adapter, grants, repository, clock)
+    request = asyncio.create_task(
+        service.request_grant(ctx, proposal, "operation-fixture")
+    )
+    try:
+        await asyncio.wait_for(dialog_open.wait(), timeout=5)
+        revised = proposal.model_copy(
+            update={
+                "ref": proposal.ref.model_copy(
+                    update={"version": proposal.ref.version + 1}
+                ),
+                "body": proposal.body.model_copy(
+                    update={"title": "Revised fixture title"}
+                ),
+            }
+        )
+        await repository.save_proposal(
+            revised.model_copy(update={"digest": proposal_digest(revised)})
+        )
+    finally:
+        dialog_closed.set()
+        with pytest.raises(ApprovalUnavailable, match="proposal changed"):
+            await request
 
 
 @pytest.mark.anyio
@@ -203,10 +256,15 @@ async def test_native_helper_launch_error_fails_closed(monkeypatch):
         await adapter.request_decision(ctx, proposal, "operation-fixture", "challenge")
 
 
-def test_closing_native_dialog_returns_rejection(monkeypatch):
+@pytest.mark.parametrize("action", ["close", "reject"])
+def test_dismissing_native_dialog_returns_rejection(monkeypatch, action):
+    buttons = {}
+
     class Widget:
         def __init__(self, *args, **kwargs):
             self.command = kwargs.get("command")
+            if self.command is not None:
+                buttons[kwargs["text"]] = self.command
 
         def pack(self, *args, **kwargs):
             pass
@@ -240,7 +298,10 @@ def test_closing_native_dialog_returns_rejection(monkeypatch):
             pass
 
         def mainloop(self):
-            self.close()
+            if action == "close":
+                self.close()
+            else:
+                buttons["Reject"]()
 
     tk = types.ModuleType("tkinter")
     tk.BOTH = "both"

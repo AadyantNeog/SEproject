@@ -1,4 +1,5 @@
 from secrets import token_urlsafe
+from typing import Protocol
 
 from yt_intel.contracts.approval import (
     ApprovableProposal,
@@ -6,7 +7,7 @@ from yt_intel.contracts.approval import (
     ApprovalGrant,
     ApprovalGrantStore,
 )
-from yt_intel.contracts.common import OpaqueId
+from yt_intel.contracts.common import AccountBinding, OpaqueId, UtcDateTime
 from yt_intel.contracts.workflow import Clock, RequestContext
 from yt_intel.infrastructure.clock import SystemClock
 
@@ -21,15 +22,23 @@ class ApprovalRejected(RuntimeError):
     """The person rejected the exact proposal or closed the dialog."""
 
 
+class CurrentProposalSource(Protocol):
+    async def get_current_proposal(
+        self, binding: AccountBinding, proposal_id: OpaqueId, *, now: UtcDateTime
+    ) -> ApprovableProposal | None: ...
+
+
 class ApprovalService:
     def __init__(
         self,
         adapter: ApprovalAdapter,
         grants: ApprovalGrantStore,
+        proposals: CurrentProposalSource,
         clock: Clock | None = None,
     ) -> None:
         self._adapter = adapter
         self._grants = grants
+        self._proposals = proposals
         self._clock = clock or SystemClock()
 
     async def request_grant(
@@ -49,6 +58,7 @@ class ApprovalService:
             raise ApprovalUnavailable(
                 "proposal or approval request is no longer current"
             )
+        await self._require_current(proposal)
         challenge = token_urlsafe(32)
         decision = await self._adapter.request_decision(
             ctx, proposal, operation_id, challenge
@@ -71,6 +81,10 @@ class ApprovalService:
             )
         if decision.decision != "approve":
             raise ApprovalRejected("native approval was rejected or dismissed")
+        await self._require_current(proposal)
+        issued_at = self._clock.now()
+        if issued_at >= ctx.deadline or ctx.cancellation.is_cancelled():
+            raise ApprovalUnavailable("approval request is no longer current")
         expiry = min(now + MAX_GRANT_LIFETIME, proposal.expires_at)
         grant = ApprovalGrant(
             grant_id=new_grant_id(),
@@ -78,15 +92,22 @@ class ApprovalService:
             proposal=proposal.ref,
             proposal_digest=proposal.digest,
             binding=proposal.binding,
-            created_at=observed,
+            created_at=issued_at,
             expires_at=expiry,
         )
-        if grant.expires_at <= observed:
+        if grant.expires_at <= issued_at:
             raise ApprovalUnavailable(
                 "proposal expired before approval could be granted"
             )
         self._grants.issue(grant)
         return grant
+
+    async def _require_current(self, proposal: ApprovableProposal) -> None:
+        current = await self._proposals.get_current_proposal(
+            proposal.binding, proposal.ref.proposal_id, now=self._clock.now()
+        )
+        if current is None or current.state != "proposed" or current != proposal:
+            raise ApprovalUnavailable("proposal changed; open a new preview")
 
     def consume(
         self, grant: ApprovalGrant, proposal: ApprovableProposal, operation_id: OpaqueId
