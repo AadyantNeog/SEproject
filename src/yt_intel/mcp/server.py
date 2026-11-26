@@ -11,6 +11,7 @@ from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
 from yt_intel.presentation.results import render_error
 
 from .discovery import register_fixture_discovery
+from .planning import register_fixture_planning
 from .recommendations import register_fixture_recommendations
 from .resources import register_fixture_resources
 
@@ -20,7 +21,9 @@ class FixtureStatus(Contract):
     available: Literal[True] = True
 
 
-def build_fixture_server(project_root: Path | None) -> MCPServer[None]:
+def build_fixture_server(
+    project_root: Path | None, *, fixture_db: Path | None = None
+) -> MCPServer[None]:
     server: MCPServer[None] = MCPServer("YouTube Video Intelligence")
     register_fixture_resources(server, project_root)
     server.tool(
@@ -28,6 +31,7 @@ def build_fixture_server(project_root: Path | None) -> MCPServer[None]:
     )(fixture_status)
     if project_root is not None:
         register_fixture_discovery(server, project_root)
+        register_fixture_planning(server, project_root, fixture_db)
         register_fixture_recommendations(server, project_root)
     return server
 
