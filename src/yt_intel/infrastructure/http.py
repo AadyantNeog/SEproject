@@ -346,6 +346,17 @@ def _translate_http_error(
             False,
         )
 
+    if status == 405:
+        return (
+            _http_error(
+                "PROVIDER_UNAVAILABLE",
+                "The provider does not support the requested method for this route.",
+                retryable=False,
+                safe_next_action="Use a provider configured for the requested action.",
+            ),
+            False,
+        )
+
     if status == 429:
         can_retry = not is_write
         return (

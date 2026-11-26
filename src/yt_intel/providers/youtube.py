@@ -617,6 +617,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
                 params={
                     "part": "snippet,contentDetails",
                     "id": ",".join(batch),
+                    "maxResults": str(len(batch)),
                 },
             )
             raw_items, _, _ = _extract_page_meta(resp.payload)

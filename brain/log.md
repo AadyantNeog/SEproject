@@ -158,3 +158,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 A2-03 recommendation MCP fixture
 
 - Exposed the existing recommendation service over fixture MCP for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). Codex called the tool and reported the expected English result, liked-video evidence and 120 unused seconds. All 234 offline tests, scoped Ruff, mypy and all 34 planning checks passed. See [[2026-11-26-a2-03-recommendation-stdio]].
+
+## 2026-11-26 J2-02 provider follow-up
+
+- At Aadyant's request, Codex restored the channel batch size and gave unimplemented fixture writes a definite failure in [PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Verified on current main with 245 offline tests, scoped Ruff and mypy. See [[2026-11-26-j2-02-provider-follow-up]].

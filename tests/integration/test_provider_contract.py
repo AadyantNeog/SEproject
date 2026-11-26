@@ -236,9 +236,9 @@ def test_get_videos_and_get_channels_batch_in_chunks_of_50() -> None:
         seen_channel_batches: list[int] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
-            assert "maxResults" not in request.url.params
             ids = [x for x in request.url.params.get("id", "").split(",") if x]
             if request.url.path == "/youtube/v3/videos":
+                assert "maxResults" not in request.url.params
                 seen_video_batches.append(len(ids))
                 return httpx.Response(
                     200,
@@ -259,15 +259,19 @@ def test_get_videos_and_get_channels_batch_in_chunks_of_50() -> None:
                     },
                 )
             seen_channel_batches.append(len(ids))
+            page_size = int(request.url.params.get("maxResults", "5"))
+            available = [cid for cid in ids if cid != channel_ids[-1]]
+            payload: dict[str, object] = {
+                "items": [
+                    {"id": cid, "snippet": {"title": f"Channel {cid}"}}
+                    for cid in available[:page_size]
+                ]
+            }
+            if len(available) > page_size:
+                payload["nextPageToken"] = "more-channels"
             return httpx.Response(
                 200,
-                json={
-                    "items": [
-                        {"id": cid, "snippet": {"title": f"Channel {cid}"}}
-                        for cid in ids
-                        if cid != channel_ids[-1]
-                    ]
-                },
+                json=payload,
             )
 
         ledger = _FakeQuotaLedger()
@@ -358,33 +362,59 @@ def test_write_adapter_composition_fails_closed_when_absent_and_delegates_when_a
             assert exc.value.detail.code == "PROVIDER_UNAVAILABLE"
             assert exc.value.detail.retryable is False
 
-            # Direct write dispatch on fixture executor without write handler fails clearly (HTTP 501 -> OPERATION_UNKNOWN)
-            write_params = {"part": "snippet,status"}
-            write_body: dict[str, object] = {
-                "snippet": {"title": "Study"},
-                "status": {"privacyStatus": "private"},
-            }
-            write_auth = ApprovedWriteContext(
-                operation_id="op-direct-1",
-                reservation_id=ctx.reservation_id,
-                binding=ctx.binding,
-                proposal=ProposalRef(proposal_id="prop-1", version=1),
-                proposal_digest="a" * 64,
-                request_digest=compute_write_request_digest(
-                    "playlists.insert", params=write_params, json_body=write_body
+            writes: tuple[tuple[Endpoint, dict[str, str], dict[str, object]], ...] = (
+                (
+                    "playlists.insert",
+                    {"part": "snippet,status"},
+                    {
+                        "snippet": {"title": "Study"},
+                        "status": {"privacyStatus": "private"},
+                    },
+                ),
+                (
+                    "playlistItems.insert",
+                    {"part": "snippet"},
+                    {
+                        "snippet": {
+                            "playlistId": "PLcreated01",
+                            "position": 0,
+                            "resourceId": {
+                                "kind": "youtube#video",
+                                "videoId": "vidIndex001",
+                            },
+                        }
+                    },
                 ),
             )
-            with pytest.raises(ContractError) as direct_err:
-                await unconfigured.executor.execute_youtube(
-                    ctx,
-                    "playlists.insert",
-                    params=write_params,
-                    json_body=write_body,
-                    authority=write_auth,
+            for endpoint, write_params, write_body in writes:
+                write_auth = ApprovedWriteContext(
+                    operation_id="op-direct-1",
+                    reservation_id=ctx.reservation_id,
+                    binding=ctx.binding,
+                    proposal=ProposalRef(proposal_id="prop-1", version=1),
+                    proposal_digest="a" * 64,
+                    request_digest=compute_write_request_digest(
+                        endpoint, params=write_params, json_body=write_body
+                    ),
                 )
-            assert direct_err.value.detail.code == "OPERATION_UNKNOWN"
-            assert unconfigured.audit_log[-1].status_code == 501
-            assert unconfigured.audit_log[-1].outcome == "unsupported_fixture_write"
+                with pytest.raises(ContractError) as direct_err:
+                    await unconfigured.executor.execute_youtube(
+                        ctx,
+                        endpoint,
+                        params=write_params,
+                        json_body=write_body,
+                        authority=write_auth,
+                    )
+                detail = direct_err.value.detail
+                assert detail.code == "PROVIDER_UNAVAILABLE"
+                assert detail.retryable is False
+                assert "does not support" in detail.message
+                assert "reconcile" not in detail.safe_next_action.casefold()
+                audit = unconfigured.audit_log[-1]
+                assert audit.status_code == 405
+                assert audit.outcome == "unsupported_fixture_write"
+                assert audit.error_code == detail.code
+            assert len(unconfigured.audit_log) == 2
 
         class _StubWriteAdapter:
             async def create_playlist(

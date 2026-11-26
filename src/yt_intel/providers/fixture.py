@@ -283,13 +283,14 @@ class FixtureYouTubeProvider(YouTubeProvider):
                     method=request.method,
                     endpoint=endpoint,
                     params=params,
-                    status_code=501,
+                    status_code=405,
                     outcome="unsupported_fixture_write",
-                    error_code="OPERATION_UNKNOWN",
+                    error_code="PROVIDER_UNAVAILABLE",
                 )
             )
             return httpx.Response(
-                501,
+                405,
+                headers={"Allow": "GET"},
                 json={
                     "error": {
                         "message": "Fixture write transport handler is not configured."
