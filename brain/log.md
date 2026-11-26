@@ -178,3 +178,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-05 saved proposal preview resource
 
 - Added the versioned MCP preview link for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). Codex reopened the exact stored fixture preview. All 249 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-saved-proposal-resource]].
+
+## 2026-11-27 A2-04 partial proposal revision planning
+
+- Extended the planner for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12) to apply explicit changes and keep the other saved fields. The atomic revision transaction remains pending. All 257 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-04-partial-proposal-revisions]].

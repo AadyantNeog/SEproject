@@ -32,6 +32,12 @@ Call `find_similar_videos` with `{"video": "vidIndex002", "limit": 1}`. Pass its
 
 The atomic revision and approval-invalidation transaction and the shared workflow reservation still need integration. This tool only saves a local preview. Playlist creation belongs to P2-04.
 
+## Revising a saved proposal
+
+`PlaylistPlanner.revise` accepts a complete `PlaylistRequest` or a mapping of fields to change. A partial revision keeps the saved description, privacy, constraints and seed choice unless the request explicitly changes them. It uses the original candidate set, rechecks the resulting request and returns a superseded copy and a freshly digested replacement. A failed plan leaves the original proposal intact.
+
+Aadyant owns the planner and `revise_proposal` tool. Paul owns the persistence and approval handoff for this tool. The proposed transaction takes the expected account, version and digest and the prepared replacement, then verifies that the old version is still current before saving both states. It must make prior approval unusable at write claim and handle a revision racing a write claim or another revision. The MCP entry point can ship after that path is integrated and tested. [Proposal authority decision](../adr/0003-native-human-approval.md#creation-proposal-digest)
+
 ## Tests
 
 [Playlist planner tests](../../tests/unit/test_playlist_planner.py) cover the SRS example of 6,420 seconds selected and 780 seconds unused under a 7,200-second maximum, rejection at 1,201 seconds, language and topic evidence, a 50-item limit, foreign accounts, expiry, digest changes and deterministic packing across generated inputs. These are fixture checks for part of AT-06, AT-07 and AT-10.

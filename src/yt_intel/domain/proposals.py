@@ -1,5 +1,6 @@
 import json
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from hashlib import sha256
@@ -21,6 +22,7 @@ from .constraints import (
     NormalizeLanguageTag,
     PlaylistRequest,
     audio_language_matches,
+    parse_playlist_request,
     planning_error,
 )
 from .ranking import build_video_document, cosine_similarity, tfidf_vectors, tokenize
@@ -97,7 +99,7 @@ class PlaylistPlanner:
     def revise(
         self,
         previous: PlaylistProposal,
-        request: PlaylistRequest,
+        request: PlaylistRequest | Mapping[str, object],
         candidates: CandidateSet,
         *,
         binding: AccountBinding,
@@ -126,6 +128,8 @@ class PlaylistPlanner:
                 "The prior proposal version is no longer current.",
                 "Load the current proposal or build a new preview.",
             )
+        if not isinstance(request, PlaylistRequest):
+            request = _revision_request(previous, candidates, request)
         reference = ProposalRef(
             proposal_id=previous.ref.proposal_id, version=previous.ref.version + 1
         )
@@ -270,6 +274,45 @@ class PlaylistPlanner:
         if not audio_language_matches(language, normalized_audio):
             return "audio_language_mismatch"
         return None
+
+
+def _revision_request(
+    previous: PlaylistProposal, candidates: CandidateSet, changes: Mapping[str, object]
+) -> PlaylistRequest:
+    if not changes:
+        raise planning_error(
+            "CLARIFICATION_REQUIRED",
+            "No playlist changes were supplied.",
+            "Provide the fields you want to revise.",
+        )
+    if candidates.candidate_set_id != previous.candidate_set_id:
+        raise planning_error(
+            "PROPOSAL_CHANGED",
+            "The saved candidate set does not match this proposal.",
+            "Load the original candidate set or start a new proposal.",
+        )
+    constraints = previous.constraints
+    seed_id = candidates.seed_video_id
+    # If the saved pool contains the seed, the planner records its default
+    # exclusion before any eligibility checks. Preserve the prior choice even
+    # when an explicitly requested seed did not fit the prior constraints.
+    include_seed = (
+        "seed_not_requested" not in previous.exclusions
+        and seed_id is not None
+        and any(video.video_id == seed_id for video in candidates.videos)
+    )
+    return parse_playlist_request(
+        {
+            **previous.body.model_dump(),
+            "topic": constraints.topic,
+            "total_seconds": constraints.max_total_seconds,
+            "max_video_seconds": constraints.max_video_seconds,
+            "language": constraints.language,
+            "duration_mode": constraints.duration_mode,
+            "include_seed": include_seed,
+            **changes,
+        }
+    )
 
 
 def _pack(
