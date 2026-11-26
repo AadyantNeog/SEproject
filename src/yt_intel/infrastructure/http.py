@@ -248,6 +248,16 @@ def _translate_http_error(
     reason = _extract_google_reason(response)
 
     if 300 <= status < 400:
+        if is_write:
+            return (
+                _http_error(
+                    "OPERATION_UNKNOWN",
+                    f"Write returned unexpected HTTP redirect ({status}); remote state is unknown.",
+                    retryable=False,
+                    safe_next_action="Reconcile the operation before taking further action.",
+                ),
+                False,
+            )
         return (
             _http_error(
                 "PROVIDER_UNAVAILABLE",
@@ -350,8 +360,18 @@ def _translate_http_error(
             can_retry,
         )
 
-    if status in {500, 502, 503, 504}:
-        can_retry = not is_write
+    if status >= 500:
+        if is_write:
+            return (
+                _http_error(
+                    "OPERATION_UNKNOWN",
+                    f"Write received ambiguous server error (HTTP {status}); remote state is unknown.",
+                    retryable=False,
+                    safe_next_action="Reconcile the operation before retrying any writes.",
+                ),
+                False,
+            )
+        can_retry = status in {500, 502, 503, 504}
         return (
             _http_error(
                 "PROVIDER_UNAVAILABLE",
@@ -359,7 +379,7 @@ def _translate_http_error(
                 retryable=can_retry,
                 safe_next_action="Retry the read request shortly."
                 if can_retry
-                else "Reconcile the write operation before retrying.",
+                else "Inspect the request and try again later.",
             ),
             can_retry,
         )
@@ -524,14 +544,14 @@ class AccountedHttpExecutor:
         factor = max(0.0, min(1.0, self._jitter()))
         return min(self._max_backoff_seconds, raw * factor)
 
-    def _verify_write_authority(
+    def _verify_and_freeze_write(
         self,
         ctx: RequestContext,
         endpoint: Endpoint,
         authority: ApprovedWriteContext | None,
         params: Mapping[str, str] | None,
         json_body: Mapping[str, object] | None,
-    ) -> None:
+    ) -> tuple[tuple[tuple[str, str], ...], bytes]:
         if authority is None:
             raise _http_error(
                 "APPROVAL_REQUIRED",
@@ -553,8 +573,15 @@ class AccountedHttpExecutor:
                 retryable=False,
                 safe_next_action="Use the exact reservation bound to the approved operation.",
             )
+        frozen_params = tuple(sorted((params or {}).items()))
+        # Freeze the exact JSON body bytes before digest verification so later mutations
+        # to caller-owned dicts cannot alter what is sent on the wire.
+        canonical_body_bytes = json.dumps(
+            json_body, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+        ).encode("utf-8")
+        frozen_body = json.loads(canonical_body_bytes.decode("utf-8"))
         actual_digest = compute_write_request_digest(
-            endpoint, params=params, json_body=json_body
+            endpoint, params=dict(frozen_params), json_body=frozen_body
         )
         if actual_digest != authority.request_digest:
             raise _http_error(
@@ -563,6 +590,27 @@ class AccountedHttpExecutor:
                 retryable=False,
                 safe_next_action="Rebuild and approve the exact proposal before writing.",
             )
+        return frozen_params, canonical_body_bytes
+
+    def _require_within_deadline(
+        self, deadline: datetime, cancellation: CancellationToken
+    ) -> float:
+        if cancellation.is_cancelled():
+            raise _http_error(
+                "WORKFLOW_TIMEOUT",
+                "Workflow was cancelled before dispatching the provider request.",
+                retryable=False,
+                safe_next_action="Start a new workflow if you still need this data.",
+            )
+        remaining = self._remaining_seconds(deadline)
+        if remaining <= 0:
+            raise _http_error(
+                "WORKFLOW_TIMEOUT",
+                "Workflow deadline expired before dispatching the provider request.",
+                retryable=False,
+                safe_next_action="Retry with a fresh workflow deadline.",
+            )
+        return remaining
 
     async def execute_youtube(
         self,
@@ -589,48 +637,62 @@ class AccountedHttpExecutor:
                 retryable=False,
                 safe_next_action="Send read parameters via query arguments only.",
             )
+        frozen_params: tuple[tuple[str, str], ...] | None = None
+        frozen_body_bytes: bytes | None = None
         if route.is_write:
-            self._verify_write_authority(ctx, endpoint, authority, params, json_body)
+            frozen_params, frozen_body_bytes = self._verify_and_freeze_write(
+                ctx, endpoint, authority, params, json_body
+            )
+        elif params is not None:
+            frozen_params = tuple(params.items())
 
         validated_url = validate_allowlisted_url(route.url, route.method)
         max_attempts = 1 if route.is_write else self._max_read_attempts
 
         for attempt in range(1, max_attempts + 1):
-            if ctx.cancellation.is_cancelled():
-                raise _http_error(
-                    "WORKFLOW_TIMEOUT",
-                    "Workflow was cancelled before dispatching the provider request.",
-                    retryable=False,
-                    safe_next_action="Start a new workflow if you still need this data.",
-                )
-            remaining = self._remaining_seconds(ctx.deadline)
-            if remaining <= 0:
-                raise _http_error(
-                    "WORKFLOW_TIMEOUT",
-                    "Workflow deadline expired before dispatching the provider request.",
-                    retryable=False,
-                    safe_next_action="Retry with a fresh workflow deadline.",
-                )
+            self._require_within_deadline(ctx.deadline, ctx.cancellation)
 
             headers: dict[str, str] = {"Accept": "application/json"}
             if self._auth_headers is not None:
                 auth_map = await self._auth_headers.get_headers(ctx.binding)
                 headers.update(auth_map)
+            if route.is_write:
+                headers["Content-Type"] = "application/json"
+
+            # Re-verify deadline and cancellation after async auth-header resolution
+            # so expired requests never debit quota or start dispatch.
+            self._require_within_deadline(ctx.deadline, ctx.cancellation)
 
             request = self._client.build_request(
                 method=route.method,
                 url=validated_url,
-                params=params,
-                json=json_body if route.is_write else None,
+                params=frozen_params,
+                content=frozen_body_bytes if route.is_write else None,
                 headers=headers,
             )
             validate_allowlisted_url(request.url, request.method)
+            if route.is_write:
+                assert authority is not None
+                wire_params = dict(request.url.params.multi_items())
+                wire_body = json.loads(request.content.decode("utf-8"))
+                wire_digest = compute_write_request_digest(
+                    endpoint, params=wire_params, json_body=wire_body
+                )
+                if wire_digest != authority.request_digest:
+                    raise _http_error(
+                        "PROPOSAL_CHANGED",
+                        "Built write request does not match the approved request digest.",
+                        retryable=False,
+                        safe_next_action="Rebuild and approve the exact proposal before writing.",
+                    )
             safe_url = redact_url(str(request.url))
 
             attempt_id = self._attempt_id_factory()
             # Debit BEFORE dispatch so crashes cannot undercount quota.
             await self._quota_ledger.debit_attempt(ctx, endpoint, attempt_id)
 
+            # Re-verify deadline right before dispatch using fresh remaining time.
+            remaining = self._require_within_deadline(ctx.deadline, ctx.cancellation)
             timeout_seconds = min(self._attempt_timeout_seconds, remaining)
             try:
                 response, was_cancelled = await self._send_cancellable(
@@ -738,6 +800,11 @@ class AccountedHttpExecutor:
                 try:
                     data = response.json()
                 except ValueError:
+                    err_code: ErrorCode = (
+                        "OPERATION_UNKNOWN"
+                        if route.is_write
+                        else "PROVIDER_UNAVAILABLE"
+                    )
                     self._record_attempt(
                         AttemptRecord(
                             attempt_id=attempt_id,
@@ -746,9 +813,16 @@ class AccountedHttpExecutor:
                             url=safe_url,
                             status_code=response.status_code,
                             outcome="http_error",
-                            error_code="PROVIDER_UNAVAILABLE",
+                            error_code=err_code,
                         )
                     )
+                    if route.is_write:
+                        raise _http_error(
+                            "OPERATION_UNKNOWN",
+                            "Write returned an unreadable JSON response; remote state is unknown.",
+                            retryable=False,
+                            safe_next_action="Reconcile the operation before taking further action.",
+                        ) from None
                     raise _http_error(
                         "PROVIDER_UNAVAILABLE",
                         "YouTube API returned an invalid JSON response.",
@@ -756,6 +830,29 @@ class AccountedHttpExecutor:
                         safe_next_action="Retry later or inspect provider diagnostics.",
                     ) from None
                 if not isinstance(data, Mapping):
+                    err_code = (
+                        "OPERATION_UNKNOWN"
+                        if route.is_write
+                        else "PROVIDER_UNAVAILABLE"
+                    )
+                    self._record_attempt(
+                        AttemptRecord(
+                            attempt_id=attempt_id,
+                            endpoint=endpoint,
+                            method=route.method,
+                            url=safe_url,
+                            status_code=response.status_code,
+                            outcome="http_error",
+                            error_code=err_code,
+                        )
+                    )
+                    if route.is_write:
+                        raise _http_error(
+                            "OPERATION_UNKNOWN",
+                            "Write returned an unexpected non-object JSON payload; remote state is unknown.",
+                            retryable=False,
+                            safe_next_action="Reconcile the operation before taking further action.",
+                        )
                     raise _http_error(
                         "PROVIDER_UNAVAILABLE",
                         "YouTube API returned an unexpected non-object JSON payload.",

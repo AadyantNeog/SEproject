@@ -318,18 +318,57 @@ def test_writes_never_retry_and_timeout_returns_operation_unknown() -> None:
             assert calls == 1
             assert len(ledger_timeout.debits) == 1
 
-        # Case 2: 503 on write -> PROVIDER_UNAVAILABLE, retryable=False, 1 attempt only.
-        ledger_503 = _FakeQuotaLedger()
-        calls_503 = 0
+        # Case 2: 5xx / redirect / malformed 2xx on write -> OPERATION_UNKNOWN (must reconcile), 1 attempt only.
+        for bad_response in (
+            httpx.Response(500, json={}),
+            httpx.Response(502, json={}),
+            httpx.Response(503, json={}),
+            httpx.Response(504, json={}),
+            httpx.Response(302, headers={"Location": "https://evil.example.com/"}),
+            httpx.Response(200, content=b"not-valid-json"),
+            httpx.Response(200, json=["unexpected-list"]),
+        ):
+            ledger_unclear = _FakeQuotaLedger()
+            calls_unclear = 0
 
-        def err_handler(request: httpx.Request) -> httpx.Response:
-            nonlocal calls_503
-            calls_503 += 1
-            return httpx.Response(503, json={})
+            def unclear_handler(
+                request: httpx.Request, resp: httpx.Response = bad_response
+            ) -> httpx.Response:
+                nonlocal calls_unclear
+                calls_unclear += 1
+                return resp
+
+            async with AccountedHttpExecutor(
+                quota_ledger=ledger_unclear,
+                transport=httpx.MockTransport(unclear_handler),
+                clock=_MutableClock(now),
+            ) as executor:
+                with pytest.raises(ContractError) as exc:
+                    await executor.execute_youtube(
+                        ctx,
+                        "playlists.insert",
+                        params=params,
+                        json_body=body,
+                        authority=authority,
+                    )
+                assert exc.value.detail.code == "OPERATION_UNKNOWN"
+                assert exc.value.detail.retryable is False
+                assert "reconcil" in exc.value.detail.safe_next_action.casefold()
+                assert calls_unclear == 1
+                assert len(ledger_unclear.debits) == 1
+
+        # Case 3: Network drop on write -> OPERATION_UNKNOWN (must reconcile), 1 attempt only.
+        ledger_net = _FakeQuotaLedger()
+        calls_net = 0
+
+        def net_err_handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls_net
+            calls_net += 1
+            raise httpx.ConnectError("connection reset", request=request)
 
         async with AccountedHttpExecutor(
-            quota_ledger=ledger_503,
-            transport=httpx.MockTransport(err_handler),
+            quota_ledger=ledger_net,
+            transport=httpx.MockTransport(net_err_handler),
             clock=_MutableClock(now),
         ) as executor:
             with pytest.raises(ContractError) as exc:
@@ -340,10 +379,148 @@ def test_writes_never_retry_and_timeout_returns_operation_unknown() -> None:
                     json_body=body,
                     authority=authority,
                 )
-            assert exc.value.detail.code == "PROVIDER_UNAVAILABLE"
+            assert exc.value.detail.code == "OPERATION_UNKNOWN"
             assert exc.value.detail.retryable is False
-            assert calls_503 == 1
-            assert len(ledger_503.debits) == 1
+            assert "reconcil" in exc.value.detail.safe_next_action.casefold()
+            assert calls_net == 1
+            assert len(ledger_net.debits) == 1
+
+    anyio.run(_run)
+
+
+def test_request_cannot_start_when_deadline_expires_during_auth_or_debit() -> None:
+    async def _run() -> None:
+        now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
+
+        # Case 1: Deadline expires while resolving auth headers -> 0 debits, 0 HTTP calls.
+        clock_auth = _MutableClock(now)
+        ledger_auth = _FakeQuotaLedger()
+        calls_auth = 0
+
+        class _SlowAuth:
+            async def get_headers(self, binding: AccountBinding) -> dict[str, str]:
+                clock_auth.advance(65.0)
+                return {"Authorization": "Bearer ya29.test"}
+
+        def handler_auth(request: httpx.Request) -> httpx.Response:
+            nonlocal calls_auth
+            calls_auth += 1
+            return httpx.Response(200, json={"items": []})
+
+        async with AccountedHttpExecutor(
+            quota_ledger=ledger_auth,
+            auth_headers=_SlowAuth(),
+            transport=httpx.MockTransport(handler_auth),
+            clock=clock_auth,
+        ) as executor:
+            with pytest.raises(ContractError) as exc:
+                await executor.execute_youtube(
+                    _make_ctx(now, deadline_seconds=60.0), "videos.list"
+                )
+            assert exc.value.detail.code == "WORKFLOW_TIMEOUT"
+            assert ledger_auth.debits == []
+            assert calls_auth == 0
+
+        # Case 2: Deadline expires during debit_attempt -> 0 HTTP calls.
+        clock_debit = _MutableClock(now)
+        calls_debit = 0
+
+        class _SlowLedger(_FakeQuotaLedger):
+            async def debit_attempt(
+                self, ctx: RequestContext, endpoint: Endpoint, attempt_id: str
+            ) -> None:
+                await super().debit_attempt(ctx, endpoint, attempt_id)
+                clock_debit.advance(65.0)
+
+        ledger_debit = _SlowLedger()
+
+        def handler_debit(request: httpx.Request) -> httpx.Response:
+            nonlocal calls_debit
+            calls_debit += 1
+            return httpx.Response(200, json={"items": []})
+
+        async with AccountedHttpExecutor(
+            quota_ledger=ledger_debit,
+            transport=httpx.MockTransport(handler_debit),
+            clock=clock_debit,
+        ) as executor:
+            with pytest.raises(ContractError) as exc:
+                await executor.execute_youtube(
+                    _make_ctx(now, deadline_seconds=60.0), "videos.list"
+                )
+            assert exc.value.detail.code == "WORKFLOW_TIMEOUT"
+            assert len(ledger_debit.debits) == 1
+            assert calls_debit == 0
+
+    anyio.run(_run)
+
+
+def test_write_wire_payload_is_frozen_and_matches_approved_digest() -> None:
+    async def _run() -> None:
+        now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
+        ctx = _make_ctx(now)
+        params: dict[str, str] = {"part": "snippet,status"}
+        body: dict[str, object] = {
+            "snippet": {"title": "Approved Study"},
+            "status": {"privacyStatus": "private"},
+        }
+        approved_digest = compute_write_request_digest(
+            "playlists.insert", params=params, json_body=body
+        )
+        authority = ApprovedWriteContext(
+            operation_id="op-freeze-1",
+            reservation_id=ctx.reservation_id,
+            binding=ctx.binding,
+            proposal=ProposalRef(proposal_id="prop-1", version=1),
+            proposal_digest="c" * 64,
+            request_digest=approved_digest,
+        )
+
+        # Mutate caller-owned params and body during async auth lookup to ensure
+        # the executor sends only the exact frozen approved payload.
+        class _MutatingAuth:
+            async def get_headers(self, binding: AccountBinding) -> dict[str, str]:
+                params["part"] = "tampered"
+                body["status"] = {"privacyStatus": "public"}
+                return {
+                    "Authorization": "Bearer ya29.approved",
+                    "Content-Type": "text/plain",
+                }
+
+        captured: list[tuple[dict[str, str], bytes, str]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(
+                (
+                    dict(request.url.params.multi_items()),
+                    request.content,
+                    request.headers.get("Content-Type", ""),
+                )
+            )
+            return httpx.Response(200, json={"id": "PL-approved"})
+
+        async with AccountedHttpExecutor(
+            quota_ledger=_FakeQuotaLedger(),
+            auth_headers=_MutatingAuth(),
+            transport=httpx.MockTransport(handler),
+            clock=_MutableClock(now),
+        ) as executor:
+            resp = await executor.execute_youtube(
+                ctx,
+                "playlists.insert",
+                params=params,
+                json_body=body,
+                authority=authority,
+            )
+            assert resp.status_code == 200
+            assert len(captured) == 1
+            sent_params, sent_bytes, sent_ct = captured[0]
+            assert sent_params == {"part": "snippet,status"}
+            assert sent_ct == "application/json"
+            assert (
+                sent_bytes
+                == b'{"snippet":{"title":"Approved Study"},"status":{"privacyStatus":"private"}}'
+            )
 
     anyio.run(_run)
 
