@@ -100,3 +100,8 @@ Subsequent operations must append their actual outcome here.
 
 - Added the checkout-backed synthetic preview and canonical skill resources and the Claude Code skill sync command for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). See [[2026-11-26-a2-05-fixture-shell]].
 - Claude Code 2.1.143 connected over stdio in an isolated Windows profile. Passed 31 offline tests, scoped Ruff, strict mypy and the locked wheel build. Published [draft PR #9](https://github.com/AadyantNeog/SEproject/pull/9). Product integration, trusted native approval proof and human owner review remain pending.
+
+## 2026-11-26 A2-02 ranking and discovery
+
+- Implemented bounded video and channel discovery and deterministic TF-IDF ranking for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Verified exact scoring, stable ties and fixed upload sampling using synthetic contracts. See [[2026-11-26-a2-02-ranking]].
+- Passed 42 offline tests, scoped Ruff lint and formatting, strict mypy and the locked wheel build. Published [draft PR #11](https://github.com/AadyantNeog/SEproject/pull/11). Real provider, reservation, handler integration and human owner review remain pending.
