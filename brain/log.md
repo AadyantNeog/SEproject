@@ -90,3 +90,8 @@ Subsequent operations must append their actual outcome here.
 
 - Started [issue #1](https://github.com/AadyantNeog/SEproject/issues/1) on `codex/a2-01-foundation` from the v2.2 plan. Added the fixture MCP bootstrap, shared DTOs and infrastructure interfaces with synthetic examples. See [[2026-11-21-a2-01-foundation]].
 - Verified 19 offline tests, including the MCP 2.3.0 stdio handshake, tool calls and resource reads. The locked wheel passed a clean Windows install and console-entry-point smoke. The planning validator passed 34 checks. Published [draft PR #2](https://github.com/AadyantNeog/SEproject/pull/2). Owner input and human review are pending.
+
+## 2026-11-26 P2-01 SQLite storage
+
+- Implemented versioned SQLite migrations and account-bound snapshot/proposal/cache/operation repositories on `codex/p2-01-sqlite-storage`; added simulated-time restart, expiry, isolation, deletion and replay tests plus an implementation handoff. Session: [[2026-11-26-p2-01-storage]].
+- Verification so far: Python 3.14.6 syntax compilation passed. Full pytest/ruff/mypy could not run because the checkout has no Python 3.13 interpreter or project dependencies. Issue, draft PR, and Aadyant review remain pending.
