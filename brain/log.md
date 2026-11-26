@@ -148,3 +148,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 A2-07 video-to-playlist fixture slice
 
 - Wrote the canonical product skill, the Codex walkthrough and the evaluation record for [issue #22](https://github.com/AadyantNeog/SEproject/issues/22). The fixture check verified discovery and preview, and the Codex refusal stopped before seed retrieval when the reservation tool was absent. See [[2026-11-26-a2-07-video-to-playlist]] for the evidence and blocked end-to-end cases.
+
+## 2026-11-26 A2-03 recommendation MCP fixture
+
+- Exposed the existing recommendation service over fixture MCP for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). Codex called the tool and reported the expected English result, liked-video evidence and 120 unused seconds. All 234 offline tests, scoped Ruff, mypy and all 34 planning checks passed. See [[2026-11-26-a2-03-recommendation-stdio]].
