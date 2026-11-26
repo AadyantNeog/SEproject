@@ -1,5 +1,7 @@
 # A2-05 Claude Code fixture shell
 
+This is the record of the early A2-05 client experiment. The selected demo client now uses the [Codex fixture setup](codex-fixture.md).
+
 [Issue #8](https://github.com/AadyantNeog/SEproject/issues/8) tracks the shared shell and later integration. The fixture server exposes read-only tools and resources. It uses the A2-06 renderer for the two synthetic proposal previews.
 
 ## Start from a checkout

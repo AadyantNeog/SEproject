@@ -121,3 +121,8 @@ Subsequent operations must append their actual outcome here.
 
 - Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
 - Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
+
+## 2026-11-26 A2-05 Codex demonstration client
+
+- Aadyant selected Codex Desktop for the Windows demonstration. Recorded the selection in ADR-0009 and updated the fixture setup. See [[2026-11-26-a2-05-codex-demo-client]].
+- The Windows Codex app server read the synthetic creation preview and canonical skill resource at Paul's PR #17 head. The operator's second attempt returned no grant and exit code 0 for both manual window close and Reject.

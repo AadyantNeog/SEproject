@@ -12,6 +12,8 @@ Distilled basis: [11-mcp-and-agent-skill-contracts](../../brain/resources/11-mcp
 
 ## Decision
 
+The Windows demonstration client is Codex Desktop. See [ADR-0009](0009-codex-demonstration-client.md) for the client decision and proof requirements.
+
 Use Python 3.13, the official MCP Python SDK, Pydantic contracts, HTTPX for explicit official REST calls, SQLite repositories, Google OAuth libraries, protected keyring storage and a native human approval adapter. Separate domain, services, provider/infrastructure, MCP and presentation modules within one installable package.
 
 Keep domain/analytics pure. Aadyant owns common bootstrap/MCP, ranking/recommendations/planning/presentation; Jeswin owns accounted HTTP/read/fixture provider, OAuth/library/analytics; Paul owns storage/quota/approval/writes/recovery/CI. Each supplies their own fixtures/tests/docs/handler integration and skill/evidence handoff; Aadyant reviews all teammate outputs and his own work receives AI-assisted recorded human owner review under ADR-0007. A2-01 locks compatible dependencies with affected-owner technical input and Aadyant's AI-assisted human owner review of his foundation; A2-05/P2-03 prove client/native approval before live claims. The original 16 November technical research selected MCP 2.3.0; no new version check or runtime manifest is implied by this allocation amendment.
