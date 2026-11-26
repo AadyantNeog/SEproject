@@ -35,5 +35,6 @@ Claude Code connected to the fixture transport but reported a missing login when
 - The Codex Desktop app server `0.171.0-alpha.13.2` on Windows build `26300` read the creation preview and `brain-ingest` resource via MCP at `d583793f4a6e44ab43f7a0f32f38d8c07413c3de`.
 - The Codex client invoked the temporary fixture diagnostic through stdio. The diagnostic used Paul's native launcher with Windows Python 3.13.1 and Tcl 8.6.15. The responses for Close and Reject each reported launcher exit code 0 and no grant.
 - The fixture check did not run a model turn. Product workflow execution, review and live acceptance remain separate.
+- After merging `main` at `b54573e` into [PR #20](https://github.com/AadyantNeog/SEproject/pull/20), the read-only Windows Codex probe, 229 offline tests, all 34 planning checks, scoped Ruff and mypy passed. The manual dismissal evidence is from the earlier run above.
 
 Related notes: [[11-mcp-and-agent-skill-contracts]] and [[06-preview-and-human-approval]].

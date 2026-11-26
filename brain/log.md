@@ -122,7 +122,25 @@ Subsequent operations must append their actual outcome here.
 - Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
 - Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
 
+## 2026-11-26 P2-03 native approval
+
+- Implemented challenge-bound helper responses and process-local, exact-binding, one-use grants on `codex/p2-03-native-approval`; added close/reject/expiry/forgery/helper-failure tests and handoff/evidence docs. See [[2026-11-26-p2-03-approval]].
+- Focused Python 3.13.18 WSL checks passed: 13 tests across approval and fixture stdio; the final full offline suite passed 81 tests. Scoped Ruff lint/format and mypy on 40 source files passed. Repository Ruff reports 179 existing lint findings and six unrelated format failures; unrelated files were not changed. The first focused run found two issues that were fixed before the passing run.
+- Windows Claude Code proof is pending because this environment has no Windows Python 3.13 or `claude` command. No confirmation control was clicked. Issue [#16](https://github.com/AadyantNeog/SEproject/issues/16) and draft [PR #17](https://github.com/AadyantNeog/SEproject/pull/17) were created under Paul's GitHub account; Aadyant's human review is pending.
+- For the PR review follow-up, added a SQLite recheck after the native decision and a regression test that saves a revision while the helper waits. The offline suite passed 83 tests. Both dismissal callbacks returned rejection in offline tests. The Windows fixture runbook records the launch command and the two manual observations still needed.
+- Added a current-proposal check when consuming an issued grant. The SQLite regression reproduced stale grant acceptance before the fix. All 84 offline tests passed after the fix on Windows Python 3.13.0. Tk 8.6 is available for Paul's manual dismissal checks. Claude Code integration remains pending for a teammate with access.
+- Paul manually checked both window close and Reject from Windows PowerShell with the Tcl/Tk library paths set. Both runs reported no grant issued and returned exit code 0. Claude Code integration remains pending.
+
+## 2026-11-26 J2-01 input parsing and accounted HTTP executor
+
+- Implemented pure domain parsers (`identifiers.py`, `durations.py`, `language.py`) and the allowlisted, deadline-bound, quota-accounted HTTPS executor (`http.py`, `redaction.py`) on `codex/j2-01-http-parsing` from `origin/main` (`dec5d7f`). See [[2026-11-26-j2-01-http-parsing]].
+- Verified 138 J2-01 synthetic tests (fake `QuotaLedger`, `httpx.MockTransport`), 208 total offline tests (`pytest -m "not live"`), strict `mypy src` (40 source files), and scoped Ruff lint/format checks on all 10 J2-01 files. Published [issue #18](https://github.com/AadyantNeog/SEproject/issues/18) and [draft PR #19](https://github.com/AadyantNeog/SEproject/pull/19). Real P2-02 quota ledger integration, J2-02/J2-03/P2-04 wiring, and Aadyant's lead review remain pending.
+- For Aadyant's review follow-up on PR #19, added pre-dispatch deadline rechecks after async auth/debit, froze canonical approved write params/body bytes with wire-digest verification, and mapped unclear write outcomes (5xx, redirects, malformed/non-object 2xx JSON, timeouts, network errors) to `OPERATION_UNKNOWN` for reconciliation (`9333c40`), then merged `origin/main` (`b26737d`) in `54d6b24` preserving both P2-03 and J2-01 log/index entries. Verified 140 J2-01 tests, 224 total offline tests, strict `mypy src` (45 source files), and scoped Ruff lint/format on all 10 J2-01 files. Re-review by Aadyant remains pending.
+
+- At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
+
 ## 2026-11-26 A2-05 Codex demonstration client
 
 - Aadyant selected Codex Desktop for the Windows demonstration. Recorded the selection in ADR-0009 and updated the fixture setup. See [[2026-11-26-a2-05-codex-demo-client]].
 - The Windows Codex app server read the synthetic creation preview and canonical skill resource at Paul's PR #17 head. The operator's second attempt returned no grant and exit code 0 for both manual window close and Reject.
+- Updated PR #20 with `main` at `b54573e`, preserving both teammate records. The Windows preview and skill resource probe, 229 offline tests, all 34 planning checks, scoped Ruff and mypy passed. The manual dismissal result is from the earlier fixture run.
