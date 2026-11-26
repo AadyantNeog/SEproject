@@ -47,5 +47,26 @@ class ApprovedWriteContext:
 
 class ApprovalAdapter(Protocol):
     async def request_decision(
-        self, ctx: RequestContext, proposal: ApprovableProposal, operation_id: OpaqueId
+        self,
+        ctx: RequestContext,
+        proposal: ApprovableProposal,
+        operation_id: OpaqueId,
+        challenge_ref: OpaqueId,
     ) -> HumanDecision: ...
+
+
+class ApprovalGrantStore(Protocol):
+    """Process-private storage for grants awaiting one atomic consumption."""
+
+    def issue(self, grant: ApprovalGrant) -> None: ...
+
+    def consume(
+        self,
+        *,
+        grant_id: OpaqueId,
+        operation_id: OpaqueId,
+        proposal: ProposalRef,
+        proposal_digest: Digest,
+        binding: AccountBinding,
+        now: UtcDateTime,
+    ) -> ApprovalGrant: ...

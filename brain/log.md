@@ -122,6 +122,15 @@ Subsequent operations must append their actual outcome here.
 - Added the fixture preference profile, shared-space ranker, optional filters and source coverage for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). See [[2026-11-26-a2-03-recommendations]].
 - Passed 63 offline tests, scoped Ruff, strict mypy, the locked wheel build and 34 planning checks. Published [draft PR #15](https://github.com/AadyantNeog/SEproject/pull/15). Real library and provider integration, quota, MCP routing and human owner review remain pending.
 
+## 2026-11-26 P2-03 native approval
+
+- Implemented challenge-bound helper responses and process-local, exact-binding, one-use grants on `codex/p2-03-native-approval`; added close/reject/expiry/forgery/helper-failure tests and handoff/evidence docs. See [[2026-11-26-p2-03-approval]].
+- Focused Python 3.13.18 WSL checks passed: 13 tests across approval and fixture stdio; the final full offline suite passed 81 tests. Scoped Ruff lint/format and mypy on 40 source files passed. Repository Ruff reports 179 existing lint findings and six unrelated format failures; unrelated files were not changed. The first focused run found two issues that were fixed before the passing run.
+- Windows Claude Code proof is pending because this environment has no Windows Python 3.13 or `claude` command. No confirmation control was clicked. Issue [#16](https://github.com/AadyantNeog/SEproject/issues/16) and draft [PR #17](https://github.com/AadyantNeog/SEproject/pull/17) were created under Paul's GitHub account; Aadyant's human review is pending.
+- For the PR review follow-up, added a SQLite recheck after the native decision and a regression test that saves a revision while the helper waits. The offline suite passed 83 tests. Both dismissal callbacks returned rejection in offline tests. The Windows fixture runbook records the launch command and the two manual observations still needed.
+- Added a current-proposal check when consuming an issued grant. The SQLite regression reproduced stale grant acceptance before the fix. All 84 offline tests passed after the fix on Windows Python 3.13.0. Tk 8.6 is available for Paul's manual dismissal checks. Claude Code integration remains pending for a teammate with access.
+- Paul manually checked both window close and Reject from Windows PowerShell with the Tcl/Tk library paths set. Both runs reported no grant issued and returned exit code 0. Claude Code integration remains pending.
+
 ## 2026-11-26 J2-01 input parsing and accounted HTTP executor
 
 - Implemented pure domain parsers (`identifiers.py`, `durations.py`, `language.py`) and the allowlisted, deadline-bound, quota-accounted HTTPS executor (`http.py`, `redaction.py`) on `codex/j2-01-http-parsing` from `origin/main` (`dec5d7f`). See [[2026-11-26-j2-01-http-parsing]].
