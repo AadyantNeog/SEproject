@@ -20,8 +20,8 @@ requirements:
   - NFR-06
   - NFR-07
   - NFR-09
-issue: pending-url
-pull_request: pending-url
+issue: https://github.com/AadyantNeog/SEproject/issues/18
+pull_request: https://github.com/AadyantNeog/SEproject/pull/19
 ---
 
 ## Goal
@@ -93,7 +93,7 @@ install):
 
 ## Links
 
-- J2-01 Issue: pending URL.
-- Draft PR: pending URL.
+- J2-01 Issue: [issue #18](https://github.com/AadyantNeog/SEproject/issues/18).
+- Draft PR: [draft PR #19](https://github.com/AadyantNeog/SEproject/pull/19).
 - Aadyant lead review: pending.
 - Distilled basis: [[04-duration-and-language-constraints]], [[09-quota-buckets-and-budgeting]], [[10-test-fixtures-and-error-cases]], [[15-implementation-boundaries-and-contracts]].
