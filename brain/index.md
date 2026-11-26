@@ -15,6 +15,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-21-own-pr-review-clarification]]
 - [[2026-11-21-a2-01-foundation]]
 - [[2026-11-26-a2-06-presentation]]
+- [[2026-11-26-a2-05-fixture-shell]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
