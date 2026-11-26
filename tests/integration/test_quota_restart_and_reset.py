@@ -2,12 +2,14 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
+import httpx
 import pytest
 
 from yt_intel.contracts.common import AccountBinding
 from yt_intel.contracts.errors import ContractError
 from yt_intel.contracts.workflow import CallCeiling, RequestContext, WorkflowPlan
 from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.http import AccountedHttpExecutor
 from yt_intel.infrastructure.quota import QuotaProfile, SqliteQuotaLedger, quota_period
 
 PROFILE_PATH = (
@@ -114,3 +116,65 @@ async def test_concurrent_ledgers_cannot_reserve_same_capacity(tmp_path):
     assert len(denied) == 1
     assert denied[0].detail.code == "QUOTA_INSUFFICIENT"
     assert sum(not isinstance(result, BaseException) for result in results) == 1
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("search_limit", [1, 2])
+async def test_real_executor_starts_only_after_full_budget_is_reserved(
+    tmp_path, search_limit
+):
+    profile = QuotaProfile.load(PROFILE_PATH).model_copy(
+        update={"limits": {"search": search_limit, "general": 10}}
+    )
+    plan = make_plan(profile).model_copy(
+        update={
+            "endpoint_ceilings": {
+                "videos.list": CallCeiling(calls=1, attempts_per_call=1),
+                "search.list": CallCeiling(calls=2, attempts_per_call=1),
+            },
+            "buckets": {"general": 1, "search": 2},
+        }
+    )
+    database = Database(tmp_path / "quota.sqlite3")
+    ledger = SqliteQuotaLedger(database, profile, Clock())
+    dispatched = []
+
+    def handler(request):
+        with database.transaction(immediate=False) as connection:
+            assert (
+                connection.execute(
+                    "SELECT SUM(spent) FROM quota_reservation_buckets"
+                ).fetchone()[0]
+                == 1
+            )
+        dispatched.append(request)
+        return httpx.Response(200, json={"items": []})
+
+    async with AccountedHttpExecutor(
+        quota_ledger=ledger, transport=httpx.MockTransport(handler), clock=Clock()
+    ) as executor:
+
+        async def fetch_seed():
+            reservation = await ledger.reserve(plan)
+            ctx = RequestContext(
+                request_id="fixture-request",
+                binding=plan.binding,
+                reservation_id=reservation.reservation_id,
+                deadline=plan.deadline,
+                cancellation=Cancellation(),
+            )
+            try:
+                await executor.execute_youtube(
+                    ctx, "videos.list", params={"id": "dQw4w9WgXcQ"}
+                )
+            finally:
+                await ledger.release(reservation.reservation_id)
+
+        if search_limit == 1:
+            with pytest.raises(ContractError) as denied:
+                await fetch_seed()
+            assert denied.value.detail.code == "QUOTA_INSUFFICIENT"
+            assert dispatched == []
+        else:
+            await fetch_seed()
+            assert len(dispatched) == 1
