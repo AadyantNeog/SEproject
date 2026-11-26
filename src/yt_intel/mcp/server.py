@@ -12,6 +12,7 @@ from yt_intel.presentation.results import render_error
 
 from .recommendations import register_fixture_recommendations
 from .resources import register_fixture_resources
+from .workflows import register_fixture_workflows
 
 
 class FixtureStatus(Contract):
@@ -27,6 +28,7 @@ def build_fixture_server(project_root: Path | None) -> MCPServer[None]:
     )(fixture_status)
     if project_root is not None:
         register_fixture_recommendations(server, project_root)
+        register_fixture_workflows(server, project_root)
     return server
 
 
