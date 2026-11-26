@@ -16,6 +16,7 @@ from yt_intel.contracts.workflow import (
 )
 from yt_intel.infrastructure.http import (
     AccountedHttpExecutor,
+    AttemptRecord,
     compute_write_request_digest,
 )
 
@@ -455,6 +456,58 @@ def test_request_cannot_start_when_deadline_expires_during_auth_or_debit() -> No
     anyio.run(_run)
 
 
+@pytest.mark.parametrize(
+    ("endpoint", "error_code"),
+    [("videos.list", "WORKFLOW_TIMEOUT"), ("playlists.insert", "OPERATION_UNKNOWN")],
+)
+def test_in_flight_request_cannot_overrun_the_workflow_deadline(
+    endpoint: Endpoint, error_code: str
+) -> None:
+    async def _run() -> None:
+        ledger = _FakeQuotaLedger()
+        records: list[AttemptRecord] = []
+        dispatched = False
+
+        async def stalled_response(request: httpx.Request) -> httpx.Response:
+            nonlocal dispatched
+            dispatched = True
+            await anyio.sleep_forever()
+            raise AssertionError("The request should have been cancelled.")
+
+        async with AccountedHttpExecutor(
+            quota_ledger=ledger,
+            transport=httpx.MockTransport(stalled_response),
+            attempt_timeout_seconds=60,
+            max_read_attempts=1,
+            on_attempt=records.append,
+        ) as executor:
+            ctx = _make_ctx(datetime.now(UTC), deadline_seconds=0.25)
+            body: dict[str, object] | None = None
+            authority = None
+            if endpoint == "playlists.insert":
+                body = {"snippet": {"title": "Study"}}
+                authority = ApprovedWriteContext(
+                    operation_id="op-deadline",
+                    reservation_id=ctx.reservation_id,
+                    binding=ctx.binding,
+                    proposal=ProposalRef(proposal_id="prop-1", version=1),
+                    proposal_digest="b" * 64,
+                    request_digest=compute_write_request_digest(
+                        endpoint, json_body=body
+                    ),
+                )
+            with anyio.fail_after(2), pytest.raises(ContractError) as exc:
+                await executor.execute_youtube(
+                    ctx, endpoint, json_body=body, authority=authority
+                )
+            assert exc.value.detail.code == error_code
+            assert dispatched
+            assert len(ledger.debits) == 1
+            assert [record.outcome for record in records] == ["timeout"]
+
+    anyio.run(_run)
+
+
 def test_write_wire_payload_is_frozen_and_matches_approved_digest() -> None:
     async def _run() -> None:
         now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
@@ -585,5 +638,56 @@ def test_oauth_requests_use_allowlist_without_touching_youtube_quota() -> None:
             assert resp.status_code == 200
             assert resp.payload["token_type"] == "Bearer"
             assert ledger.debits == []
+
+    anyio.run(_run)
+
+
+@pytest.mark.parametrize(
+    ("status_code", "body", "expected_code"),
+    [
+        (302, {}, "PROVIDER_UNAVAILABLE"),
+        (503, {}, "PROVIDER_UNAVAILABLE"),
+        (400, {"error": "invalid_grant"}, "AUTH_REVOKED"),
+    ],
+)
+def test_oauth_errors_are_reported_without_retry_or_playlist_recovery(
+    status_code: int, body: dict[str, str], expected_code: str
+) -> None:
+    async def _run() -> None:
+        now = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
+        ledger = _FakeQuotaLedger()
+        records: list[AttemptRecord] = []
+        calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            return httpx.Response(
+                status_code,
+                headers={"Location": "https://example.invalid/"},
+                json=body,
+            )
+
+        async with AccountedHttpExecutor(
+            quota_ledger=ledger,
+            transport=httpx.MockTransport(handler),
+            clock=_MutableClock(now),
+            on_attempt=records.append,
+        ) as executor:
+            with pytest.raises(ContractError) as exc:
+                await executor.execute_oauth(
+                    "oauth.token",
+                    form_data={"grant_type": "refresh_token"},
+                    deadline=now + timedelta(seconds=30),
+                    cancellation=_ControllableCancellation(),
+                )
+            error = exc.value.detail
+            assert error.code == expected_code
+            assert "Google OAuth" in error.message
+            assert "reconcile" not in error.safe_next_action.casefold()
+            assert error.retryable is False
+            assert calls == 1
+            assert ledger.debits == []
+            assert [record.error_code for record in records] == [expected_code]
 
     anyio.run(_run)

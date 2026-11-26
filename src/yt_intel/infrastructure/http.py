@@ -395,6 +395,33 @@ def _translate_http_error(
     )
 
 
+def _translate_oauth_error(response: httpx.Response) -> ContractError:
+    status = response.status_code
+    reason = _extract_google_reason(response) if status == 400 else None
+    code: ErrorCode
+    if status == 401 or reason == "invalid_grant":
+        code = "AUTH_REVOKED"
+        next_action = "Restart local authorisation to obtain fresh credentials."
+    elif status == 403 or reason == "invalid_scope":
+        code = "SCOPE_REQUIRED"
+        next_action = "Check Google OAuth app permissions and requested scopes."
+    elif status == 400:
+        code = "INVALID_INPUT"
+        next_action = "Check the local OAuth request and app configuration."
+    elif status == 429:
+        code = "RATE_LIMITED"
+        next_action = "Wait before trying the local authorisation action again."
+    else:
+        code = "PROVIDER_UNAVAILABLE"
+        next_action = "Check the official Google OAuth endpoint and try again later."
+    return _http_error(
+        code,
+        f"Google OAuth request failed with HTTP status {status}.",
+        retryable=False,
+        safe_next_action=next_action,
+    )
+
+
 class AccountedHttpExecutor:
     """Single quota-accounted, allowlisted, deadline-bound HTTPS executor."""
 
@@ -496,9 +523,11 @@ class AccountedHttpExecutor:
             finally:
                 scope.cancel()
 
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(_watch_cancel, tg.cancel_scope)
-            tg.start_soon(_do_send, tg.cancel_scope)
+        # HTTPX timeouts apply to individual I/O phases. Cap the entire send as well.
+        with anyio.fail_after(timeout_seconds):
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_watch_cancel, tg.cancel_scope)
+                tg.start_soon(_do_send, tg.cancel_scope)
 
         if send_error is not None:
             raise send_error
@@ -700,7 +729,7 @@ class AccountedHttpExecutor:
                     timeout_seconds=timeout_seconds,
                     cancellation=ctx.cancellation,
                 )
-            except httpx.TimeoutException:
+            except (httpx.TimeoutException, TimeoutError):
                 code: ErrorCode = (
                     "OPERATION_UNKNOWN" if route.is_write else "WORKFLOW_TIMEOUT"
                 )
@@ -959,7 +988,7 @@ class AccountedHttpExecutor:
                 timeout_seconds=timeout_seconds,
                 cancellation=cancellation,
             )
-        except httpx.TimeoutException:
+        except (httpx.TimeoutException, TimeoutError):
             self._record_attempt(
                 AttemptRecord(
                     attempt_id=attempt_id,
@@ -1054,7 +1083,7 @@ class AccountedHttpExecutor:
                 request_url=safe_url,
             )
 
-        translated, _ = _translate_http_error(response, is_write=True)
+        translated = _translate_oauth_error(response)
         self._record_attempt(
             AttemptRecord(
                 attempt_id=attempt_id,
