@@ -83,6 +83,18 @@ Under `.venv` Python 3.13.17 on Windows (locked `requirements-dev.lock`):
   `tests/security/test_account_isolation.py`, and
   `tests/integration/test_oauth_lifecycle.py`: **All checks passed**.
 
+Following Aadyant's review of commit `7e552d6` on draft PR #29, updated
+`oauth.py`, `account.py`, `cli.py`, and tests to: (1) wire `yt-intel auth --read`
+and `yt-intel auth --enable-writes` with a local `127.0.0.1` ephemeral
+`LoopbackCallbackServer` and browser launcher; (2) keep the account inactive
+(`current()` is `None`, `require_binding()` fails, vault untouched) until
+channel verification finishes; (3) make `disconnect(binding)` immediately block
+further access, drain any in-flight refresh without token writeback, and keep
+access blocked even on partial cleanup failure; (4) use explicit desktop scopes
+(`include_granted_scopes=false`); and (5) add tests for cancellation, concurrent
+refresh during disconnect, and the browser/CLI auth flow. Committed locally
+without pushing so Jeswin can approve the PR comment wording first.
+
 ## Links
 
 - J2-03 Issue: [issue #28](https://github.com/AadyantNeog/SEproject/issues/28).

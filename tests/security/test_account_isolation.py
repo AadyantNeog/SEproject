@@ -260,6 +260,14 @@ def test_account_isolation_and_partial_disconnect_failure_reporting(
             assert result.tokens_removed is False
             assert result.local_data_removed is True
             assert any(w.code == "LOCAL_DELETION_FAILED" for w in result.warnings)
+            # Even after partial cleanup failure, further access remains blocked
+            assert await service.current() is None
+            with pytest.raises(ContractError) as blocked_req:
+                await service.require_binding()
+            assert blocked_req.value.detail.code == "AUTH_REQUIRED"
+            with pytest.raises(ContractError) as blocked_hdr:
+                await service.get_headers(active_binding)
+            assert blocked_hdr.value.detail.code == "AUTH_REQUIRED"
             # SQLite snapshot for active_binding was deleted by Paul's repository
             assert (
                 await snapshot_repo.get_snapshot(

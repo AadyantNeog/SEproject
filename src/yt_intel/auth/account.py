@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, timedelta
 
@@ -24,9 +24,12 @@ from yt_intel.infrastructure.http import AuthHeaderProvider
 from .oauth import (
     YOUTUBE_READONLY_SCOPE,
     YOUTUBE_WRITE_SCOPE,
+    LoopbackCallbackServer,
     OAuthClient,
     OAuthTokenSet,
     PendingAuthRequest,
+    open_system_browser,
+    scopes_for_auth_mode,
 )
 
 _REFRESH_SKEW = timedelta(seconds=60)
@@ -93,16 +96,21 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         self._account_data = account_data
         self._clock: Clock = clock if clock is not None else SystemClock()
         self._record: AccountRecord | None = initial_record
+        self._probe_tokens: dict[AccountBinding, OAuthTokenSet] = {}
         self._refresh_lock = anyio.Lock()
         self._lifecycle_lock = anyio.Lock()
         self._disconnecting = False
+        self._disabled_for_disconnect = False
+        self._generation = 0
 
     @property
     def active_record(self) -> AccountRecord | None:
+        if self._disconnecting or self._disabled_for_disconnect:
+            return None
         return self._record
 
     async def current(self) -> AccountStatus | None:
-        if self._record is None or self._disconnecting:
+        if self._record is None or self._disconnecting or self._disabled_for_disconnect:
             return None
         return AccountStatus(
             binding=self._record.binding,
@@ -113,7 +121,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
     async def require_binding(
         self, *, required_scopes: tuple[Label, ...] = ()
     ) -> AccountBinding:
-        if self._disconnecting or self._record is None:
+        if self._disconnecting or self._disabled_for_disconnect or self._record is None:
             raise _account_error(
                 "AUTH_REQUIRED",
                 "No authorised YouTube account is connected.",
@@ -138,6 +146,52 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             )
         return self._record.binding
 
+    async def authorize_via_browser(
+        self,
+        *,
+        enable_writes: bool,
+        read_provider: YouTubeReadProvider,
+        reservation_id: OpaqueId,
+        selected_channel_id: ChannelId | None = None,
+        timeout_seconds: float = 120.0,
+        open_browser: Callable[[str], bool] = open_system_browser,
+        cancellation: CancellationToken | None = None,
+    ) -> AccountStatus:
+        """Run the local loopback browser OAuth flow with explicit desktop scopes."""
+        scopes = scopes_for_auth_mode(enable_writes=enable_writes)
+        cancel = cancellation if cancellation is not None else _NeverCancelled()
+        callback_server = LoopbackCallbackServer()
+        callback_server.start()
+        try:
+            pending = self._oauth.build_authorization_request(
+                scopes=scopes,
+                redirect_uri=callback_server.redirect_uri,
+                include_granted_scopes=False,
+            )
+            if not open_browser(pending.authorization_url):
+                raise _account_error(
+                    "PROVIDER_UNAVAILABLE",
+                    "Could not open the local web browser for Google OAuth sign-in.",
+                    safe_next_action="Ensure a desktop browser is available and re-run the local auth command.",
+                )
+            callback_params = await callback_server.wait_for_callback(
+                timeout_seconds=timeout_seconds,
+                cancellation=cancel,
+            )
+        finally:
+            callback_server.close()
+
+        return await self.complete_authorization(
+            pending,
+            callback_params,
+            read_provider=read_provider,
+            reservation_id=reservation_id,
+            required_scopes=scopes,
+            selected_channel_id=selected_channel_id,
+            require_same_channel=enable_writes and self.active_record is not None,
+            cancellation=cancel,
+        )
+
     async def complete_authorization(
         self,
         pending: PendingAuthRequest,
@@ -150,7 +204,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         require_same_channel: bool = False,
         cancellation: CancellationToken | None = None,
     ) -> AccountStatus:
-        """Complete PKCE exchange, inspect granted scopes, bind channel, and store tokens."""
+        """Complete PKCE exchange, verify channel while keeping account inactive, then bind."""
         async with self._lifecycle_lock:
             if self._disconnecting:
                 raise _account_error(
@@ -159,6 +213,12 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                     safe_next_action="Wait for disconnect to finish before authenticating.",
                 )
             cancel = cancellation if cancellation is not None else _NeverCancelled()
+            if cancel.is_cancelled():
+                raise _account_error(
+                    "WORKFLOW_TIMEOUT",
+                    "Authorisation was cancelled before token exchange.",
+                    safe_next_action="Re-run the local CLI auth command when ready.",
+                )
             now = self._clock.now().astimezone(UTC)
             deadline = now + _DEFAULT_AUTH_TIMEOUT
 
@@ -173,7 +233,6 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 scope for scope in required_scopes if scope not in tokens.granted_scopes
             ]
             if missing:
-                # Best-effort revoke unused token when required scope was not granted.
                 await self._oauth.revoke_token(
                     tokens.refresh_token or tokens.access_token,
                     deadline=deadline,
@@ -185,7 +244,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                     safe_next_action="Re-run the local CLI auth command and approve the required scope.",
                 )
 
-            existing = self._record
+            existing = None if self._disabled_for_disconnect else self._record
             cred_id = (
                 existing.binding.credential_binding_id
                 if require_same_channel and existing is not None
@@ -202,17 +261,15 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 ),
                 mode=self._mode,
             )
-            probe_vault_ref = _vault_ref_for(probe_binding)
-            await self._vault.store(probe_vault_ref, tokens.to_vault_bytes())
-
-            previous_record = self._record
-            self._record = AccountRecord(
-                binding=probe_binding,
-                channel_title="(resolving channel)",
-                vault_reference=probe_vault_ref,
-                granted_scopes=tokens.granted_scopes,
-            )
+            # Keep self._record inactive/unchanged until channel verification succeeds.
+            self._probe_tokens[probe_binding] = tokens
             try:
+                if cancel.is_cancelled():
+                    raise _account_error(
+                        "WORKFLOW_TIMEOUT",
+                        "Authorisation was cancelled before channel verification.",
+                        safe_next_action="Re-run the local CLI auth command when ready.",
+                    )
                 probe_ctx = RequestContext(
                     request_id=f"auth-channel-{uuid.uuid4().hex[:12]}",
                     binding=probe_binding,
@@ -221,6 +278,13 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                     cancellation=cancel,
                 )
                 channels = await read_provider.get_my_channels(probe_ctx)
+
+                if cancel.is_cancelled():
+                    raise _account_error(
+                        "WORKFLOW_TIMEOUT",
+                        "Authorisation was cancelled during channel verification.",
+                        safe_next_action="Re-run the local CLI auth command when ready.",
+                    )
 
                 if not channels:
                     raise _account_error(
@@ -252,8 +316,8 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
 
                 if (
                     require_same_channel
-                    and previous_record is not None
-                    and chosen.channel_id != previous_record.binding.channel_id
+                    and existing is not None
+                    and chosen.channel_id != existing.binding.channel_id
                 ):
                     await self._oauth.revoke_token(
                         tokens.refresh_token or tokens.access_token,
@@ -282,21 +346,30 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                     granted_scopes=tokens.granted_scopes,
                 )
                 self._record = final_record
+                self._disabled_for_disconnect = False
+                self._generation += 1
                 return AccountStatus(
                     binding=final_record.binding,
                     channel_title=final_record.channel_title,
                     scopes=final_record.granted_scopes,
                 )
-            except Exception:
-                self._record = previous_record
-                raise
             finally:
-                await self._vault.delete(probe_vault_ref)
+                self._probe_tokens.pop(probe_binding, None)
 
     async def get_headers(self, binding: AccountBinding) -> Mapping[str, str]:
         """AuthHeaderProvider implementation: returns Bearer header, refreshing if needed."""
+        if self._disconnecting:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "Account disconnect is in progress; further access is blocked.",
+                safe_next_action="Wait for disconnect to complete before re-authorising.",
+            )
+        probe = self._probe_tokens.get(binding)
+        if probe is not None:
+            return {"Authorization": f"{probe.token_type} {probe.access_token}"}
+
         record = self._record
-        if self._disconnecting or record is None:
+        if self._disabled_for_disconnect or record is None:
             raise _account_error(
                 "AUTH_REQUIRED",
                 "No authorised account is available for provider requests.",
@@ -312,13 +385,21 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         tokens = await self._load_tokens(record)
         now = self._clock.now().astimezone(UTC)
         if tokens.expires_at > now + _REFRESH_SKEW:
+            if self._disconnecting or self._disabled_for_disconnect:
+                raise _account_error(
+                    "AUTH_REQUIRED",
+                    "Account was disconnected before dispatching the request.",
+                    safe_next_action="Re-authorise the account locally if needed.",
+                )
             return {"Authorization": f"{tokens.token_type} {tokens.access_token}"}
 
         # Serialize concurrent refresh calls so only one refresh hits Google OAuth.
         async with self._refresh_lock:
             current_record = self._record
+            gen = self._generation
             if (
                 self._disconnecting
+                or self._disabled_for_disconnect
                 or current_record is None
                 or current_record.binding != binding
             ):
@@ -345,6 +426,19 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 deadline=now + _DEFAULT_AUTH_TIMEOUT,
                 cancellation=_NeverCancelled(),
             )
+            # Abort before writing back to vault if disconnect started during refresh.
+            if (
+                self._disconnecting
+                or self._disabled_for_disconnect
+                or self._generation != gen
+                or self._record is None
+                or self._record.binding != binding
+            ):
+                raise _account_error(
+                    "AUTH_REQUIRED",
+                    "Account was disconnected while refreshing credentials.",
+                    safe_next_action="Re-authorise the account locally if needed.",
+                )
             await self._vault.store(
                 current_record.vault_reference, refreshed.to_vault_bytes()
             )
@@ -375,88 +469,99 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             ) from None
 
     async def disconnect(self, binding: AccountBinding) -> DisconnectResult:
-        """Disable new workflows, revoke token best-effort, and delete vault + SQLite data."""
-        async with self._lifecycle_lock:
-            record = self._record
-            if record is None:
-                raise _account_error(
-                    "AUTH_REQUIRED",
-                    "No authorised account is currently connected.",
-                    safe_next_action="Nothing to disconnect.",
-                )
-            if record.binding != binding:
-                raise _account_error(
-                    "ACCOUNT_MISMATCH",
-                    "Cannot disconnect a foreign or inactive account binding.",
-                    safe_next_action="Inspect `get_account_status` for the active account.",
-                )
+        """Block access immediately, drain refresh, revoke token, and delete vault + SQLite data."""
+        record = self._record
+        if record is None:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "No authorised account is currently connected.",
+                safe_next_action="Nothing to disconnect.",
+            )
+        if record.binding != binding:
+            raise _account_error(
+                "ACCOUNT_MISMATCH",
+                "Cannot disconnect a foreign or inactive account binding.",
+                safe_next_action="Inspect `get_account_status` for the active account.",
+            )
 
-            self._disconnecting = True
+        # Immediately block further access and invalidate any in-flight refresh BEFORE
+        # waiting for locks or cleanup.
+        self._disconnecting = True
+        self._disabled_for_disconnect = True
+        self._generation += 1
+        self._probe_tokens.clear()
+
+        async with self._lifecycle_lock:
             warnings: list[ErrorDetail] = []
             revoked = False
             tokens_removed = False
             local_data_removed = False
 
             try:
-                now = self._clock.now().astimezone(UTC)
-                deadline = now + _DEFAULT_AUTH_TIMEOUT
-                cancel = _NeverCancelled()
+                # Drain any in-flight token refresh so it cannot write tokens back after delete.
+                async with self._refresh_lock:
+                    now = self._clock.now().astimezone(UTC)
+                    deadline = now + _DEFAULT_AUTH_TIMEOUT
+                    cancel = _NeverCancelled()
 
-                # 1. Best-effort remote token revocation.
-                token_to_revoke: str | None = None
-                try:
-                    raw = await self._vault.read(record.vault_reference)
-                    if raw is not None:
-                        parsed = OAuthTokenSet.from_vault_bytes(raw)
-                        token_to_revoke = parsed.refresh_token or parsed.access_token
-                except Exception:
-                    token_to_revoke = None
+                    # 1. Best-effort remote token revocation.
+                    token_to_revoke: str | None = None
+                    try:
+                        raw = await self._vault.read(record.vault_reference)
+                        if raw is not None:
+                            parsed = OAuthTokenSet.from_vault_bytes(raw)
+                            token_to_revoke = (
+                                parsed.refresh_token or parsed.access_token
+                            )
+                    except Exception:
+                        token_to_revoke = None
 
-                if token_to_revoke is not None:
-                    revoked = await self._oauth.revoke_token(
-                        token_to_revoke, deadline=deadline, cancellation=cancel
-                    )
-                    if not revoked:
+                    if token_to_revoke is not None:
+                        revoked = await self._oauth.revoke_token(
+                            token_to_revoke, deadline=deadline, cancellation=cancel
+                        )
+                        if not revoked:
+                            warnings.append(
+                                ErrorDetail(
+                                    code="PROVIDER_UNAVAILABLE",
+                                    message="Best-effort Google token revocation did not succeed.",
+                                    retryable=True,
+                                    safe_next_action="You may also revoke access from your Google Account security settings.",
+                                )
+                            )
+
+                    # 2. Delete tokens from protected OS vault.
+                    try:
+                        await self._vault.delete(record.vault_reference)
+                        tokens_removed = True
+                    except Exception:
                         warnings.append(
                             ErrorDetail(
-                                code="PROVIDER_UNAVAILABLE",
-                                message="Best-effort Google token revocation did not succeed.",
+                                code="LOCAL_DELETION_FAILED",
+                                message="Failed to remove credentials from the protected OS vault.",
                                 retryable=True,
-                                safe_next_action="You may also revoke access from your Google Account security settings.",
+                                safe_next_action="Remove the credential entry from Windows Credential Manager and retry disconnect.",
                             )
                         )
 
-                # 2. Delete tokens from protected OS vault.
-                try:
-                    await self._vault.delete(record.vault_reference)
-                    tokens_removed = True
-                except Exception:
-                    warnings.append(
-                        ErrorDetail(
-                            code="LOCAL_DELETION_FAILED",
-                            message="Failed to remove credentials from the protected OS vault.",
-                            retryable=True,
-                            safe_next_action="Remove the credential entry from Windows Credential Manager and retry disconnect.",
+                    # 3. Delete account-bound SQLite records via Paul's repository
+                    # (project-level quota accounting is preserved by P2-01).
+                    try:
+                        await self._account_data.delete_account(binding)
+                        local_data_removed = True
+                    except Exception:
+                        warnings.append(
+                            ErrorDetail(
+                                code="LOCAL_DELETION_FAILED",
+                                message="Failed to delete local account records from SQLite storage.",
+                                retryable=True,
+                                safe_next_action="Close any process holding the runtime database and retry disconnect.",
+                            )
                         )
-                    )
 
-                # 3. Delete account-bound SQLite records via Paul's repository
-                # (project-level quota accounting is preserved by P2-01).
-                try:
-                    await self._account_data.delete_account(binding)
-                    local_data_removed = True
-                except Exception:
-                    warnings.append(
-                        ErrorDetail(
-                            code="LOCAL_DELETION_FAILED",
-                            message="Failed to delete local account records from SQLite storage.",
-                            retryable=True,
-                            safe_next_action="Close any process holding the runtime database and retry disconnect.",
-                        )
-                    )
-
-                if tokens_removed and local_data_removed:
-                    self._record = None
+                    if tokens_removed and local_data_removed:
+                        self._record = None
+                        self._disabled_for_disconnect = False
             finally:
                 self._disconnecting = False
 

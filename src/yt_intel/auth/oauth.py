@@ -5,10 +5,16 @@ import hashlib
 import hmac
 import json
 import secrets
+import threading
+import webbrowser
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from urllib.parse import urlencode, urlsplit
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit
+
+import anyio
 
 from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.workflow import CancellationToken, Clock
@@ -218,6 +224,169 @@ def _parse_scopes(
     return tuple(dict.fromkeys(fallback))
 
 
+def scopes_for_auth_mode(*, enable_writes: bool) -> tuple[str, ...]:
+    """Return explicit YouTube OAuth scopes for read-only or write-enabled desktop auth."""
+    if enable_writes:
+        return (YOUTUBE_READONLY_SCOPE, YOUTUBE_WRITE_SCOPE)
+    return (YOUTUBE_READONLY_SCOPE,)
+
+
+def load_oauth_client_config(path: Path) -> OAuthClientConfig:
+    """Load local desktop OAuth client credentials from a JSON file outside the repo."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise _auth_error(
+            "INVALID_INPUT",
+            "Could not read local OAuth desktop client configuration JSON.",
+            safe_next_action="Provide a valid local Google Desktop OAuth JSON file outside the repository.",
+        ) from None
+    if not isinstance(raw, Mapping):
+        raise _auth_error(
+            "INVALID_INPUT",
+            "OAuth client configuration JSON must be an object.",
+            safe_next_action="Export a Desktop App OAuth JSON file from Google Cloud Console.",
+        )
+    installed = raw.get("installed")
+    section: Mapping[object, object] = (
+        installed if isinstance(installed, Mapping) else raw
+    )
+    client_id = section.get("client_id")
+    client_secret = section.get("client_secret")
+    if not isinstance(client_id, str) or not client_id.strip():
+        raise _auth_error(
+            "INVALID_INPUT",
+            "OAuth client configuration JSON is missing a valid client_id.",
+            safe_next_action="Use a Desktop App OAuth client JSON containing client_id.",
+        )
+    secret_val = (
+        client_secret.strip()
+        if isinstance(client_secret, str) and client_secret.strip()
+        else None
+    )
+    return OAuthClientConfig(client_id=client_id.strip(), client_secret=secret_val)
+
+
+class LoopbackCallbackServer:
+    """Ephemeral 127.0.0.1 HTTP server capturing one OAuth redirect callback."""
+
+    def __init__(self) -> None:
+        self._done = threading.Event()
+        self._params: dict[str, str] | None = None
+        parent = self
+
+        class _Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:  # noqa: N802
+                parsed = urlsplit(self.path)
+                if parsed.path != CALLBACK_PATH:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                parent._params = dict(parse_qsl(parsed.query, keep_blank_values=True))
+                body = (
+                    b"<!doctype html><html><body>"
+                    b"<h3>Authorisation received. You may close this browser tab.</h3>"
+                    b"</body></html>"
+                )
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                parent._done.set()
+
+            def log_message(self, format: str, *args: object) -> None:
+                # Never log query strings containing OAuth codes or state.
+                return
+
+        self._server = HTTPServer((LOOPBACK_HOST, 0), _Handler)
+        self._server.timeout = 0.25
+        self._port = int(self._server.server_address[1])
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._serve_until_done, daemon=True)
+
+    @property
+    def port(self) -> int:
+        return self._port
+
+    @property
+    def redirect_uri(self) -> str:
+        return build_loopback_redirect_uri(self._port)
+
+    def _serve_until_done(self) -> None:
+        while not self._stop.is_set() and not self._done.is_set():
+            self._server.handle_request()
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        self._done.set()
+        self._server.server_close()
+        if self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    async def wait_for_callback(
+        self,
+        *,
+        timeout_seconds: float,
+        cancellation: CancellationToken,
+    ) -> dict[str, str]:
+        if timeout_seconds <= 0:
+            raise _auth_error(
+                "WORKFLOW_TIMEOUT",
+                "OAuth callback wait timed out.",
+                safe_next_action="Retry the local CLI auth command.",
+            )
+        if cancellation.is_cancelled():
+            raise _auth_error(
+                "WORKFLOW_TIMEOUT",
+                "OAuth sign-in was cancelled before receiving the browser callback.",
+                safe_next_action="Re-run the local CLI auth command when ready.",
+            )
+
+        cancelled = False
+        timed_out = False
+
+        async def _watch_cancel(scope: anyio.CancelScope) -> None:
+            nonlocal cancelled
+            await cancellation.wait()
+            cancelled = True
+            self._stop.set()
+            scope.cancel()
+
+        async def _wait_event(scope: anyio.CancelScope) -> None:
+            nonlocal timed_out
+            got = await anyio.to_thread.run_sync(self._done.wait, timeout_seconds)
+            if not got:
+                timed_out = True
+            scope.cancel()
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(_watch_cancel, tg.cancel_scope)
+            tg.start_soon(_wait_event, tg.cancel_scope)
+
+        if cancelled or cancellation.is_cancelled():
+            raise _auth_error(
+                "WORKFLOW_TIMEOUT",
+                "OAuth sign-in was cancelled while waiting for the browser callback.",
+                safe_next_action="Re-run the local CLI auth command when ready.",
+            )
+        if timed_out or self._params is None:
+            raise _auth_error(
+                "WORKFLOW_TIMEOUT",
+                "Timed out waiting for the Google OAuth browser callback.",
+                safe_next_action="Complete sign-in in the opened browser window and retry.",
+            )
+        return dict(self._params)
+
+
+def open_system_browser(url: str) -> bool:
+    """Open the official Google OAuth URL in the operator's local browser."""
+    return bool(webbrowser.open(url, new=1, autoraise=True))
+
+
 class OAuthClient:
     """Installed-app OAuth 2.0 PKCE/state client routed through AccountedHttpExecutor."""
 
@@ -239,7 +408,7 @@ class OAuthClient:
         *,
         scopes: Sequence[str],
         redirect_uri: str,
-        include_granted_scopes: bool = True,
+        include_granted_scopes: bool = False,
     ) -> PendingAuthRequest:
         validated_uri = validate_loopback_redirect_uri(redirect_uri)
         unique_scopes = tuple(dict.fromkeys(s.strip() for s in scopes if s.strip()))

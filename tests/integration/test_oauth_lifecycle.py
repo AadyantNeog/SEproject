@@ -387,3 +387,294 @@ def test_missing_channel_and_denied_scope_fail_closed_without_storing_tokens(
             assert await service.current() is None
 
     anyio.run(_run)
+
+
+def test_account_stays_inactive_during_channel_verification_and_handles_cancellation(
+    tmp_path: Path,
+) -> None:
+    async def _run() -> None:
+        clock = _MutableClock(NOW)
+        vault = _InMemoryVault()
+        db = Database(tmp_path / "inactive.sqlite3")
+        db.migrate()
+        account_repo = SqliteAccountDataRepository(db, clock=clock)
+
+        probe_started = anyio.Event()
+        allow_probe_finish = anyio.Event()
+        observed_during_probe: dict[str, object] = {}
+
+        class _SlowChannelProvider(_StubChannelProvider):
+            async def get_my_channels(self, ctx: RequestContext) -> tuple[Channel, ...]:
+                probe_started.set()
+                await allow_probe_finish.wait()
+                return self.channels
+
+        class _CancellableToken:
+            def __init__(self) -> None:
+                self._ev = anyio.Event()
+
+            def cancel(self) -> None:
+                self._ev.set()
+
+            def is_cancelled(self) -> bool:
+                return self._ev.is_set()
+
+            async def wait(self) -> None:
+                await self._ev.wait()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "ya29.probe_tok",
+                    "refresh_token": "1//probe_ref",
+                    "expires_in": 3600,
+                    "scope": YOUTUBE_READONLY_SCOPE,
+                },
+            )
+
+        ch = _channel("UCaaaaaaaaaaaaaaaaaaaaaa", "Verified Channel")
+        async with AccountedHttpExecutor(
+            quota_ledger=_FakeLedger(),
+            transport=httpx.MockTransport(handler),
+            clock=clock,
+        ) as executor:
+            oauth = OAuthClient(
+                OAuthClientConfig(client_id="cid-desktop"), executor, clock=clock
+            )
+            service = LocalAccountService(
+                installation_id="inst-1",
+                mode="live",
+                vault=vault,
+                oauth_client=oauth,
+                account_data=account_repo,
+                clock=clock,
+            )
+
+            # Explicit desktop scopes: include_granted_scopes must be false by default
+            pending = oauth.build_authorization_request(
+                scopes=(YOUTUBE_READONLY_SCOPE,),
+                redirect_uri=build_loopback_redirect_uri(51020),
+            )
+            assert "include_granted_scopes=false" in pending.authorization_url
+
+            cancel_tok = _CancellableToken()
+
+            async def _run_auth() -> None:
+                with pytest.raises(ContractError) as exc:
+                    await service.complete_authorization(
+                        pending,
+                        {"state": pending.state, "code": "code-cancel"},
+                        read_provider=_SlowChannelProvider((ch,)),
+                        reservation_id="res-probe",
+                        cancellation=cancel_tok,
+                    )
+                observed_during_probe["error_code"] = exc.value.detail.code
+
+            async def _inspect_while_verifying() -> None:
+                await probe_started.wait()
+                # Account must remain inactive and vault empty until channel verification finishes!
+                observed_during_probe["current"] = await service.current()
+                observed_during_probe["vault_keys"] = list(vault.data.keys())
+                try:
+                    await service.require_binding()
+                    observed_during_probe["require_error"] = None
+                except ContractError as exc:
+                    observed_during_probe["require_error"] = exc.detail.code
+                cancel_tok.cancel()
+                allow_probe_finish.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_run_auth)
+                tg.start_soon(_inspect_while_verifying)
+
+            assert observed_during_probe["current"] is None
+            assert observed_during_probe["vault_keys"] == []
+            assert observed_during_probe["require_error"] == "AUTH_REQUIRED"
+            assert observed_during_probe["error_code"] == "WORKFLOW_TIMEOUT"
+            assert await service.current() is None
+            assert vault.data == {}
+
+    anyio.run(_run)
+
+
+def test_disconnect_blocks_access_during_in_flight_refresh_and_prevents_token_writeback(
+    tmp_path: Path,
+) -> None:
+    async def _run() -> None:
+        clock = _MutableClock(NOW)
+        vault = _InMemoryVault()
+        db = Database(tmp_path / "race.sqlite3")
+        db.migrate()
+        account_repo = SqliteAccountDataRepository(db, clock=clock)
+
+        refresh_started = anyio.Event()
+        allow_refresh_finish = anyio.Event()
+        refresh_error: list[str] = []
+        mid_disconnect_blocked: list[bool] = []
+
+        async def _async_oauth_handler(request: httpx.Request) -> httpx.Response:
+            body = request.content.decode("utf-8")
+            if request.url.path == "/revoke":
+                return httpx.Response(200, json={})
+            if "grant_type=refresh_token" in body:
+                refresh_started.set()
+                await allow_refresh_finish.wait()
+                return httpx.Response(
+                    200,
+                    json={
+                        "access_token": "ya29.refreshed_too_late",
+                        "expires_in": 3600,
+                        "scope": YOUTUBE_READONLY_SCOPE,
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "ya29.initial_expiring",
+                    "refresh_token": "1//initial_refresh",
+                    "expires_in": 30,
+                    "scope": YOUTUBE_READONLY_SCOPE,
+                },
+            )
+
+        ch = _channel("UCaaaaaaaaaaaaaaaaaaaaaa", "Race Channel")
+        async with AccountedHttpExecutor(
+            quota_ledger=_FakeLedger(),
+            transport=httpx.MockTransport(_async_oauth_handler),
+            clock=clock,
+        ) as executor:
+            oauth = OAuthClient(
+                OAuthClientConfig(client_id="cid-desktop"), executor, clock=clock
+            )
+            service = LocalAccountService(
+                installation_id="inst-1",
+                mode="live",
+                vault=vault,
+                oauth_client=oauth,
+                account_data=account_repo,
+                clock=clock,
+            )
+            pending = oauth.build_authorization_request(
+                scopes=(YOUTUBE_READONLY_SCOPE,),
+                redirect_uri=build_loopback_redirect_uri(51030),
+            )
+            status = await service.complete_authorization(
+                pending,
+                {"state": pending.state, "code": "code-init"},
+                read_provider=_StubChannelProvider((ch,)),
+                reservation_id="res-init",
+            )
+            bound = status.binding
+
+            async def _do_refresh() -> None:
+                try:
+                    await service.get_headers(bound)
+                except ContractError as exc:
+                    refresh_error.append(exc.detail.code)
+
+            async def _do_disconnect() -> None:
+                await refresh_started.wait()
+                async with anyio.create_task_group() as inner:
+                    inner.start_soon(service.disconnect, bound)
+                    # Yield so disconnect starts and sets immediate block before refresh finishes
+                    await anyio.sleep(0.02)
+                    mid_disconnect_blocked.append(await service.current() is None)
+                    try:
+                        await service.require_binding()
+                        mid_disconnect_blocked.append(False)
+                    except ContractError as exc:
+                        mid_disconnect_blocked.append(
+                            exc.detail.code == "AUTH_REQUIRED"
+                        )
+                    allow_refresh_finish.set()
+
+            async with anyio.create_task_group() as tg:
+                tg.start_soon(_do_refresh)
+                tg.start_soon(_do_disconnect)
+
+            assert mid_disconnect_blocked == [True, True]
+            assert refresh_error == ["AUTH_REQUIRED"]
+            # In-flight refresh must NOT have written refreshed tokens back into the vault
+            assert vault.data == {}
+            assert await service.current() is None
+
+    anyio.run(_run)
+
+
+def test_browser_loopback_flow_and_cli_auth_subcommand(tmp_path: Path) -> None:
+    import threading
+    from urllib.parse import parse_qs, urlsplit
+    from urllib.request import urlopen
+
+    from yt_intel.cli import main as cli_main
+
+    # CLI requires --client-secrets (or env var) and exits cleanly without traceback
+    assert cli_main(["auth", "--read"]) == 2
+
+    async def _run() -> None:
+        clock = _MutableClock(NOW)
+        vault = _InMemoryVault()
+        db = Database(tmp_path / "browser.sqlite3")
+        db.migrate()
+        account_repo = SqliteAccountDataRepository(db, clock=clock)
+
+        def oauth_handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "ya29.browser_tok",
+                    "refresh_token": "1//browser_ref",
+                    "expires_in": 3600,
+                    "scope": YOUTUBE_READONLY_SCOPE,
+                },
+            )
+
+        ch = _channel("UCaaaaaaaaaaaaaaaaaaaaaa", "Browser Channel")
+        opened_urls: list[str] = []
+
+        def fake_open_browser(url: str) -> bool:
+            opened_urls.append(url)
+            parsed = urlsplit(url)
+            qs = parse_qs(parsed.query)
+            redirect_uri = qs["redirect_uri"][0]
+            state = qs["state"][0]
+            callback_url = f"{redirect_uri}?state={state}&code=browser-auth-code"
+
+            def _hit_callback() -> None:
+                with urlopen(callback_url, timeout=5) as resp:
+                    assert resp.status == 200
+
+            threading.Thread(target=_hit_callback, daemon=True).start()
+            return True
+
+        async with AccountedHttpExecutor(
+            quota_ledger=_FakeLedger(),
+            transport=httpx.MockTransport(oauth_handler),
+            clock=clock,
+        ) as executor:
+            oauth = OAuthClient(
+                OAuthClientConfig(client_id="cid-desktop"), executor, clock=clock
+            )
+            service = LocalAccountService(
+                installation_id="inst-1",
+                mode="live",
+                vault=vault,
+                oauth_client=oauth,
+                account_data=account_repo,
+                clock=clock,
+            )
+            status = await service.authorize_via_browser(
+                enable_writes=False,
+                read_provider=_StubChannelProvider((ch,)),
+                reservation_id="res-browser",
+                timeout_seconds=10.0,
+                open_browser=fake_open_browser,
+            )
+            assert status.binding.channel_id == ch.channel_id
+            assert status.scopes == (YOUTUBE_READONLY_SCOPE,)
+            assert len(opened_urls) == 1
+            assert "include_granted_scopes=false" in opened_urls[0]
+            assert "127.0.0.1" in opened_urls[0]
+
+    anyio.run(_run)
