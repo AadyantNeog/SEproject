@@ -7,12 +7,12 @@ description: Build this checkout, verify a read-only fixture get_video call over
 
 Use the locked Python 3.13 environment from the checkout. On Windows run
 `& '.venv/Scripts/python.exe' scripts/check_local.py` in PowerShell. Report
-the JSON statuses separately for build, start, fetch and cleanup. A skipped
+the JSON statuses separately for build, test, start, fetch and cleanup. A skipped
 stage provides no verification of that stage.
 
 For a timed fixture MCP fetch, run
 `& '.venv/Scripts/python.exe' scripts/benchmark_local.py --runs 30`. Keep
-startup separate from warm fetch latency. Use the shared timing function
+startup separate from warm fetch latency. The benchmark runs a wheel built from this checkout. Use the shared timing function
 with a target-specific operation when measuring another feature.
 
 Both commands use synthetic fixtures and spend zero live quota. Record

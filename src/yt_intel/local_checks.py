@@ -9,6 +9,7 @@ import subprocess
 import sys
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from hashlib import file_digest
 from math import ceil
 from pathlib import Path
 from statistics import median
@@ -69,13 +70,17 @@ def _arguments(root: Path, state: Path) -> list[str]:
 
 @asynccontextmanager
 async def fixture_session(
-    root: Path, state: Path, *, wheel: Path | None = None
+    root: Path, state: Path, *, wheel: Path
 ) -> AsyncIterator[ClientSession]:
-    env = {"PYTHONPATH": str(wheel)} if wheel is not None else None
+    # Isolate PYTHONPATH and put the built artifact ahead of installed copies.
+    launcher = (
+        "import runpy,sys; "
+        "sys.path.insert(0,sys.argv.pop(1)); "
+        "runpy.run_module('yt_intel',run_name='__main__')"
+    )
     parameters = StdioServerParameters(
         command=sys.executable,
-        args=_arguments(root, state),
-        env=env,
+        args=["-I", "-c", launcher, str(wheel), *_arguments(root, state)[2:]],
         cwd=str(state.parent),
     )
     # Drop server diagnostics from the report. Only synthetic structured results
@@ -125,10 +130,24 @@ def _build(root: Path, output: Path) -> Path:
     return wheels[0]
 
 
+def _test(root: Path) -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-m", "not live", "-q"],
+        cwd=root,
+        env={**os.environ, "PYTHONPATH": str(root / "src")},
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=300,
+        check=False,
+    )
+    if result.returncode:
+        raise _ProbeError(f"Offline pytest failed (exit {result.returncode}).")
+
+
 async def check_local(root: Path) -> dict[str, Stage]:
     stages = {
         stage: _stage("skipped", "A prerequisite stage did not complete.")
-        for stage in ("build", "start", "fetch", "cleanup")
+        for stage in ("build", "test", "start", "fetch", "cleanup")
     }
     active = "build"
     try:
@@ -138,6 +157,11 @@ async def check_local(root: Path) -> dict[str, Stage]:
                 wheel = _build(root, workspace)
                 stages["build"] = _stage(
                     "passed", "Built one wheel without dependency installation."
+                )
+                active = "test"
+                _test(root)
+                stages["test"] = _stage(
+                    "passed", "The checkout's offline pytest suite passed."
                 )
                 active = "start"
                 async with fixture_session(
@@ -186,8 +210,14 @@ async def measure(
 
 async def benchmark_fixture(root: Path, runs: int) -> dict[str, object]:
     with TemporaryDirectory(prefix="yt-intel-benchmark-") as directory:
+        workspace = Path(directory)
+        wheel = _build(root, workspace)
+        with wheel.open("rb") as archive:
+            wheel_hash = file_digest(archive, "sha256").hexdigest()
         start = perf_counter()
-        async with fixture_session(root, Path(directory) / "state.sqlite3") as client:
+        async with fixture_session(
+            root, workspace / "state.sqlite3", wheel=wheel
+        ) as client:
             start_ms = (perf_counter() - start) * 1000
             timing = await measure(lambda: fetch_fixture_video(client), runs)
     return {
@@ -195,6 +225,7 @@ async def benchmark_fixture(root: Path, runs: int) -> dict[str, object]:
         "target": "mcp.get_video",
         "provider_calls": "synthetic",
         "live_quota": 0,
+        "wheel_sha256": wheel_hash,
         "mcp_startup_ms": start_ms,
         "environment": {
             "os": platform.system(),
@@ -230,7 +261,7 @@ def main_benchmark(root: Path) -> int:
     except Exception as error:
         print(
             json.dumps(
-                {"mode": "fixture", "status": "failed", "error": type(error).__name__}
+                {"mode": "fixture", "status": "failed", "error": _error_detail(error)}
             )
         )
         return 1

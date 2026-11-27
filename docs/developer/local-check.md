@@ -9,12 +9,15 @@ repository root. On Windows:
 ```
 
 On Linux, use `.venv/bin/python` with the same scripts. The local check builds
-one wheel in a temporary directory, launches that artifact in a separate MCP
-stdio process, calls `get_video` for the bundled synthetic seed, and cleans
+one wheel in a temporary directory, runs the checkout's offline pytest suite,
+launches that artifact in a separate MCP stdio process, calls `get_video`
+for the bundled synthetic seed, and cleans
 up the process and temporary state. The JSON report gives each stage its own
 status and the command exits nonzero if any stage fails.
 
-The benchmark records MCP startup separately, then measures one fixture
+The benchmark builds a wheel from the selected checkout and runs that wheel
+in an isolated interpreter. The report includes the wheel's SHA-256.
+The benchmark records MCP startup separately from the build, then measures one fixture
 `get_video` call 30 or more times on the same initialized connection and
 fresh temporary fixture database. It performs one warm-up and reports all
 samples, their median, and the nearest-rank p95. Both commands use fixture
