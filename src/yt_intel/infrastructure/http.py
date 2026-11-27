@@ -16,6 +16,7 @@ from yt_intel.contracts.approval import ApprovedWriteContext
 from yt_intel.contracts.common import AccountBinding, OpaqueId
 from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.workflow import (
+    CallQuotaLedger,
     CancellationToken,
     Clock,
     Endpoint,
@@ -688,6 +689,8 @@ class AccountedHttpExecutor:
 
         validated_url = validate_allowlisted_url(route.url, route.method)
         max_attempts = 1 if route.is_write else self._max_read_attempts
+        call_id = uuid.uuid4().hex
+        ledger = self._quota_ledger
 
         for attempt in range(1, max_attempts + 1):
             self._require_within_deadline(ctx.deadline, ctx.cancellation)
@@ -729,7 +732,13 @@ class AccountedHttpExecutor:
 
             attempt_id = self._attempt_id_factory()
             # Debit BEFORE dispatch so crashes cannot undercount quota.
-            await self._quota_ledger.debit_attempt(ctx, endpoint, attempt_id)
+            if isinstance(ledger, CallQuotaLedger):
+                call_limit = await ledger.debit_call_attempt(
+                    ctx, endpoint, attempt_id, call_id=call_id, attempt_number=attempt
+                )
+                max_attempts = min(max_attempts, call_limit)
+            else:
+                await ledger.debit_attempt(ctx, endpoint, attempt_id)
 
             # Re-verify deadline right before dispatch using fresh remaining time.
             remaining = self._require_within_deadline(ctx.deadline, ctx.cancellation)
@@ -919,6 +928,10 @@ class AccountedHttpExecutor:
             translated, should_retry = _translate_http_error(
                 response, is_write=route.is_write
             )
+            if translated.detail.code == "QUOTA_EXHAUSTED" and isinstance(
+                ledger, CallQuotaLedger
+            ):
+                await ledger.mark_exhausted(ctx, endpoint, attempt_id)
             self._record_attempt(
                 AttemptRecord(
                     attempt_id=attempt_id,

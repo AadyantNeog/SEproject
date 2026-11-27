@@ -10,7 +10,7 @@ from platformdirs import user_data_path
 
 from yt_intel.contracts.common import Mode
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 _MIGRATION_LOCK = Lock()
 _MIGRATIONS: tuple[str, ...] = (
     """
@@ -70,6 +70,62 @@ _MIGRATIONS: tuple[str, ...] = (
         digest TEXT NOT NULL,
         expired_at TEXT NOT NULL,
         status TEXT NOT NULL
+    );
+    """,
+    """
+    CREATE TABLE quota_project_profiles (
+        project_id TEXT PRIMARY KEY,
+        reference_date TEXT NOT NULL,
+        profile_digest TEXT NOT NULL
+    );
+    CREATE TABLE quota_reservations (
+        reservation_id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        quota_day TEXT NOT NULL,
+        deadline TEXT NOT NULL,
+        profile_digest TEXT NOT NULL,
+        binding_key TEXT REFERENCES accounts(binding_key) ON DELETE SET NULL,
+        released INTEGER NOT NULL DEFAULT 0 CHECK (released IN (0, 1))
+    );
+    CREATE INDEX quota_reservations_period ON quota_reservations(project_id, quota_day);
+    CREATE TABLE quota_endpoint_ceilings (
+        reservation_id TEXT NOT NULL REFERENCES quota_reservations(reservation_id),
+        endpoint TEXT NOT NULL,
+        attempts INTEGER NOT NULL CHECK (attempts > 0),
+        PRIMARY KEY (reservation_id, endpoint)
+    );
+    CREATE TABLE quota_reservation_buckets (
+        reservation_id TEXT NOT NULL REFERENCES quota_reservations(reservation_id),
+        bucket TEXT NOT NULL,
+        remaining INTEGER NOT NULL CHECK (remaining >= 0),
+        spent INTEGER NOT NULL DEFAULT 0 CHECK (spent >= 0),
+        PRIMARY KEY (reservation_id, bucket)
+    );
+    CREATE TABLE quota_attempts (
+        reservation_id TEXT NOT NULL REFERENCES quota_reservations(reservation_id),
+        attempt_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        PRIMARY KEY (reservation_id, attempt_id)
+    );
+    CREATE INDEX quota_attempts_endpoint ON quota_attempts(reservation_id, endpoint);
+    """,
+    """
+    ALTER TABLE quota_endpoint_ceilings ADD COLUMN calls INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE quota_endpoint_ceilings ADD COLUMN attempts_per_call INTEGER NOT NULL DEFAULT 1;
+    UPDATE quota_reservations SET released = 1;
+    CREATE TABLE quota_calls (
+        reservation_id TEXT NOT NULL REFERENCES quota_reservations(reservation_id),
+        call_id TEXT NOT NULL,
+        endpoint TEXT NOT NULL,
+        attempts INTEGER NOT NULL CHECK (attempts > 0),
+        PRIMARY KEY (reservation_id, call_id)
+    );
+    CREATE INDEX quota_calls_endpoint ON quota_calls(reservation_id, endpoint);
+    CREATE TABLE quota_exhausted_buckets (
+        project_id TEXT NOT NULL,
+        quota_day TEXT NOT NULL,
+        bucket TEXT NOT NULL,
+        PRIMARY KEY (project_id, quota_day, bucket)
     );
     """,
 )

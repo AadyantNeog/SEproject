@@ -197,3 +197,11 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-03 sign-in follow-up
 
 - At Aadyant's request, Codex kept failed disconnect cleanup blocked across restarts and priced the sign-in lookup from the configured quota profile for [PR #29](https://github.com/AadyantNeog/SEproject/pull/29). All 275 offline tests, scoped Ruff and mypy passed. Verified custom costs and refusal before channel dispatch with Paul's draft P2-02 ledger. See [[2026-11-27-j2-03-auth-follow-up]].
+
+## 2026-11-27 P2-02 cancellation follow-up
+
+- At Aadyant's request, Codex fixed the reservation leak on cancellation before the next valid workflow stage in [PR #27](https://github.com/AadyantNeog/SEproject/pull/27). The regression confirms another workflow can start immediately. All 269 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-p2-02-cancellation-follow-up]].
+
+## 2026-11-27 J2-03 sync with merged quota ledger
+
+- Synced [PR #29](https://github.com/AadyantNeog/SEproject/pull/29) with `main` after PR #27 and kept both knowledge log entries. All 286 offline tests passed. A synthetic sign-in check verified reservations, charges, and release with the merged ledger and confirmed that insufficient quota blocks channel dispatch. See [[2026-11-27-j2-03-auth-follow-up]].
