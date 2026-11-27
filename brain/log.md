@@ -218,3 +218,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-03 recommendations from saved library snapshots
 
 - Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].
+
+## 2026-11-27 A2-02 standalone discovery quota
+
+- Connected both discovery tools to the SQLite ledger for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). Stdio tests verified search debits, refusal before the seed fetch, and cancellation without a cache entry. All 293 offline tests passed. See [[2026-11-27-a2-02-discovery-quota]].

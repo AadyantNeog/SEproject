@@ -26,6 +26,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-26-a2-02-ranking]]
 - [[2026-11-27-a2-02-discovery-stdio]]
 - [[2026-11-27-a2-02-discovery-candidates]]
+- [[2026-11-27-a2-02-discovery-quota]]
 - [[2026-11-26-a2-04-playlist-planning]]
 - [[2026-11-27-a2-04-playlist-preview-stdio]]
 - [[2026-11-27-a2-04-partial-proposal-revisions]]

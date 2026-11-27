@@ -38,7 +38,7 @@ def build_fixture_server(
         candidate_sets = FixtureCandidateSets(
             lambda: SqliteCacheRepository(Database(fixture_db))
         )
-        register_fixture_discovery(server, project_root, candidate_sets)
+        register_fixture_discovery(server, project_root, fixture_db, candidate_sets)
         library_runtime = register_fixture_library(server, project_root, fixture_db)
         register_fixture_planning(server, project_root, fixture_db, candidate_sets)
         register_fixture_recommendations(server, project_root, library_runtime)
