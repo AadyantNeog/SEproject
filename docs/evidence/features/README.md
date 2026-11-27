@@ -77,21 +77,46 @@ native-dialog run is still a separate step. See the
 All NFR-08 validation, ranking and proposal targets passed at `4c98b2c`.
 See the [performance report](../performance/report.md).
 
+## Observed in Codex Desktop on Windows
+
+27 November 2026, 22:38–22:42 UTC (28 November IST). Aadyant ran these
+prompts in Codex Desktop on Windows 11, with `yt-intel-fixture` as the
+only project MCP server, against `main` at `9778544`. The server launched
+the checkout's locked `.venv` with `serve --provider fixture`. Aadyant
+copied the transcript, including every tool call and structured result,
+from Codex. The Codex version was not recorded.
+
+| Prompt | Tools Codex called | Observed | Result |
+| --- | --- | --- | --- |
+| Read `yt-intel://fixture/previews/create` | `read_mcp_resource` | "Database indexing practice" sample, labelled "Mode: fixture (synthetic data)", 1,320 s with 480 s unused | Pass |
+| FR-1: similar to `https://youtu.be/vidIndex001`, limit 1 | `find_similar_videos {"video": "https://youtu.be/vidIndex001", "limit": 1}` | `vidIndex002`, 1,201 s, score 0.4382 (`ranking-v1`), terms `b, tree, database, indexing`, same category. Audio unknown, with an `audio_language_missing_metadata_only` warning. Coverage: complete, paginated, 2 retrieved, 1 usable, unknown 2. | Pass |
+| FR-2: similar to `@SystemsStudyLab` | `find_similar_channels {"channel": "https://www.youtube.com/@SystemsStudyLab"}` | `UCbbbbbbbbbbbbbbbbbbbbbb` (Query Craft), score 0.3039 (`channel-ranking-v1`). Sample: `vidIndex002`, 1 attempted, 1 usable, rule `first-accessible-uploads-v1`. Coverage marked sampled. | Pass |
+| FR-3 (a): likes, English, database indexing, 720 s total, 600 s per video | `get_library {"sources": ["likes"]}` → `recommend_videos {snapshot, topic, "en", 720, 600}` | Status `empty`, 720 s unused, with warnings that name the unrequested sources and say no candidate matched. Every saved-library candidate fails a constraint: `vidIndex001` is 1,200 s against the 600 s cap; `vidIndex002` has no audio evidence; the live and private items are excluded. No constraint was relaxed. | Pass (correct empty result) |
+| FR-3 (b): likes, English, 1,300 s total | `get_library {"sources": ["likes"]}` → `recommend_videos {snapshot, "en", 1300}` | `vidIndex001`, 1,200 s, 100 s unused, `en-US` audio, from `likes`, reason "Matched indexing, database in liked videos" (`profile-v1`) | Pass |
+| FR-5: private English preview, 720 s total, 600 s per video, from `fixture-recommendations`, do not create | `propose_playlist` only | Stored version 1, private, `fixture0301` (600 s, `en-US`), 120 s unused, 1 audio-language exclusion, 10-minute expiry. A saved-preview link was returned. **No `prepare_creation` or `create_playlist` call.** | Pass |
+
+**What this shows.**
+- **Correct tools.** Codex chose the right tool for each request.
+- **Fixture label.** Every result was labelled as fixture data.
+- **Constraints kept.** Codex kept the duration and language constraints
+  exactly, including when nothing qualified.
+- **Preview only.** Codex stopped at the preview when asked not to create.
+- **Matches the tests.** The outputs match the automated stdio tests above.
+- **FR-3 (a).** Its first expected value in the walkthrough notes came from
+  the built-in `fixture-snapshot` path. Codex correctly used the saved-likes
+  path instead, so FR-3 (b) was added to show a non-empty saved-library
+  result.
+
+This is fixture evidence from a real client. It is not live API evidence.
+
 ## Still open for A2-08
 
-- **Codex walkthrough.** A manual Windows Codex Desktop walkthrough of
-  FR-1, FR-2, FR-3 and FR-5 planning is still needed, using the
-  [Codex fixture setup](../../developer/codex-fixture.md). The tests above
-  drive stdio from a Python MCP client, not from Codex. The prompts to use
-  are listed below.
-- **Native approval.** The manually observed native approval or refusal in
-  the full product-skill path is still pending. It must be run by a human,
-  not by an agent.
-- **Traceability.** Real Issue and PR links for the FR-1, FR-2, FR-3 and
-  NFR-08 rows in [coverage.csv](../../implementation/coverage.csv) and
-  [traceability.csv](../../requirements/traceability.csv) are still pending.
-- **Owner review.** The dated human owner-review note for this A2-08 change
-  and the individually authored reflection are still pending.
+- **Native approval.** A manually observed native approval and a refusal
+  in the full product-skill path are still pending. A human must run them.
+- **Codex version.** Record the Codex Desktop version used for the
+  walkthrough.
+- **Owner review.** The dated human owner review of this record and the
+  individually authored reflection are still pending.
 
 ### Codex walkthrough prompts
 
@@ -100,11 +125,10 @@ for each prompt.
 
 1. FR-1: "Using yt-intel-fixture, find videos similar to https://youtu.be/vidIndex001, limit 1, and report the evidence and coverage."
 2. FR-2: "Using yt-intel-fixture, find channels similar to https://www.youtube.com/@SystemsStudyLab and explain the channel sample."
-3. FR-3: "Using yt-intel-fixture, load my likes and recommend English videos about database indexing that fit in 720 seconds, at most 600 seconds each."
+3. FR-3: "Using yt-intel-fixture, load my likes and recommend English videos about database indexing that fit in 720 seconds, at most 600 seconds each." This is expected to return a correct empty result. Then: "Using yt-intel-fixture, load my likes and recommend English videos that fit in 1300 seconds."
 4. FR-5 planning: "Using yt-intel-fixture, preview a private English playlist called Indexing for beginners about database indexing, 720 seconds total and 600 seconds per video, from the fixture-recommendations candidate set. Do not create it."
 
-The expected results are the checked outputs above. Check that the client
-shows the fixture mode label. For the FR-5 prompt, check that the client
-stops at the preview and does not create anything.
+Check that the client shows the fixture mode label. For the FR-5 prompt,
+check that the client stops at the preview and does not create anything.
 
 Prepared with AI assistance. Human owner review is pending.
