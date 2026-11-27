@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import deque
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -33,7 +34,7 @@ from yt_intel.contracts.models import (
     SubscriptionSignal,
     Video,
 )
-from yt_intel.contracts.provider import OwnedPlaylist, YouTubeReadProvider
+from yt_intel.contracts.provider import YouTubeReadProvider
 from yt_intel.contracts.repositories import SnapshotRepository
 from yt_intel.contracts.workflow import (
     CallCeiling,
@@ -45,6 +46,7 @@ from yt_intel.contracts.workflow import (
     WorkflowPlan,
 )
 from yt_intel.infrastructure.clock import SystemClock
+from yt_intel.infrastructure.quota import QuotaProfile
 
 _ALL_SOURCES: tuple[LibrarySource, ...] = ("likes", "subscriptions", "playlists")
 _SAMPLE_RULE = "first-accessible-uploads-v1"
@@ -88,6 +90,8 @@ class _ContinuationState:
     requested_sources: tuple[LibrarySource, ...]
     snapshot_id: OpaqueId
     tokens: Mapping[LibrarySource, str | None]
+    pending_playlists: tuple[PlaylistId, ...]
+    playlist_sample_limited: bool
     seen_like_ids: frozenset[VideoId]
     seen_subscription_ids: frozenset[OpaqueId]
     seen_playlist_ids: frozenset[PlaylistId]
@@ -147,19 +151,21 @@ def _build_library_plan(
     bounds: LibraryBounds,
     deadline: datetime,
     project_id: OpaqueId,
-    quota_profile_id: OpaqueId,
+    profile: QuotaProfile,
+    pending_playlists: tuple[PlaylistId, ...],
 ) -> WorkflowPlan:
     """Compute conservative worst-case WorkflowPlan before any provider call."""
     ceilings: dict[Endpoint, CallCeiling] = {}
+    source_pages = min(bounds.initial_pages_per_source, bounds.total_source_pages)
     video_hydration_calls = 0
 
     if "likes" in sources:
         # Likes uses videos.list(myRating=like)
-        video_hydration_calls += bounds.initial_pages_per_source
+        video_hydration_calls += source_pages
 
     if "subscriptions" in sources:
         ceilings["subscriptions.list"] = CallCeiling(
-            calls=bounds.initial_pages_per_source, attempts_per_call=3
+            calls=source_pages, attempts_per_call=3
         )
         # Bounded channel hydration + upload playlist sampling + upload video hydration
         ceilings["channels.list"] = CallCeiling(
@@ -173,34 +179,33 @@ def _build_library_plan(
         video_hydration_calls += bounds.subscription_sample_channels
 
     if "playlists" in sources:
-        ceilings["playlists.list"] = CallCeiling(calls=1, attempts_per_call=3)
-        existing_pi = ceilings.get("playlistItems.list")
-        pl_item_calls = bounds.owned_playlists_cap + (
-            existing_pi.calls if existing_pi is not None else 0
-        )
-        ceilings["playlistItems.list"] = CallCeiling(
-            calls=pl_item_calls, attempts_per_call=3
-        )
-        # Hydrate up to owned_playlists_cap * page_size unique videos in batches of 50
-        video_hydration_calls += max(
-            1, ceil((bounds.owned_playlists_cap * bounds.page_size) / _MAX_BATCH_SIZE)
-        )
+        if pending_playlists:
+            item_pages = min(len(pending_playlists), source_pages)
+        else:
+            ceilings["playlists.list"] = CallCeiling(calls=1, attempts_per_call=3)
+            item_pages = min(bounds.owned_playlists_cap, source_pages - 1)
+        if item_pages:
+            existing_pi = ceilings.get("playlistItems.list")
+            ceilings["playlistItems.list"] = CallCeiling(
+                calls=item_pages + (existing_pi.calls if existing_pi else 0),
+                attempts_per_call=3,
+            )
+            video_hydration_calls += ceil(
+                item_pages * bounds.page_size / _MAX_BATCH_SIZE
+            )
 
     if video_hydration_calls > 0:
         ceilings["videos.list"] = CallCeiling(
             calls=video_hydration_calls, attempts_per_call=3
         )
 
-    general_units = sum(
-        ceiling.calls * ceiling.attempts_per_call for ceiling in ceilings.values()
-    )
-    return WorkflowPlan(
+    plan = WorkflowPlan(
         plan_id=f"library-{uuid.uuid4().hex[:12]}",
         binding=binding,
         project_id=project_id,
-        quota_profile_id=quota_profile_id,
+        quota_profile_id=profile.profile_id,
         endpoint_ceilings=ceilings,
-        buckets={"general": general_units},
+        buckets={},
         candidate_cap=0,
         page_cap=bounds.total_source_pages,
         sample_cap=bounds.subscription_sample_channels,
@@ -208,6 +213,7 @@ def _build_library_plan(
         cancellation_policy="cooperative",
         reconciliation_allowance={},
     )
+    return plan.model_copy(update={"buckets": profile.required_buckets(plan)})
 
 
 class LibraryService:
@@ -219,11 +225,11 @@ class LibraryService:
         provider: YouTubeReadProvider,
         account_service: AccountService,
         quota_ledger: QuotaLedger,
+        quota_profile: QuotaProfile,
         snapshot_repo: SnapshotRepository,
         clock: Clock | None = None,
         bounds: LibraryBounds = LibraryBounds(),
         project_id: OpaqueId = "default-project",
-        quota_profile_id: OpaqueId = "youtube-2026-11-16",
     ) -> None:
         self._provider = provider
         self._accounts = account_service
@@ -232,7 +238,7 @@ class LibraryService:
         self._clock: Clock = clock if clock is not None else SystemClock()
         self._bounds = bounds
         self._project_id = project_id
-        self._quota_profile_id = quota_profile_id
+        self._profile = quota_profile
         self._continuations: dict[OpaqueId, _ContinuationState] = {}
 
     async def collect(
@@ -254,14 +260,34 @@ class LibraryService:
                 continuation_ref, binding=binding, requested=requested, now=now
             )
 
+        # A present cursor with no page token means the source has not started.
+        tokens = (
+            dict.fromkeys(requested)
+            if prior_state is None
+            else dict(prior_state.tokens)
+        )
+        pending_playlists = prior_state.pending_playlists if prior_state else ()
+        active_sources = tuple(
+            src
+            for src in requested
+            if src in tokens or (src == "playlists" and pending_playlists)
+        )
+        # A small page budget can postpone an entire source to the next request.
+        active_sources = tuple(
+            sorted(
+                active_sources,
+                key=lambda src: src not in tokens or tokens[src] is not None,
+            )
+        )
         deadline = now + _DEFAULT_DEADLINE
         plan = _build_library_plan(
             binding=binding,
-            sources=requested,
+            sources=active_sources,
             bounds=self._bounds,
             deadline=deadline,
             project_id=self._project_id,
-            quota_profile_id=self._quota_profile_id,
+            profile=self._profile,
+            pending_playlists=pending_playlists,
         )
         reservation = await self._ledger.reserve(plan)
         try:
@@ -275,6 +301,9 @@ class LibraryService:
             return await self._collect_with_context(
                 ctx,
                 requested=requested,
+                active_sources=active_sources,
+                tokens=tokens,
+                pending_playlists=deque(pending_playlists),
                 started_at=now,
                 prior=prior_state,
             )
@@ -322,6 +351,9 @@ class LibraryService:
         ctx: RequestContext,
         *,
         requested: tuple[LibrarySource, ...],
+        active_sources: tuple[LibrarySource, ...],
+        tokens: dict[LibrarySource, str | None],
+        pending_playlists: deque[PlaylistId],
         started_at: datetime,
         prior: _ContinuationState | None,
     ) -> LibraryCollectionResult:
@@ -330,40 +362,45 @@ class LibraryService:
         subscriptions_raw: list[SubscriptionSignal] = []
         owned_playlist_ids: list[PlaylistId] = []
         playlist_occurrences: list[PlaylistOccurrence] = []
+        item_video_ids: list[VideoId] = []
 
         seen_likes = set(prior.seen_like_ids) if prior is not None else set()
         seen_subs = set(prior.seen_subscription_ids) if prior is not None else set()
         seen_pls = set(prior.seen_playlist_ids) if prior is not None else set()
 
-        # Per-source pagination state (fairness: at least 1 page per source first).
-        tokens: dict[LibrarySource, str | None] = {
-            src: (prior.tokens.get(src) if prior is not None else None)
-            for src in requested
-        }
-        pages_used: dict[LibrarySource, int] = {src: 0 for src in requested}
-        source_done: dict[LibrarySource, bool] = {src: False for src in requested}
+        pages_used: dict[LibrarySource, int] = {src: 0 for src in active_sources}
         source_state: dict[LibrarySource, SourceCoverage] = {}
         source_stats: dict[LibrarySource, dict[str, int]] = {
             src: {"retrieved": 0, "usable": 0, "inaccessible": 0, "unknown": 0}
-            for src in requested
+            for src in active_sources
         }
-        source_warnings: dict[LibrarySource, list[str]] = {src: [] for src in requested}
+        source_warnings: dict[LibrarySource, list[str]] = {
+            src: [] for src in active_sources
+        }
         total_pages_used = 0
         all_warnings: list[str] = []
 
-        # Playlists uses 1 playlists.list page + up to owned_playlists_cap playlistItems.list pages.
-        playlists_fetched = False
+        # Finish a carried playlist sample before listing another page in a later request.
+        playlists_fetched = bool(pending_playlists)
+        playlist_sample_limited = prior.playlist_sample_limited if prior else False
 
         # Round-robin fairness loop: each requested source gets 1 page before any gets a 2nd.
         while total_pages_used < self._bounds.total_source_pages:
             progressed = False
-            for src in requested:
+            for src in active_sources:
                 if total_pages_used >= self._bounds.total_source_pages:
                     break
-                if source_done[src] or src in source_state:
-                    continue
                 if pages_used[src] >= self._bounds.initial_pages_per_source:
                     continue
+                sample_playlist = src == "playlists" and bool(pending_playlists)
+                if not sample_playlist and (
+                    src not in tokens or (src == "playlists" and playlists_fetched)
+                ):
+                    continue
+
+                progressed = True
+                pages_used[src] += 1
+                total_pages_used += 1
 
                 if src == "likes":
                     try:
@@ -374,10 +411,8 @@ class LibraryService:
                         self._record_source_failure(
                             src, exc, source_state, all_warnings
                         )
+                        del tokens[src]
                         continue
-                    progressed = True
-                    pages_used["likes"] += 1
-                    total_pages_used += 1
                     source_stats["likes"]["inaccessible"] += page.inaccessible
                     source_stats["likes"]["unknown"] += page.omitted
                     for entry in page.items:
@@ -389,9 +424,10 @@ class LibraryService:
                         source_stats["likes"]["retrieved"] += 1
                         if entry.video.availability == "available":
                             source_stats["likes"]["usable"] += 1
-                    tokens["likes"] = page.next_page_token
                     if page.next_page_token is None:
-                        source_done["likes"] = True
+                        del tokens[src]
+                    else:
+                        tokens[src] = page.next_page_token
 
                 elif src == "subscriptions":
                     try:
@@ -404,10 +440,8 @@ class LibraryService:
                         self._record_source_failure(
                             src, exc, source_state, all_warnings
                         )
+                        del tokens[src]
                         continue
-                    progressed = True
-                    pages_used["subscriptions"] += 1
-                    total_pages_used += 1
                     source_stats["subscriptions"]["inaccessible"] += (
                         sub_page.inaccessible
                     )
@@ -419,14 +453,43 @@ class LibraryService:
                         subscriptions_raw.append(sig)
                         source_stats["subscriptions"]["retrieved"] += 1
                         source_stats["subscriptions"]["usable"] += 1
-                    tokens["subscriptions"] = sub_page.next_page_token
                     if sub_page.next_page_token is None:
-                        source_done["subscriptions"] = True
+                        del tokens[src]
+                    else:
+                        tokens[src] = sub_page.next_page_token
 
-                elif src == "playlists":
-                    if playlists_fetched:
-                        source_done["playlists"] = True
+                elif sample_playlist:
+                    playlist_id = pending_playlists.popleft()
+                    owned_playlist_ids.append(playlist_id)
+                    try:
+                        items_page = await self._provider.list_playlist_items(
+                            ctx, playlist_id, self._bounds.page_size
+                        )
+                    except ContractError as exc:
+                        playlist_sample_limited = True
+                        source_warnings[src].append(
+                            f"Playlist {playlist_id} items unavailable ({exc.detail.code})."
+                        )
                         continue
+                    if items_page.next_page_token is not None:
+                        playlist_sample_limited = True
+                        source_warnings[src].append(
+                            f"Playlist {playlist_id} was sampled from its first item page."
+                        )
+                    source_stats[src]["unknown"] += items_page.omitted
+                    for occ in items_page.items:
+                        playlist_occurrences.append(occ)
+                        source_stats[src]["retrieved"] += 1
+                        if occ.accessibility == "inaccessible":
+                            source_stats[src]["inaccessible"] += 1
+                        elif occ.video_id is not None:
+                            source_stats[src]["usable"] += 1
+                            item_video_ids.append(occ.video_id)
+                        else:
+                            source_stats[src]["unknown"] += 1
+
+                else:
+                    playlists_fetched = True
                     try:
                         pl_page = await self._provider.list_my_playlists(
                             ctx, self._bounds.page_size, page_token=tokens["playlists"]
@@ -435,80 +498,43 @@ class LibraryService:
                         self._record_source_failure(
                             src, exc, source_state, all_warnings
                         )
+                        del tokens[src]
                         continue
-                    progressed = True
-                    playlists_fetched = True
-                    pages_used["playlists"] += 1
-                    total_pages_used += 1
-                    tokens["playlists"] = pl_page.next_page_token
-
-                    selected: list[OwnedPlaylist] = []
-                    for pl in pl_page.items:
-                        if pl.playlist_id in seen_pls:
-                            continue
-                        if len(selected) >= self._bounds.owned_playlists_cap:
-                            break
-                        seen_pls.add(pl.playlist_id)
-                        selected.append(pl)
-                        owned_playlist_ids.append(pl.playlist_id)
-
-                    if len(pl_page.items) > len(selected):
-                        source_warnings["playlists"].append(
-                            f"Selected first {len(selected)} of {len(pl_page.items)} owned playlists in returned order."
+                    if pl_page.next_page_token is None:
+                        del tokens[src]
+                    else:
+                        tokens[src] = pl_page.next_page_token
+                    unsampled = list(
+                        dict.fromkeys(
+                            pl.playlist_id
+                            for pl in pl_page.items
+                            if pl.playlist_id not in seen_pls
                         )
-
-                    item_video_ids: list[VideoId] = []
-                    for pl in selected:
-                        if total_pages_used >= self._bounds.total_source_pages:
-                            break
-                        try:
-                            items_page = await self._provider.list_playlist_items(
-                                ctx, pl.playlist_id, self._bounds.page_size
-                            )
-                        except ContractError as exc:
-                            source_warnings["playlists"].append(
-                                f"Playlist {pl.playlist_id} items unavailable ({exc.detail.code})."
-                            )
-                            continue
-                        pages_used["playlists"] += 1
-                        total_pages_used += 1
-                        source_stats["playlists"]["unknown"] += items_page.omitted
-                        for occ in items_page.items:
-                            playlist_occurrences.append(occ)
-                            source_stats["playlists"]["retrieved"] += 1
-                            if occ.accessibility == "inaccessible":
-                                source_stats["playlists"]["inaccessible"] += 1
-                            elif occ.video_id is not None:
-                                source_stats["playlists"]["usable"] += 1
-                                if occ.video_id not in videos:
-                                    item_video_ids.append(occ.video_id)
-                            else:
-                                source_stats["playlists"]["unknown"] += 1
-
-                    # Hydrate unique playlist videos not already fetched via likes.
-                    unique_to_hydrate = tuple(dict.fromkeys(item_video_ids))
-                    if unique_to_hydrate:
-                        try:
-                            batch = await self._provider.get_videos(
-                                ctx, unique_to_hydrate
-                            )
-                            videos.update(batch.videos)
-                            if batch.omitted_ids:
-                                source_stats["playlists"]["unknown"] += len(
-                                    batch.omitted_ids
-                                )
-                        except ContractError as exc:
-                            source_warnings["playlists"].append(
-                                f"Playlist video hydration degraded ({exc.detail.code})."
-                            )
-
-                    if pl_page.next_page_token is None and len(pl_page.items) <= len(
-                        selected
-                    ):
-                        source_done["playlists"] = True
+                    )
+                    selected = unsampled[: self._bounds.owned_playlists_cap]
+                    seen_pls.update(selected)
+                    pending_playlists.extend(selected)
+                    if len(unsampled) > len(selected):
+                        playlist_sample_limited = True
+                        source_warnings[src].append(
+                            f"Selected first {len(selected)} of {len(unsampled)} unsampled owned playlists in returned order."
+                        )
 
             if not progressed:
                 break
+
+        unique_to_hydrate = tuple(
+            dict.fromkeys(vid for vid in item_video_ids if vid not in videos)
+        )
+        if unique_to_hydrate:
+            try:
+                batch = await self._provider.get_videos(ctx, unique_to_hydrate)
+                videos.update(batch.videos)
+                source_stats["playlists"]["unknown"] += len(batch.omitted_ids)
+            except ContractError as exc:
+                source_warnings["playlists"].append(
+                    f"Playlist video hydration degraded ({exc.detail.code})."
+                )
 
         # Bounded subscription topic sampling (first N accessible subscribed channels,
         # up to 5 uploads each). Samples are channel-topic evidence, not engagement events.
@@ -543,37 +569,21 @@ class LibraryService:
                     sig.model_copy(update={"topic_sample": sample})
                 )
 
-        # Build opaque server-side continuation handle if any requested source has more pages.
-        remaining_tokens: dict[LibrarySource, str | None] = {
-            src: tokens[src]
-            for src in requested
-            if src not in source_state and tokens[src] is not None
-        }
+        remaining_sources = set(tokens)
+        if pending_playlists:
+            remaining_sources.add("playlists")
         snapshot_id = f"snap-{uuid.uuid4().hex[:16]}"
         fetched_at = self._clock.now().astimezone(UTC)
         if fetched_at < started_at:
             fetched_at = started_at
         retained_until = fetched_at + _MAX_RETENTION
 
-        next_cont_ref: OpaqueId | None = None
-        if remaining_tokens:
-            next_cont_ref = f"cont-{uuid.uuid4().hex[:16]}"
-            self._continuations[next_cont_ref] = _ContinuationState(
-                continuation_ref=next_cont_ref,
-                binding=ctx.binding,
-                requested_sources=requested,
-                snapshot_id=snapshot_id,
-                tokens=remaining_tokens,
-                seen_like_ids=frozenset(seen_likes),
-                seen_subscription_ids=frozenset(seen_subs),
-                seen_playlist_ids=frozenset(seen_pls),
-                expires_at=fetched_at + _CONTINUATION_TTL,
-            )
+        next_cont_ref = f"cont-{uuid.uuid4().hex[:16]}" if remaining_sources else None
 
         # Finalize SourceCoverage for all three required library sources.
         final_sources: dict[LibrarySource, SourceCoverage] = {}
         for src in _ALL_SOURCES:
-            if src not in requested:
+            if src not in active_sources:
                 final_sources[src] = SourceCoverage(
                     state="not_requested", coverage=None
                 )
@@ -581,11 +591,17 @@ class LibraryService:
                 final_sources[src] = source_state[src]
             else:
                 st = source_stats[src]
-                truncated = not source_done[src]
-                cont = next_cont_ref if src in remaining_tokens else None
+                truncated = src in remaining_sources or (
+                    src == "playlists" and playlist_sample_limited
+                )
+                cont = next_cont_ref if src in remaining_sources else None
+                resumed_source = prior is not None and (
+                    prior.tokens.get(src) is not None
+                    or (src == "playlists" and bool(prior.pending_playlists))
+                )
                 cov = Coverage(
-                    complete=not truncated and cont is None,
-                    paginated=pages_used[src] > 1 or prior is not None,
+                    complete=not truncated,
+                    paginated=pages_used[src] > 1 or resumed_source,
                     sampled=(src in {"subscriptions", "playlists"}),
                     truncated=truncated,
                     retrieved=st["retrieved"],
@@ -605,7 +621,10 @@ class LibraryService:
                     continuation_ref=cont,
                     warnings=tuple(source_warnings[src]),
                 )
-                final_sources[src] = SourceCoverage(state="retrieved", coverage=cov)
+                final_sources[src] = SourceCoverage(
+                    state="retrieved" if pages_used[src] else "unavailable",
+                    coverage=cov,
+                )
 
         snapshot = LibrarySnapshot(
             snapshot_id=snapshot_id,
@@ -621,6 +640,20 @@ class LibraryService:
             retained_until=retained_until,
         )
         await self._snapshots.save_snapshot(snapshot)
+        if next_cont_ref is not None:
+            self._continuations[next_cont_ref] = _ContinuationState(
+                continuation_ref=next_cont_ref,
+                binding=ctx.binding,
+                requested_sources=requested,
+                snapshot_id=snapshot_id,
+                tokens=tokens,
+                pending_playlists=tuple(pending_playlists),
+                playlist_sample_limited=playlist_sample_limited,
+                seen_like_ids=frozenset(seen_likes),
+                seen_subscription_ids=frozenset(seen_subs),
+                seen_playlist_ids=frozenset(seen_pls),
+                expires_at=fetched_at + _CONTINUATION_TTL,
+            )
 
         summary = LibrarySummary(
             snapshot_id=snapshot.snapshot_id,

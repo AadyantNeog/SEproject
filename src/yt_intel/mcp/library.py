@@ -194,10 +194,10 @@ def register_fixture_library(
                 provider=provider,
                 account_service=accounts,
                 quota_ledger=ledger,
+                quota_profile=profile,
                 snapshot_repo=snapshot_repo,
                 bounds=LibraryBounds(),
                 project_id="fixture-project",
-                quota_profile_id=profile.profile_id,
             )
             runtime_holder.append((ledger, accounts, provider, service))
         return runtime_holder[0]
@@ -228,7 +228,7 @@ def register_fixture_library(
                 endpoint_ceilings={
                     "videos.list": CallCeiling(calls=1, attempts_per_call=3)
                 },
-                buckets={"general": 3},
+                buckets={},
                 candidate_cap=1,
                 page_cap=1,
                 sample_cap=0,
@@ -236,6 +236,7 @@ def register_fixture_library(
                 cancellation_policy="cooperative",
                 reconciliation_allowance={},
             )
+            plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
             reservation = await ledger.reserve(plan)
             try:
                 req_ctx = RequestContext(
