@@ -2,46 +2,40 @@
 
 **28 November 2026 · YouTube Video Intelligence MCP Server · Workplan v2.3**
 
-**All 24 workplan tasks now have implementation. 20 are merged, and the last four are prepared on local branches that are not yet pushed.** On 28 November 2026, a team decision moved J2-07, J2-08 and P2-08, plus all other remaining work, to Aadyant. The original owners keep their IDs and credit ([ADR-0010](../adr/0010-solo-completion-ownership-transfer.md)). Final acceptance still needs the PRs, hosted CI, Aadyant's dated owner reviews, the manual native-dialog and Codex runs, D-02 and the live prerequisites. [Release candidate record](../evidence/release/README.md) · [Task register](tasks.json)
+**All 24 workplan tasks are implemented and merged to `main` at `061932d`.** On 28 November 2026, a team decision moved J2-07, J2-08 and P2-08, plus all other remaining work, to Aadyant. The original owners keep their IDs and credit ([ADR-0010](../adr/0010-solo-completion-ownership-transfer.md)). What remains is human-only or external: the manual native-dialog and Codex runs, D-02 and the live setup and demonstrations, the personal reflections, and the release tag. [Release record](../evidence/release/README.md) · [Task register](tasks.json)
 
-GitHub `main` is at `05d929a`, the merge of PR #52. On top of it are six stacked local branches. Their release-candidate checks at `283a330`:
-- **Tests and lint.** 349 offline tests, Ruff, and mypy for both Windows and Linux all pass.
-- **Build and local check.** The wheel builds, and all five local-check stages pass.
-- **Performance.** All 12 NFR-08 targets pass.
+Checks on merged `main`:
+- **Tests and lint.** 349 offline tests, Ruff, and mypy for Windows and Linux pass.
+- **Local check and performance.** All five local-check stages pass, and all 12 NFR-08 targets pass.
 - **Validators.** The planning validator passes 35 of 35, and the knowledge validator passes.
+- **Hosted CI.** Passed on #57 and #63.
 
-## What to do next
+[PR #63](https://github.com/AadyantNeog/SEproject/pull/63) brought the stacked PRs #58 to #62 into `main` unchanged.
 
-| Order | Action | Who |
-| --- | --- | --- |
-| 1 | Create issues for A2-08, J2-07, J2-08 and P2-08. Push the branches and open one PR each, in the merge order in the [release record](../evidence/release/README.md#branches-in-merge-order). Let hosted Linux and Windows CI run. | Aadyant |
-| 2 | After AI-assisted review, record a dated human owner review of each PR's exact commit. Then merge. | Aadyant |
-| 3 | Run the Codex Desktop walkthrough with the [prompts](../evidence/features/README.md#codex-walkthrough-prompts). Run the native approve, reject and resume dialogs with synthetic data. Record the actual decisions. | Aadyant (human only) |
-| 4 | Obtain and record the D-02 direction in [d02-status.json](../evidence/policy-and-consent/d02-status.json). Provision the test account, OAuth client and protected runner ([readiness](../evidence/policy-and-consent/README.md)). | Aadyant with the instructor |
-| 5 | Run the supervised live demonstrations. Re-run the checks and benchmark on the final merged commit. Write your reflections, then create the release tag. | Team |
+## What is left
 
-## Work done in this session (not yet merged)
+| Order | Action | Who | Closes |
+| --- | --- | --- | --- |
+| 1 | Run the Windows Codex Desktop walkthrough of FR-1, FR-2, FR-3 and FR-5 planning with the [prompts](../evidence/features/README.md#codex-walkthrough-prompts). Record the tool traces. | Aadyant (human) | part of #53 |
+| 2 | With synthetic data, run the real native dialog to approve once and to reject or close once. Run the native resume dialog after a partial result. Record the actual decisions in the [native approval record](../evidence/native-approval/README.md). Then run the full `video-to-playlist` skill in Codex and record its tool trace. | Aadyant (human) | #53, #22, part of #56 |
+| 3 | Obtain the D-02 direction from the instructor or provider. Record it in [d02-status.json](../evidence/policy-and-consent/d02-status.json) through a reviewed PR. | Aadyant with the instructor | gate for 4 |
+| 4 | Set up the authorised test account and channel, the Desktop OAuth client and the protected runner, following the [readiness record](../evidence/policy-and-consent/README.md). Run the scheduled read-only check, then the supervised live FR-1 to FR-5 demonstrations, including one approved live write and its quota spend. | Aadyant | part of #56 |
+| 5 | Get Jeswin's and Paul's written acknowledgement of the transfer. Each member writes their own reflection and contribution record. Record the stage reviews and the demo walkthrough. | Team | #56 |
+| 6 | Re-run the checks if any code changes, then create the release tag. | Aadyant | — |
 
-| Task | Branch | Result |
-| --- | --- | --- |
-| A2-08 | `codex/a2-08-feature-evidence` | NFR-08 benchmark with 200 candidates. [Feature evidence](../evidence/features/README.md). The video-to-playlist end-to-end fixture cases are now automated. |
-| v2.3 | `codex/v2-3-solo-completion` | Ownership transfer: ADR-0010, RN-20, `implementer` fields, and validator support |
-| J2-07 | `codex/j2-07-live-read-setup` | [Setup and consent runbook](../user/setup-and-consent.md), `yt-intel disconnect`, the fixed-budget live read check and the `live-read-only.yml` workflow. Readiness is recorded honestly: D-02 unresolved, runner not provisioned. |
-| J2-08 | `codex/j2-08-read-path-evidence` | [Read-path evidence](../evidence/read-and-privacy/README.md). The denied-source period-comparison defect is fixed. Cached-read targets added. |
-| P2-08 | `codex/p2-08-write-quota-acceptance` | [Write, authority and quota evidence](../evidence/write-and-quota/README.md) through stdio |
-| Release | `codex/release-candidate-evidence` | Knowledge validation in CI, real issue and PR links in `coverage.csv`, a [requirement trace](../evidence/release/requirement-trace.csv), an [architecture and ER page](../developer/architecture.md), and the [changelog](../../CHANGELOG.md) |
+Open issues: [#22](https://github.com/AadyantNeog/SEproject/issues/22), [#53](https://github.com/AadyantNeog/SEproject/issues/53) and [#56](https://github.com/AadyantNeog/SEproject/issues/56). Each one lists the items it is waiting on.
 
 ## Release checklist
 
-- [x] **Integrated fixture demos.** FR-1 to FR-5 run through stdio with exact inputs and outputs. The composed reservation, the preview, the scripted approval and refusal, partial, unknown and replay cases, quota refusal, and recovery are all covered. *The manual native-dialog run and the Codex walkthrough are still open.*
-- [x] **Performance.** All 12 NFR-08 targets pass, with one warm-up and 30 runs each, recorded with the commit and hardware ([report](../evidence/performance/report.md)). *Repeat on the final merged commit.*
-- [x] **CI and evidence.** `validate_knowledge.py` now runs in offline PR CI. *The hosted CI run on the new PRs is still pending.*
-- [ ] **Traceability and submission artefacts.** `coverage.csv` links real issues and PRs, and the requirement trace maps actual tests. The architecture and ER page, defect log, changelog and release record exist. *Still to do: PR links for the four v2.3 tasks, stage reviews, the demo walkthrough record, human reviews and the tag.*
+- [x] **Integrated fixture demos.** FR-1 to FR-5 run through stdio with exact inputs and outputs. Covered: the composed reservation, the preview, scripted approval and refusal, partial, unknown and replay results, quota refusal and recovery. *The manual native-dialog run and the Codex walkthrough are still open.*
+- [x] **Performance.** All 12 NFR-08 targets pass, with one warm-up and 30 runs each, at `283a330` and again on merged `main` ([report](../evidence/performance/report.md)).
+- [x] **CI and evidence.** Offline CI runs the tests, the plan validator and the knowledge validator. Hosted CI passed on #63.
+- [ ] **Traceability and submission artefacts.** `coverage.csv` and the [requirement trace](../evidence/release/requirement-trace.csv) link real issues, PRs and test files for all 46 requirements. The [architecture and ER page](../developer/architecture.md), defect log, [changelog](../../CHANGELOG.md) and release record exist. *Still to do: stage reviews, the demo walkthrough, reflections and the tag.*
 - [ ] **Live acceptance.** Blocked on D-02, the test account and the protected runner. The read-only check and workflow are ready and fail closed.
 
 ## Known conflicts
 
-- **Protected traceability file.** `docs/requirements/traceability.csv` belongs to the SHA-protected submitted-SRS baseline, so it was not backfilled. The live trace is in `coverage.csv` and the release trace. Changing the baseline needs instructor direction.
+- **Protected traceability file.** `docs/requirements/traceability.csv` is part of the SHA-protected submitted-SRS baseline, so it was not backfilled. The live trace is in `coverage.csv` and the release trace. Changing the baseline needs instructor direction.
 - **Teammate acknowledgement.** Jeswin's and Paul's written acknowledgement of the transfer is not in the repository yet.
 - **Live gates.** The `serve` command accepts only the fixture provider, and live creation, recovery and analytics fail closed. That is intended until D-02 and the live prerequisites are met.
 

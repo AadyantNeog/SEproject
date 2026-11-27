@@ -49,6 +49,34 @@ bounds as an end-to-end check.
 | `analyse_library` on a stored full-library snapshot | 3 combined videos. **0 provider attempts during the 30 samples.** | 9.43 ms | 12.44 ms | p95 ≤ 2 s |
 | `read_resource` of a saved `yt-intel://proposals/{id}/1` preview | Text identical to the original preview | 6.08 ms | 6.97 ms | p95 ≤ 2 s |
 
+## Re-run on merged `main`
+
+On 28 November 2026, all twelve targets were re-run on merged `main` at
+`061932d`, the merge of PR #63. The tracked tree was clean, and every
+target passed. Raw samples:
+[2026-11-28-main-061932d.json](2026-11-28-main-061932d.json).
+
+| Target | p95 at `283a330` | p95 at `061932d` | Bound |
+| --- | ---: | ---: | --- |
+| Input validation, in process | 0.03 ms | 0.05 ms | 100 ms |
+| Similar-video ranking, 200 | 12.39 ms | 16.69 ms | 2 s |
+| Similar-channel ranking, 200 | 9.62 ms | 15.97 ms | 2 s |
+| Recommendation ranking, 200 | 12.10 ms | 16.63 ms | 2 s |
+| Proposal construction, 200 | 4.44 ms | 11.06 ms | 2 s |
+| `find_similar_videos`, stdio | 47.38 ms | 156.31 ms | 2 s |
+| `find_similar_channels`, stdio | 68.13 ms | 185.05 ms | 2 s |
+| `recommend_videos`, stdio | 37.18 ms | 98.11 ms | 2 s |
+| `propose_playlist`, stdio | 11.75 ms | 21.50 ms | 2 s |
+| Invalid-input refusal, stdio | 1.06 ms | 2.69 ms | 100 ms |
+| `analyse_library`, cached | 12.44 ms | 19.57 ms | 2 s |
+| Saved preview read, cached | 6.97 ms | 10.57 ms | 2 s |
+
+The code is the same in both runs: the merged tree matches `0a960af`, and
+the commits after `283a330` change only documentation. The second run was
+slower, most likely because of other load on the workstation at the time.
+It was not isolated, so read it as a second sample, not a controlled
+comparison. Both runs stay at least 10× inside every bound.
+
 ## Reference machine
 
 | Item | Value |

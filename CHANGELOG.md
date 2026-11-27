@@ -4,7 +4,7 @@ All notable changes to the YouTube Video Intelligence MCP Server. Entries
 name the task ID and the actual author of the work. Fixture evidence and
 live evidence are reported separately. There is no tagged release yet.
 
-## Unreleased: release candidate, 28 November 2026
+## Unreleased: merged to `main` at `061932d`, 28 November 2026 (PRs #57 to #63, not tagged)
 
 Implemented by Aadyant with AI assistance (Claude Code). Owner review is
 pending. J2-07, J2-08 and P2-08 were transferred from Jeswin and Paul by
