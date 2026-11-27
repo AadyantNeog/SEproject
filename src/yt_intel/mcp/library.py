@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
@@ -9,6 +10,8 @@ from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
+from yt_intel.analytics.periods import TimePeriod
+from yt_intel.analytics.summaries import AnalysisReport
 from yt_intel.client_skills import project_file
 from yt_intel.contracts.account import (
     AccountService,
@@ -38,6 +41,7 @@ from yt_intel.infrastructure.repositories import (
 )
 from yt_intel.presentation.results import render_error
 from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
+from yt_intel.services.analysis import AnalysisService
 from yt_intel.services.library import LibraryBounds, LibraryService, LibrarySummary
 
 _FIXTURE_ACCOUNT = AccountBinding(
@@ -56,6 +60,13 @@ class _GetVideoInput(Contract):
 class _GetLibraryInput(Contract):
     sources: tuple[LibrarySource, ...] | None = None
     continuation_ref: OpaqueId | None = None
+
+
+class _AnalyseLibraryInput(Contract):
+    snapshot_id: OpaqueId | None = None
+    sources: tuple[LibrarySource, ...] | None = None
+    period_a: TimePeriod | None = None
+    period_b: TimePeriod | None = None
 
 
 class _FixtureCancellation:
@@ -173,6 +184,7 @@ def register_fixture_library(
             _FixtureAccountService,
             FixtureYouTubeProvider,
             LibraryService,
+            AnalysisService,
         ]
     ] = []
 
@@ -181,6 +193,7 @@ def register_fixture_library(
         _FixtureAccountService,
         FixtureYouTubeProvider,
         LibraryService,
+        AnalysisService,
     ]:
         if not runtime_holder:
             database = Database(fixture_db) if fixture_db is not None else Database()
@@ -199,7 +212,8 @@ def register_fixture_library(
                 bounds=LibraryBounds(),
                 project_id="fixture-project",
             )
-            runtime_holder.append((ledger, accounts, provider, service))
+            analysis = AnalysisService(snapshot_repo=snapshot_repo)
+            runtime_holder.append((ledger, accounts, provider, service, analysis))
         return runtime_holder[0]
 
     @server.tool(
@@ -216,7 +230,7 @@ def register_fixture_library(
                 (ctx.request_context.params or {}).get("arguments", {})
             )
             video_id = parse_video_id(parsed.video)
-            ledger, accounts, provider, _ = _runtime()
+            ledger, accounts, provider, _, _ = _runtime()
             binding = await accounts.require_binding()
             now = datetime.now(UTC)
             deadline = now + timedelta(seconds=30)
@@ -318,7 +332,7 @@ def register_fixture_library(
             if "sources" in raw_args and isinstance(raw_args["sources"], list):
                 raw_args = {**raw_args, "sources": tuple(raw_args["sources"])}
             parsed = _GetLibraryInput.model_validate(raw_args)
-            _, _, _, service = _runtime()
+            _, _, _, service, _ = _runtime()
             result = await service.collect(
                 cancellation=_FixtureCancellation(),
                 sources=parsed.sources,
@@ -379,7 +393,7 @@ def register_fixture_library(
                 ),
                 request_id=request_id,
             )
-        _, accounts, _, _ = _runtime()
+        _, accounts, _, _, _ = _runtime()
         status = await accounts.current()
         envelope = ResultEnvelope[AccountStatus | None](
             mode="fixture",
@@ -416,7 +430,7 @@ def register_fixture_library(
                 request_id=request_id,
             )
         try:
-            _, accounts, _, _ = _runtime()
+            _, accounts, _, _, _ = _runtime()
             binding = await accounts.require_binding()
             result = await accounts.disconnect(binding)
         except ContractError as exc:
@@ -439,4 +453,64 @@ def register_fixture_library(
                     ),
                 )
             ],
+        )
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
+    )
+    async def analyse_library(
+        ctx: Context[None, object],
+        snapshot_id: str | None = None,
+        sources: list[LibrarySource] | None = None,
+        period_a: dict[str, object] | None = None,
+        period_b: dict[str, object] | None = None,
+    ) -> Annotated[CallToolResult, ResultEnvelope[AnalysisReport]]:
+        """Analyse an authorised library snapshot with optional valid-timestamp period comparison."""
+        request_id = uuid4().hex
+        try:
+            raw_args = (ctx.request_context.params or {}).get("arguments") or {}
+            parsed = _AnalyseLibraryInput.model_validate_json(json.dumps(raw_args))
+            _, accounts, _, library_service, analysis_service = _runtime()
+            binding = await accounts.require_binding()
+            target_snapshot_id = parsed.snapshot_id
+            if target_snapshot_id is None:
+                collected = await library_service.collect(
+                    cancellation=_FixtureCancellation(),
+                    sources=parsed.sources,
+                )
+                target_snapshot_id = collected.snapshot.snapshot_id
+            outcome = await analysis_service.analyse_stored_snapshot(
+                binding=binding,
+                snapshot_id=target_snapshot_id,
+                sources=parsed.sources,
+                period_a=parsed.period_a,
+                period_b=parsed.period_b,
+            )
+        except ValidationError:
+            return _error_result(
+                ErrorDetail(
+                    code="INVALID_INPUT",
+                    message="Invalid analyse_library parameters.",
+                    retryable=False,
+                    safe_next_action=(
+                        "Provide an optional snapshot_id, optional sources, and optional "
+                        "non-overlapping UTC ISO-8601 period_a and period_b objects."
+                    ),
+                ),
+                request_id=request_id,
+            )
+        except ContractError as exc:
+            return _error_result(exc.detail, request_id=request_id)
+
+        envelope = ResultEnvelope[AnalysisReport](
+            mode="fixture",
+            request_id=request_id,
+            status="ok",
+            data=outcome.report,
+            warnings=outcome.report.warnings,
+            quota=QuotaEstimate(profile_id=profile.profile_id),
+        )
+        return CallToolResult(
+            structured_content=envelope.model_dump(),
+            content=[TextContent(type="text", text=outcome.rendered_text)],
         )
