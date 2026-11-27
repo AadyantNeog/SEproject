@@ -18,8 +18,8 @@ requirements:
   - GOV-01
   - GOV-02
   - GOV-05
-issue: pending-url
-pull_request: pending-url
+issue: https://github.com/AadyantNeog/SEproject/issues/49
+pull_request: https://github.com/AadyantNeog/SEproject/pull/50
 ---
 
 ## Goal
@@ -70,8 +70,6 @@ from `origin/main` (`d2ee1b8`).
 
 - Paul's `.github/workflows/ci.yml` can invoke `python scripts/validate_knowledge.py`
   once J2-06 merges; left untouched in this PR to respect P2-06 path ownership.
-- GitHub Issue creation, branch push, and draft PR creation are held back
-  pending Jeswin's PR wording approval.
 - Aadyant's required human lead review remains pending.
 
 ## Verification
@@ -87,8 +85,8 @@ Under `.venv` Python 3.13.17 on Windows (locked `requirements-dev.lock`):
 
 ## Links
 
-- J2-06 Issue: pending-url.
-- Draft PR: pending-url.
+- J2-06 Issue: [issue #49](https://github.com/AadyantNeog/SEproject/issues/49).
+- Draft PR: [draft PR #50](https://github.com/AadyantNeog/SEproject/pull/50).
 - Skill evaluation record: `docs/evidence/skills/brain-workflows.md`.
 - Aadyant lead review: pending.
 - Distilled basis: [[11-mcp-and-agent-skill-contracts]], [[12-engineering-and-knowledge-workflow]].
