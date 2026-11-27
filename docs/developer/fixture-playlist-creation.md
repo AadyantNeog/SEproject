@@ -33,7 +33,15 @@ proposal and operation to the workflow, then releases unused quota when
 creation finishes. A rejected or closed native approval dialog records the
 operation as rejected. The stdio regression injects a synthetic decision
 only in its test process and checks zero POST dispatches and zero write debits
-on rejection and replay. A second synthetic case checks approved completion.
+on rejection and replay. Separate cases check completion and refusal on the
+second insertion.
+
+Creation and operation status return the playlist link when an ID is known,
+the count and duration in seconds of confirmed insertions, and the ordered
+unconfirmed items after partial or uncertain results. An item marked
+`unknown` may already exist and requires reconciliation before another
+write. The saved operation supplies these details during replay, even after
+the original preview expires. The link in fixture mode uses a synthetic ID.
 Recovery and supervised resume belong to P2-05.
 
 The wire fields follow the official [playlist creation API](https://developers.google.com/youtube/data/reference/rest/v3/playlists/insert)

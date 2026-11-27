@@ -25,6 +25,7 @@ from yt_intel.infrastructure.http import compute_write_request_digest
 from yt_intel.infrastructure.quota import QuotaProfile
 from yt_intel.infrastructure.repositories import (
     OperationIntent,
+    OperationItem,
     SqliteOperationRepository,
     SqliteProposalRepository,
     WriteStep,
@@ -88,7 +89,17 @@ class PlaylistCreationService:
         intent = await self._operations.claim_operation(
             binding, uuid4().hex, proposal.digest
         )
-        return await self._save(intent, proposal_ref=ref, workflow_id=workflow_id)
+        return await self._save(
+            intent,
+            proposal_ref=ref,
+            workflow_id=workflow_id,
+            planned_items=tuple(
+                OperationItem(
+                    video_id=item.video_id, duration_seconds=item.duration_seconds
+                )
+                for item in proposal.items
+            ),
+        )
 
     async def create(
         self,

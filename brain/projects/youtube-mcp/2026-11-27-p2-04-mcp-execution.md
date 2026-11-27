@@ -40,3 +40,8 @@ until first access, and the preview test verifies refusal without preparation.
 The desktop confirmation path still uses the native helper in normal fixture
 construction. No native dialog was operated during these tests. Recovery and
 live acceptance are pending. Aadyant's human review remains pending.
+
+The next review sync kept main's discovery and preview handlers and connected
+them to operation preparation. The operation now stores its approved item
+order and durations. The MCP test checks the playlist link, confirmed duration
+and ordered refused and unattempted items after the second insertion fails.

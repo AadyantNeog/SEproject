@@ -15,7 +15,9 @@ from yt_intel.contracts.common import (
     NonNegative,
     OpaqueId,
     PlaylistId,
+    Positive,
     UtcDateTime,
+    VideoId,
 )
 from yt_intel.contracts.models import LibrarySnapshot
 from yt_intel.contracts.proposals import PlaylistProposal, ProposalRef
@@ -60,6 +62,11 @@ class WriteStep(Contract):
     outcome: Literal["pending", "saved", "refused", "unknown"] = "pending"
 
 
+class OperationItem(Contract):
+    video_id: VideoId
+    duration_seconds: Positive
+
+
 class OperationIntent(Contract):
     """Small durable operation identity persisted before any external write."""
 
@@ -87,6 +94,7 @@ class OperationIntent(Contract):
     proposal_ref: ProposalRef | None = None
     workflow_id: OpaqueId | None = None
     playlist_id: PlaylistId | None = None
+    planned_items: tuple[OperationItem, ...] = ()
     write_steps: tuple[WriteStep, ...] = ()
 
     def to_json(self) -> str:
@@ -105,6 +113,9 @@ class OperationIntent(Contract):
                 else None,
                 "workflow_id": self.workflow_id,
                 "playlist_id": self.playlist_id,
+                "planned_items": [
+                    item.model_dump(mode="json") for item in self.planned_items
+                ],
                 "write_steps": [
                     step.model_dump(mode="json") for step in self.write_steps
                 ],

@@ -12,21 +12,50 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @pytest.mark.anyio
 @pytest.mark.parametrize(
-    ("decision", "expected_writes"), [("reject", 0), ("approve", 2)]
+    ("decision", "expected_state", "expected_writes"),
+    [("reject", "rejected", 0), ("approve", "completed", 2), ("approve", "partial", 3)],
 )
 async def test_composed_execution_uses_one_reservation_and_rejection_has_no_writes(
-    tmp_path, decision, expected_writes
+    tmp_path, decision, expected_state, expected_writes
 ):
     state = tmp_path / "state.sqlite3"
     wire_audit = tmp_path / "wire-audit.txt"
     launcher = tmp_path / "fixture_server.py"
     launcher.write_text(
         f"""
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from yt_intel.contracts.approval import HumanDecision
 from yt_intel.mcp.server import build_fixture_server
+from yt_intel.providers.fixture import FixtureDataset
 from yt_intel.providers.fixture_writes import FixturePlaylistWrites
+
+if {expected_state == "partial"!r}:
+    load_catalog = FixtureDataset.from_json_file
+    def with_more_candidates(cls, path):
+        dataset = load_catalog(path)
+        if path.name != "catalog.json" or "vidIndex001" not in dataset.videos:
+            return dataset
+        videos = dict(dataset.videos)
+        search_pages = dict(dataset.search_pages)
+        first_page = dict(search_pages[""])
+        hits = list(first_page["items"])
+        template = videos["vidIndex001"]
+        for video in ("vidMore0001", "vidMore0002"):
+            videos[video] = {{**template, "id": video,
+                "contentDetails": {{"duration": "PT5M"}}}}
+            hits.append({{"id": {{"videoId": video}}, "snippet": {{
+                "channelId": template["snippet"]["channelId"]
+            }}}})
+        search_pages[""] = {{**first_page, "items": hits}}
+        return replace(dataset, videos=videos, search_pages=search_pages)
+    FixtureDataset.from_json_file = classmethod(with_more_candidates)
+
+    original_init = FixturePlaylistWrites.__init__
+    def reject_second_insert(self, *args, **kwargs):
+        original_init(self, *args, fail_at=1, **kwargs)
+    FixturePlaylistWrites.__init__ = reject_second_insert
 
 class FixtureApproval:
     async def request_decision(self, ctx, proposal, operation_id, challenge_ref):
@@ -69,7 +98,8 @@ build_fixture_server(
             seed = await client.call_tool("get_video", seed_args)
             assert not seed.is_error, seed.content
             discovery = await client.call_tool(
-                "find_similar_videos", {**seed_args, "limit": 1}
+                "find_similar_videos",
+                {**seed_args, "limit": 3 if expected_state == "partial" else 1},
             )
             assert not discovery.is_error, discovery.content
             assert discovery.structured_content is not None
@@ -99,16 +129,41 @@ build_fixture_server(
             result = await client.call_tool("create_playlist", creation_args)
             assert result.structured_content is not None, result.content
             data = result.structured_content["data"]
+            assert data["state"] == expected_state
             if decision == "reject":
                 assert result.is_error
                 assert result.structured_content["error"]["code"] == "APPROVAL_REJECTED"
                 assert data["state"] == "rejected"
                 assert data["playlist_id"] is None
                 assert data["confirmed_items"] == 0
+                assert data["playlist_url"] is None
+                assert data["confirmed_duration_seconds"] == 0
+                assert data["pending_items"] == []
             else:
                 assert not result.is_error, result.content
-                assert data["state"] == "completed"
                 assert data["confirmed_items"] == 1
+                assert data["playlist_url"] == (
+                    f"https://www.youtube.com/playlist?list={data['playlist_id']}"
+                )
+                assert (
+                    data["confirmed_duration_seconds"]
+                    == proposal["items"][0]["duration_seconds"]
+                )
+                if expected_state == "partial":
+                    assert len(proposal["items"]) == 3
+                    assert data["pending_items"] == [
+                        {
+                            "video_id": proposal["items"][position]["video_id"],
+                            "position": position,
+                            "duration_seconds": proposal["items"][position][
+                                "duration_seconds"
+                            ],
+                            "outcome": outcome,
+                        }
+                        for position, outcome in ((1, "refused"), (2, "not_attempted"))
+                    ]
+                else:
+                    assert data["pending_items"] == []
             replay = await client.call_tool("create_playlist", creation_args)
             status = await client.call_tool(
                 "get_operation", {"operation_id": operation_id}

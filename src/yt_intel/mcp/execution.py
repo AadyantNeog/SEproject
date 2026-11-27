@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import uuid4
 
 from mcp.server import MCPServer
@@ -23,6 +23,7 @@ from yt_intel.contracts.common import (
     OpaqueId,
     PlaylistId,
     Positive,
+    VideoId,
 )
 from yt_intel.contracts.errors import (
     ContractError,
@@ -71,12 +72,65 @@ class _OperationInput(Contract):
     operation_id: OpaqueId
 
 
+class PendingItem(Contract):
+    video_id: VideoId
+    position: NonNegative
+    duration_seconds: Positive
+    outcome: Literal["not_attempted", "pending", "refused", "unknown"]
+
+
 class CreationStatus(Contract):
     operation_id: OpaqueId
     proposal: ProposalRef | None
     state: Label
     playlist_id: PlaylistId | None
+    playlist_url: str | None
     confirmed_items: NonNegative
+    confirmed_duration_seconds: NonNegative | None
+    pending_items: tuple[PendingItem, ...] = ()
+
+
+def _status(intent: OperationIntent) -> CreationStatus:
+    outcomes = {
+        step.position: step.outcome
+        for step in intent.write_steps
+        if step.endpoint == "playlistItems.insert" and step.position is not None
+    }
+    confirmed = {
+        position for position, outcome in outcomes.items() if outcome == "saved"
+    }
+    duration = (
+        sum(intent.planned_items[position].duration_seconds for position in confirmed)
+        if all(position < len(intent.planned_items) for position in confirmed)
+        else None
+    )
+    pending = []
+    if intent.state in {"partial", "unknown", "verification_pending"}:
+        for position, item in enumerate(intent.planned_items):
+            outcome = outcomes.get(position)
+            if outcome != "saved":
+                pending.append(
+                    PendingItem(
+                        video_id=item.video_id,
+                        position=position,
+                        duration_seconds=item.duration_seconds,
+                        outcome=outcome if outcome is not None else "not_attempted",
+                    )
+                )
+    return CreationStatus(
+        operation_id=intent.operation_id,
+        proposal=intent.proposal_ref,
+        state=intent.state,
+        playlist_id=intent.playlist_id,
+        playlist_url=(
+            f"https://www.youtube.com/playlist?list={intent.playlist_id}"
+            if intent.playlist_id
+            else None
+        ),
+        confirmed_items=len(confirmed),
+        confirmed_duration_seconds=duration,
+        pending_items=tuple(pending),
+    )
 
 
 def _problem(code: ErrorCode, message: str) -> ErrorDetail:
@@ -114,18 +168,7 @@ def _response(
     detail: ErrorDetail | None = None,
     text: str | None = None,
 ) -> CallToolResult:
-    data = None
-    if intent is not None:
-        data = CreationStatus(
-            operation_id=intent.operation_id,
-            proposal=intent.proposal_ref,
-            state=intent.state,
-            playlist_id=intent.playlist_id,
-            confirmed_items=sum(
-                step.endpoint == "playlistItems.insert" and step.outcome == "saved"
-                for step in intent.write_steps
-            ),
-        )
+    data = _status(intent) if intent is not None else None
     result = ResultEnvelope[CreationStatus](
         mode="fixture",
         request_id=request_id,
@@ -133,16 +176,24 @@ def _response(
         data=data,
         error=detail,
     )
-    result_text = (
-        render_error(detail, mode="fixture")
-        if detail is not None
-        else text
-        or (
-            f"Fixture operation state: {intent.state}."
-            if intent
-            else "Fixture operation."
+    result_text = render_error(detail, mode="fixture") if detail is not None else text
+    if result_text is None:
+        result_text = (
+            f"Fixture operation state: {data.state}." if data else "Fixture operation."
         )
-    )
+    if data is not None and text is None:
+        progress = [f"Confirmed items: {data.confirmed_items}."]
+        if data.confirmed_duration_seconds is not None:
+            progress.append(
+                f"Confirmed duration: {data.confirmed_duration_seconds} seconds."
+            )
+        if data.playlist_url:
+            progress.append(f"Fixture playlist: {data.playlist_url}")
+        progress.extend(
+            f"Unconfirmed item {item.position + 1}: {item.video_id} ({item.outcome})."
+            for item in data.pending_items
+        )
+        result_text = "\n".join((result_text, *progress))
     return CallToolResult(
         is_error=status in {"blocked", "error", "unknown"},
         structured_content=result.model_dump(),
