@@ -37,6 +37,7 @@ from yt_intel.infrastructure.database import Database
 from yt_intel.infrastructure.repositories import (
     OperationConflict,
     OperationIntent,
+    OperationResultExpired,
     SqliteOperationRepository,
     SqliteProposalRepository,
     StaleOperationUpdate,
@@ -50,6 +51,7 @@ from yt_intel.providers.fixture_writes import (
 )
 from yt_intel.providers.youtube_writes import YouTubeWriteAdapter
 from yt_intel.services.creation import PlaylistCreationService
+from yt_intel.services.recovery import PlaylistRecoveryService, RecoveryResult
 
 from .discovery import FixtureCancellation
 from .workflows import FixtureWorkflowRuntime
@@ -70,6 +72,26 @@ class _CreateInput(_PrepareInput):
 
 class _OperationInput(Contract):
     operation_id: OpaqueId
+
+
+class _ReconcileInput(_OperationInput):
+    remote_playlist_id: PlaylistId | None = None
+
+
+class _ResumeInput(_OperationInput):
+    proposal_id: OpaqueId | None = None
+    version: Positive | None = None
+
+    def reference(self) -> ProposalRef | None:
+        if self.proposal_id is None and self.version is None:
+            return None
+        if self.proposal_id is None or self.version is None:
+            raise ContractError(
+                _problem(
+                    "INVALID_INPUT", "Supply both the resume proposal ID and version."
+                )
+            )
+        return ProposalRef(proposal_id=self.proposal_id, version=self.version)
 
 
 class PendingItem(Contract):
@@ -154,6 +176,10 @@ def _failure(request_id: OpaqueId, error: Exception) -> CallToolResult:
     elif isinstance(error, ApprovalUnavailable):
         detail = _problem(
             "APPROVAL_REQUIRED", "The native approval decision was unavailable."
+        )
+    elif isinstance(error, OperationResultExpired):
+        detail = _problem(
+            "OPERATION_RESULT_EXPIRED", "The operation detail has expired."
         )
     else:
         detail = _problem("INVALID_INPUT", "Invalid execution tool arguments.")
@@ -254,11 +280,26 @@ def register_fixture_execution(
             },
         ),
     )
-    simulator = FixturePlaylistWrites(workflows.binding.channel_id)
+    simulator: FixturePlaylistWrites | None = None
     grants = InMemoryGrantStore()
     adapter = (
         approval_adapter if approval_adapter is not None else NativeApprovalAdapter()
     )
+
+    @asynccontextmanager
+    async def provider_context(
+        database: Database,
+    ) -> AsyncIterator[FixtureCreationProvider]:
+        nonlocal simulator
+        if simulator is None:
+            simulator = FixturePlaylistWrites(
+                workflows.binding.channel_id, database=database
+            )
+        provider = FixtureCreationProvider(
+            dataset, quota_ledger=workflows.ledger, simulator=simulator
+        )
+        async with provider:
+            yield provider
 
     @asynccontextmanager
     async def creation() -> AsyncIterator[
@@ -266,9 +307,7 @@ def register_fixture_execution(
     ]:
         database = Database(fixture_db)
         proposals = SqliteProposalRepository(database)
-        async with FixtureCreationProvider(
-            dataset, quota_ledger=workflows.ledger, simulator=simulator
-        ) as provider:
+        async with provider_context(database) as provider:
             yield (
                 PlaylistCreationService(
                     proposals,
@@ -412,7 +451,12 @@ def register_fixture_execution(
         except ValidationError as error:
             return _failure(request_id, error)
         operations = SqliteOperationRepository(Database(fixture_db))
-        intent = await operations.get_operation(workflows.binding, inputs.operation_id)
+        try:
+            intent = await operations.get_recovery_operation(
+                workflows.binding, inputs.operation_id
+            )
+        except OperationResultExpired as error:
+            return _failure(request_id, error)
         if intent is None:
             return _response(
                 request_id,
@@ -422,3 +466,127 @@ def register_fixture_execution(
                 ),
             )
         return _response(request_id, "ok", intent=intent)
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
+    )
+    async def reconcile_operation(
+        ctx: Context[None, object],
+        operation_id: OpaqueId,
+        remote_playlist_id: PlaylistId | None = None,
+    ) -> Annotated[CallToolResult, ResultEnvelope[RecoveryResult]]:
+        """Read fixture playlist state and prepare an exact resume preview where safe."""
+        request_id = uuid4().hex
+        try:
+            inputs = _ReconcileInput.model_validate(
+                (ctx.request_context.params or {}).get("arguments", {})
+            )
+            database = Database(fixture_db)
+            proposals = SqliteProposalRepository(database)
+            async with provider_context(database) as provider:
+                recovery = PlaylistRecoveryService(
+                    proposals,
+                    SqliteOperationRepository(database),
+                    workflows.ledger,
+                    workflows.profile,
+                    provider,
+                )
+                data = await recovery.reconcile(
+                    workflows.binding,
+                    inputs.operation_id,
+                    project_id="fixture-project",
+                    cancellation=FixtureCancellation(),
+                    remote_playlist_id=inputs.remote_playlist_id,
+                )
+        except (
+            ContractError,
+            ValidationError,
+            OperationConflict,
+            StaleOperationUpdate,
+        ) as error:
+            if isinstance(error, ContractError):
+                detail = error.detail
+            elif isinstance(error, (OperationConflict, StaleOperationUpdate)):
+                detail = _problem(
+                    "OPERATION_CONFLICT", "The operation changed during verification."
+                )
+            else:
+                detail = _problem("INVALID_INPUT", "Invalid recovery arguments.")
+            result = ResultEnvelope[RecoveryResult](
+                mode="fixture",
+                request_id=request_id,
+                status="blocked",
+                error=detail,
+                data=None,
+            )
+            return CallToolResult(
+                is_error=True,
+                structured_content=result.model_dump(),
+                content=[
+                    TextContent(type="text", text=render_error(detail, mode="fixture"))
+                ],
+            )
+        result = ResultEnvelope[RecoveryResult](
+            mode="fixture",
+            request_id=request_id,
+            status="ok",
+            data=data,
+        )
+        return CallToolResult(
+            structured_content=result.model_dump(),
+            content=[
+                TextContent(
+                    type="text",
+                    text=(
+                        render_proposal(data.preview)
+                        if data.preview is not None
+                        else data.guidance
+                    ),
+                )
+            ],
+        )
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
+    )
+    async def resume_operation(
+        ctx: Context[None, object],
+        operation_id: OpaqueId,
+        proposal_id: OpaqueId | None = None,
+        version: Positive | None = None,
+    ) -> Annotated[CallToolResult, ResultEnvelope[CreationStatus]]:
+        """Request fresh native approval and insert only the current verified missing suffix."""
+        request_id = uuid4().hex
+        try:
+            inputs = _ResumeInput.model_validate(
+                (ctx.request_context.params or {}).get("arguments", {})
+            )
+            database = Database(fixture_db)
+            proposals = SqliteProposalRepository(database)
+            async with provider_context(database) as provider:
+                recovery = PlaylistRecoveryService(
+                    proposals,
+                    SqliteOperationRepository(database),
+                    workflows.ledger,
+                    workflows.profile,
+                    provider,
+                )
+                intent = await recovery.resume(
+                    workflows.binding,
+                    inputs.operation_id,
+                    inputs.reference(),
+                    project_id="fixture-project",
+                    cancellation=FixtureCancellation(),
+                    approval=ApprovalService(adapter, grants, proposals),
+                    writes=YouTubeWriteAdapter(provider.executor),
+                )
+        except (
+            ContractError,
+            ValidationError,
+            ApprovalUnavailable,
+            InvalidGrant,
+            OperationConflict,
+            StaleOperationUpdate,
+        ) as error:
+            return _failure(request_id, error)
+        return _creation_response(request_id, intent)
