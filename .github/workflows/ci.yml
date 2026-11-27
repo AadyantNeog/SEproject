@@ -31,8 +31,8 @@ jobs:
           python -m pip install --no-deps --no-build-isolation -e .
       - name: Lint and format product code
         run: |
-          python -m ruff check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py
-          python -m ruff format --check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py
+          python -m ruff check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py scripts/benchmark_features.py scripts/live_read_check.py
+          python -m ruff format --check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py scripts/benchmark_features.py scripts/live_read_check.py
       - name: Type check
         run: python -m mypy src
       - name: Offline tests
@@ -41,6 +41,8 @@ jobs:
         run: python -m build --wheel --no-isolation
       - name: Validate implementation plan
         run: python scripts/validate_implementation_plan.py
+      - name: Validate knowledge base, skills and ADR citations
+        run: python scripts/validate_knowledge.py
 
   secrets:
     name: Secret scan
