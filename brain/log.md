@@ -215,10 +215,16 @@ Subsequent operations must append their actual outcome here.
 
 - At Aadyant's request, Codex added fair page scheduling, continuation of deferred work and active-profile quota pricing to [PR #41](https://github.com/AadyantNeog/SEproject/pull/41). All 291 offline tests, scoped Ruff, mypy, the planning checks and the wheel build passed. See [[2026-11-27-j2-04-library-review-fixes]].
 
+## 2026-11-27 P2-07 local check
+
+- [Issue #42](https://github.com/AadyantNeog/SEproject/issues/42) adds the local check skill, wheel-to-MCP probe and reusable benchmark. Build, startup, read-only fetch and cleanup passed on Windows. The fixture fetch harness completed one warm-up and 30 samples with no live quota. See [[2026-11-27-p2-07-local-check]].
+- Opened [draft PR #43](https://github.com/AadyantNeog/SEproject/pull/43). The Windows offline suite passed 294 tests. Scoped Ruff, strict mypy, and 34 planning checks from a fresh checkout passed.
+
 ## 2026-11-27 A2-03 recommendations from saved library snapshots
 
 - Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].
 
+- P2-07 review follow-up preserved both log entries when merging main. The local check passed build, offline test, startup, fetch and cleanup. The checkout-built wheel benchmark reported 54.3 ms median and 63.6 ms p95 over 30 fixture calls with zero live quota.
 ## 2026-11-27 J2-05 analytics and valid timestamp comparisons
 
 - Implemented pure analytics modules (`src/yt_intel/analytics/{__init__,periods,summaries}.py`), `AnalysisService` (`src/yt_intel/services/analysis.py`), the `analyse_library` MCP handler (`src/yt_intel/mcp/library.py`), and unit/system tests (`tests/unit/analytics/{test_summaries,test_periods}.py`, `tests/system/test_analysis.py`) on `codex/j2-05-analytics` from `origin/main` (`c5293cf`). See [[2026-11-27-j2-05-analytics]].
