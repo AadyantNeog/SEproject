@@ -5,10 +5,11 @@ from uuid import uuid4
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
+from pydantic import TypeAdapter, ValidationError
 
 from yt_intel.client_skills import project_file
 from yt_intel.contracts.common import LanguageTag, OpaqueId, Positive
-from yt_intel.contracts.errors import ContractError, ResultEnvelope
+from yt_intel.contracts.errors import ContractError, ErrorDetail, ResultEnvelope
 from yt_intel.contracts.models import CandidateSet
 from yt_intel.contracts.proposals import PlaylistProposal, Privacy
 from yt_intel.domain.constraints import parse_playlist_request
@@ -19,7 +20,11 @@ from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 from yt_intel.services.planning import FixturePlanningService
 
+from .discovery import FixtureCancellation
 from .resources import register_saved_proposal_previews, saved_proposal_link
+from .workflows import FixtureWorkflowRuntime
+
+_WORKFLOW_ID = TypeAdapter(OpaqueId)
 
 
 def register_fixture_planning(
@@ -27,6 +32,7 @@ def register_fixture_planning(
     project_root: Path,
     fixture_db: Path | None,
     candidate_sets: FixtureCandidateSets,
+    workflows: FixtureWorkflowRuntime | None = None,
 ) -> None:
     candidate_path = project_file(
         project_root, Path("tests/fixtures/recommendations/candidates.json")
@@ -59,15 +65,45 @@ def register_fixture_planning(
         duration_mode: Literal["max", "exact"] = "max",
         include_seed: bool = False,
         candidate_set_id: OpaqueId | None = None,
+        workflow_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, ResultEnvelope[PlaylistProposal]]:
         """Preview a playlist from synthetic discovery candidates or the bundled set."""
         request_id = uuid4().hex
         fields = dict((ctx.request_context.params or {}).get("arguments", {}))
         candidate_reference = fields.pop("candidate_set_id", None)
+        workflow_reference = fields.pop("workflow_id", None)
         try:
-            proposal, coverage = await service.propose(
-                parse_playlist_request(fields), candidate_reference
-            )
+            request = parse_playlist_request(fields)
+            if workflow_reference is None:
+                proposal, coverage = await service.propose(request, candidate_reference)
+            else:
+                try:
+                    identifier = _WORKFLOW_ID.validate_python(
+                        workflow_reference, strict=True
+                    )
+                except ValidationError:
+                    identifier = None
+                if workflows is None or identifier is None:
+                    raise ContractError(
+                        ErrorDetail(
+                            code="INVALID_INPUT",
+                            message="Workflow session is unavailable.",
+                            retryable=False,
+                            safe_next_action="Start a fixture workflow.",
+                        )
+                    )
+                async with workflows.service.stage(
+                    identifier,
+                    "propose_playlist",
+                    binding=catalog.binding,
+                    request_id=request_id,
+                    cancellation=FixtureCancellation(),
+                    candidate_set_id=candidate_reference,
+                ) as access:
+                    proposal, coverage = await service.propose(
+                        request, candidate_reference
+                    )
+                    access.proposal_ref = proposal.ref
         except ContractError as error:
             result = ResultEnvelope[PlaylistProposal](
                 mode="fixture",

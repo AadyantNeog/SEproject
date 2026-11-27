@@ -54,12 +54,12 @@ reference is refused before the handler runs. The reservation
 retains its original expiry and remains available for the future creation
 stages after a successful preview.
 
-The stdio test covers workflow start and quota refusal. The service test
-exercises the three stages with one SQLite reservation and a mock HTTP
-transport. Once the owner handlers are registered, add a stdio test that
-starts the workflow, calls the three tools in order with its returned ID,
-and verifies a preview whose candidate set came from the discovery stage.
-Creation and recovery remain gated by their respective tasks.
+The stdio tests cover workflow start and quota refusal, then verify seed,
+discovery, preview, operation preparation and fixture execution through
+one SQLite reservation. They inspect both the recorded debit and the
+synthetic transport. Rejection consumes no write quota and dispatches no
+writes. See [fixture creation](fixture-playlist-creation.md) for the command
+sequence. Recovery remains P2-05.
 
 Tracking: [issue #26](https://github.com/AadyantNeog/SEproject/issues/26) and
 [draft PR #27](https://github.com/AadyantNeog/SEproject/pull/27).

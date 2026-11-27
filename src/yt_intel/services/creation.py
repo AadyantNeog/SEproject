@@ -78,13 +78,17 @@ class PlaylistCreationService:
         self._clock = clock or SystemClock()
 
     async def prepare(
-        self, binding: AccountBinding, ref: ProposalRef
+        self,
+        binding: AccountBinding,
+        ref: ProposalRef,
+        *,
+        workflow_id: OpaqueId | None = None,
     ) -> OperationIntent:
         proposal = await self._current(binding, ref)
         intent = await self._operations.claim_operation(
             binding, uuid4().hex, proposal.digest
         )
-        return await self._save(intent, proposal_ref=ref)
+        return await self._save(intent, proposal_ref=ref, workflow_id=workflow_id)
 
     async def create(
         self,
@@ -100,7 +104,7 @@ class PlaylistCreationService:
             raise _blocked(
                 "OPERATION_CONFLICT", "Operation is unavailable under this account."
             )
-        if intent.proposal_ref != ref:
+        if intent.proposal_ref != ref or intent.workflow_id is not None:
             raise _blocked(
                 "OPERATION_CONFLICT", "Operation does not match this proposal."
             )
@@ -143,30 +147,59 @@ class PlaylistCreationService:
             cancellation=cancellation,
         )
         try:
-            try:
-                grant = await self._approval.request_grant(ctx, proposal, operation_id)
-            except ApprovalRejected:
-                return await self._save(intent, state="rejected")
-            intent = self._approval.consume_for_claim(
-                grant,
-                proposal,
-                operation_id,
-                lambda consume: self._operations.claim_approved_creation(
-                    intent, proposal, consume
-                ),
-            )
-            try:
-                await self._revalidate(ctx, proposal)
-            except ContractError:
-                return await self._save(intent, state="failed_preflight")
-            except BaseException:
-                with CancelScope(shield=True):
-                    await self._save(intent, state="failed_preflight")
-                raise
-            return await self._dispatch(ctx, proposal, intent)
+            return await self._execute(ctx, proposal, intent)
         finally:
             with CancelScope(shield=True):
                 await self._ledger.release(reservation.reservation_id)
+
+    async def create_in_workflow(
+        self, ctx: RequestContext, ref: ProposalRef, operation_id: OpaqueId
+    ) -> OperationIntent:
+        """Use the workflow stage's original quota reservation."""
+        if ctx.workflow_id is None:
+            raise _blocked("INVALID_INPUT", "A reserved workflow stage is required.")
+        intent = await self._operations.get_operation(ctx.binding, operation_id)
+        if (
+            intent is None
+            or intent.proposal_ref != ref
+            or intent.workflow_id != ctx.workflow_id
+        ):
+            raise _blocked(
+                "OPERATION_CONFLICT", "Operation does not match this proposal."
+            )
+        if intent.state != "not_started":
+            return intent
+        proposal = await self._current(ctx.binding, ref)
+        if proposal.digest != intent.digest:
+            raise _blocked("OPERATION_CONFLICT", "Prepared proposal content changed.")
+        return await self._execute(ctx, proposal, intent)
+
+    async def _execute(
+        self, ctx: RequestContext, proposal: PlaylistProposal, intent: OperationIntent
+    ) -> OperationIntent:
+        try:
+            grant = await self._approval.request_grant(
+                ctx, proposal, intent.operation_id
+            )
+        except ApprovalRejected:
+            return await self._save(intent, state="rejected")
+        intent = self._approval.consume_for_claim(
+            grant,
+            proposal,
+            intent.operation_id,
+            lambda consume: self._operations.claim_approved_creation(
+                intent, proposal, consume
+            ),
+        )
+        try:
+            await self._revalidate(ctx, proposal)
+        except ContractError:
+            return await self._save(intent, state="failed_preflight")
+        except BaseException:
+            with CancelScope(shield=True):
+                await self._save(intent, state="failed_preflight")
+            raise
+        return await self._dispatch(ctx, proposal, intent)
 
     async def _current(
         self, binding: AccountBinding, ref: ProposalRef

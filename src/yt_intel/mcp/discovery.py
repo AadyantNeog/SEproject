@@ -1,4 +1,5 @@
 from collections.abc import Awaitable, Callable, Mapping
+from contextlib import AsyncExitStack
 from datetime import UTC, datetime, timedelta
 from math import ceil
 from pathlib import Path
@@ -31,6 +32,8 @@ from yt_intel.services.discovery import (
 )
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
+from .workflows import FixtureWorkflowRuntime
+
 _BOUNDS = DiscoveryBounds()
 _FIXTURE_ACCOUNT = AccountBinding(
     installation_id="fixture-installation",
@@ -53,6 +56,7 @@ _CHANNEL_CALLS: Mapping[Endpoint, int] = {
 class _VideoInput(Contract):
     video: Label
     limit: Limit = 10
+    workflow_id: OpaqueId | None = None
 
 
 class _ChannelInput(Contract):
@@ -120,7 +124,10 @@ class _FixtureAttemptBudget:
 
 
 def register_fixture_discovery(
-    server: MCPServer[None], project_root: Path, candidate_sets: FixtureCandidateSets
+    server: MCPServer[None],
+    project_root: Path,
+    candidate_sets: FixtureCandidateSets,
+    workflows: FixtureWorkflowRuntime | None = None,
 ) -> None:
     catalog_path = project_file(
         project_root, Path("tests/fixtures/youtube_reads/catalog.json")
@@ -135,7 +142,10 @@ def register_fixture_discovery(
         )
     )
     async def find_similar_videos(
-        ctx: Context[None, object], video: Label, limit: Limit = 10
+        ctx: Context[None, object],
+        video: Label,
+        limit: Limit = 10,
+        workflow_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, VideoDiscoveryEnvelope]:
         """Rank fixture videos and save their candidate set for playlist planning."""
 
@@ -154,7 +164,12 @@ def register_fixture_discovery(
             return discovery, reference
 
         return await _run_discovery(
-            ctx, dataset, _VIDEO_CALLS, rank, VideoDiscoveryEnvelope
+            ctx,
+            dataset,
+            _VIDEO_CALLS,
+            rank,
+            VideoDiscoveryEnvelope,
+            workflows=workflows,
         )
 
     @server.tool(
@@ -192,6 +207,8 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
         Awaitable[tuple[DiscoveryResult[T], OpaqueId | None]],
     ],
     envelope: type[ResultEnvelope[tuple[T, ...]]],
+    *,
+    workflows: FixtureWorkflowRuntime | None = None,
 ) -> CallToolResult:
     async def report_progress(completed: int, message: str) -> None:
         await ctx.report_progress(completed, 3, message)
@@ -203,13 +220,49 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
         deadline=datetime.now(UTC) + timedelta(seconds=60),
         cancellation=FixtureCancellation(),
     )
-    provider = FixtureYouTubeProvider(
-        dataset, quota_ledger=_FixtureAttemptBudget(request, calls)
-    )
     try:
-        ranked, candidate_set_id = await rank(
-            DiscoveryService(provider, _BOUNDS, progress=report_progress), request
-        )
+        async with AsyncExitStack() as stack:
+            access = None
+            ledger = _FixtureAttemptBudget(request, calls)
+            if envelope is VideoDiscoveryEnvelope:
+                args = _discovery_input(_VideoInput, ctx)
+                if args.workflow_id is not None:
+                    if workflows is None:
+                        raise ContractError(
+                            ErrorDetail(
+                                code="INVALID_INPUT",
+                                message="Workflow session is unavailable.",
+                                retryable=False,
+                                safe_next_action="Start a fixture workflow.",
+                            )
+                        )
+                    access = await stack.enter_async_context(
+                        workflows.service.stage(
+                            args.workflow_id,
+                            "find_similar_videos",
+                            binding=workflows.binding,
+                            request_id=request.request_id,
+                            cancellation=request.cancellation,
+                            video=parse_video_id(args.video),
+                        )
+                    )
+                    request = access.context
+            provider = FixtureYouTubeProvider(
+                dataset,
+                quota_ledger=workflows.ledger
+                if access is not None and workflows is not None
+                else ledger,
+            )
+            try:
+                ranked, candidate_set_id = await rank(
+                    DiscoveryService(provider, _BOUNDS, progress=report_progress),
+                    request,
+                )
+                if access is not None:
+                    access.candidate_set_id = candidate_set_id
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await provider.aclose()
     except ContractError as error:
         result = envelope(
             mode="fixture",
@@ -227,9 +280,6 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
                 )
             ],
         )
-    finally:
-        with anyio.CancelScope(shield=True):
-            await provider.aclose()
     result = envelope(
         mode="fixture",
         request_id=request.request_id,

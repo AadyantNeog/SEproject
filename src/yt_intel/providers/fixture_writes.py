@@ -1,10 +1,13 @@
 import json
 from dataclasses import dataclass, field
 from typing import Literal
+from uuid import uuid4
 
 import httpx
 
 from yt_intel.contracts.common import ChannelId
+from yt_intel.contracts.workflow import QuotaLedger
+from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
 
 
 @dataclass
@@ -35,12 +38,23 @@ class FixturePlaylistWrites:
     def transport(self) -> httpx.MockTransport:
         return httpx.MockTransport(self._dispatch)
 
+    def handles(self, request: httpx.Request) -> bool:
+        path = request.url.path
+        return (
+            request.method == "POST"
+            and path in {"/youtube/v3/playlists", "/youtube/v3/playlistItems"}
+        ) or (
+            request.method == "GET"
+            and path == "/youtube/v3/playlistItems"
+            and request.url.params.get("playlistId", "") in self._playlists
+        )
+
     def _dispatch(self, request: httpx.Request) -> httpx.Response:
         self._requests.append(request)
         path = request.url.path
         if request.method == "POST" and path == "/youtube/v3/playlists":
             body = json.loads(request.content)
-            playlist_id = f"PLfixture{len(self._playlists) + 1}"
+            playlist_id = f"PLfixture{uuid4().hex}"
             self._playlists[playlist_id] = _StoredPlaylist()
             return httpx.Response(
                 200,
@@ -80,3 +94,23 @@ class FixturePlaylistWrites:
                 "Synthetic timeout after insertion", request=request
             )
         return httpx.Response(200, json=item)
+
+
+class FixtureCreationProvider(FixtureYouTubeProvider):
+    """Combine the fixture catalog and playlist simulator behind one executor."""
+
+    def __init__(
+        self,
+        dataset: FixtureDataset,
+        *,
+        quota_ledger: QuotaLedger,
+        simulator: FixturePlaylistWrites,
+    ) -> None:
+        self._simulator = simulator
+        self._write_transport = simulator.transport()
+        super().__init__(dataset, quota_ledger=quota_ledger)
+
+    def _handle_request(self, request: httpx.Request) -> httpx.Response:
+        if self._simulator.handles(request):
+            return self._write_transport.handle_request(request)
+        return super()._handle_request(request)

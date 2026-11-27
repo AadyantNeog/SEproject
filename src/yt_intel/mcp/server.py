@@ -6,6 +6,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 
+from yt_intel.contracts.approval import ApprovalAdapter
 from yt_intel.contracts.common import Contract
 from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
 from yt_intel.infrastructure.database import Database
@@ -14,6 +15,7 @@ from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 from .discovery import register_fixture_discovery
+from .execution import register_fixture_execution
 from .library import register_fixture_library
 from .planning import register_fixture_planning
 from .recommendations import register_fixture_recommendations
@@ -27,7 +29,10 @@ class FixtureStatus(Contract):
 
 
 def build_fixture_server(
-    project_root: Path | None, *, fixture_db: Path | None = None
+    project_root: Path | None,
+    *,
+    fixture_db: Path | None = None,
+    creation_approval: ApprovalAdapter | None = None,
 ) -> MCPServer[None]:
     server: MCPServer[None] = MCPServer("YouTube Video Intelligence")
     register_fixture_resources(server, project_root)
@@ -35,16 +40,27 @@ def build_fixture_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
     )(fixture_status)
     if project_root is not None:
+        workflows = fixture_workflow_runtime(project_root, fixture_db)
         candidate_sets = FixtureCandidateSets(
             lambda: SqliteCacheRepository(Database(fixture_db))
         )
-        register_fixture_discovery(server, project_root, candidate_sets)
-        library_runtime = register_fixture_library(server, project_root, fixture_db)
-        register_fixture_planning(server, project_root, fixture_db, candidate_sets)
+        register_fixture_discovery(server, project_root, candidate_sets, workflows)
+        library_runtime = register_fixture_library(
+            server, project_root, fixture_db, workflows
+        )
+        register_fixture_planning(
+            server, project_root, fixture_db, candidate_sets, workflows
+        )
         register_fixture_recommendations(server, project_root, library_runtime)
-        workflows = fixture_workflow_runtime(project_root)
         if workflows is not None:
             register_fixture_workflows(server, workflows)
+            register_fixture_execution(
+                server,
+                project_root,
+                fixture_db,
+                workflows,
+                approval_adapter=creation_approval,
+            )
     return server
 
 

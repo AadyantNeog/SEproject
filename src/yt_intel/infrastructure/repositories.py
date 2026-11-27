@@ -85,6 +85,7 @@ class OperationIntent(Contract):
     updated_at: UtcDateTime
     retained_until: UtcDateTime
     proposal_ref: ProposalRef | None = None
+    workflow_id: OpaqueId | None = None
     playlist_id: PlaylistId | None = None
     write_steps: tuple[WriteStep, ...] = ()
 
@@ -102,6 +103,7 @@ class OperationIntent(Contract):
                 "proposal_ref": self.proposal_ref.model_dump(mode="json")
                 if self.proposal_ref
                 else None,
+                "workflow_id": self.workflow_id,
                 "playlist_id": self.playlist_id,
                 "write_steps": [
                     step.model_dump(mode="json") for step in self.write_steps
