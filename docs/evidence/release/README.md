@@ -1,0 +1,127 @@
+# Release candidate record
+
+28 November 2026 · P2-08 release assembly · Assembled by Aadyant (transferred, [ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)) · **Candidate, not a release.** No tag, no human acceptance.
+
+## Candidate
+
+| Item | Value |
+| --- | --- |
+| Candidate commit | `283a330148618e31280f016e8598b59ac52f4a81` on `codex/release-candidate-evidence`, plus this documentation commit |
+| Base | `main` at `05d929a` (merge of PR #52) |
+| Pushed to GitHub | **No.** Each branch below needs its own PR and Aadyant's owner review. |
+| Release tag | None. Only a human creates the tag, after review. |
+
+### Branches, in merge order
+
+Each branch is stacked on the one before it. Merge them in this order,
+each through its own PR:
+
+1. `codex/a2-08-feature-evidence`: A2-08 NFR-08 benchmark and the
+   feature and skill evidence
+2. `codex/v2-3-solo-completion`: v2.3 ownership transfer (ADR-0010, RN-20)
+3. `codex/j2-07-live-read-setup`: consent runbook, `yt-intel disconnect`,
+   the fixed-budget live read check and its workflow
+4. `codex/j2-08-read-path-evidence`: read-path stdio tests, the
+   denied-source fix and the cached-read benchmark
+5. `codex/p2-08-write-quota-acceptance`: write, authority and quota stdio
+   tests
+6. `codex/release-candidate-evidence`: CI knowledge validation, register
+   backfill, architecture page and this record
+
+## Checks run on `283a330`
+
+All checks ran on Windows 11 with 16 logical CPUs, 15.6 GiB of RAM and
+Python 3.13.1 in the locked `.venv`. They spent zero live quota. Hosted
+Linux and Windows CI has **not** run on these branches yet.
+
+| Check | Result |
+| --- | --- |
+| `ruff check` and `ruff format --check`, with the CI scope plus the new scripts | Pass. 119 files. |
+| `mypy src` for the Windows and Linux platforms | Pass. 74 source files. |
+| `pytest -m "not live"` | **349 passed** |
+| `python -m build --wheel --no-isolation` | Pass |
+| `scripts/check_local.py` | All 5 stages pass: build, test, start, fetch, cleanup |
+| `scripts/benchmark_features.py --runs 30` | All 12 NFR-08 targets pass ([report](../performance/report.md)) |
+| `scripts/validate_implementation_plan.py` | 35 of 35 |
+| `scripts/validate_knowledge.py` | Pass. 72 notes, 5 skills, 10 ADRs, 377 wikilinks. |
+
+The first `check_local.py` run in this session failed its test stage. The
+sandbox denied access to pytest's shared temp folder. Pointing
+`TEMP`/`TMP` and `--basetemp` at a scratch folder fixed it. This was an
+environment problem, not a product defect.
+
+## Acceptance status (AT-01 to AT-20)
+
+"Fixture pass" means automated synthetic evidence passed. It is not live
+acceptance. The per-requirement links are in
+[requirement-trace.csv](requirement-trace.csv).
+
+| AT | Fixture evidence | Still needed |
+| --- | --- | --- |
+| AT-01 MCP init, schemas, stdio, client | Fixture pass (stdio protocol, all system tests) | Selected-client walkthrough recorded on the candidate |
+| AT-02 Video ranking | Fixture pass | None for fixtures. Live run is blocked on D-02. |
+| AT-03 Channel resolution and ranking | Fixture pass | Live run, blocked on D-02 |
+| AT-04 Personalisation, sparse sources, pagination | Fixture pass | Live run, blocked on D-02 |
+| AT-05 Hand-calculated analysis and UTC boundaries | Fixture pass ([read evidence](../read-and-privacy/README.md)) | Live analytics, blocked (`POLICY_BLOCKED`) |
+| AT-06 Constrained proposal, approval and creation | Fixture pass with the scripted approval seam | **Manual native-dialog run.** Live creation is blocked. |
+| AT-07 Duration, language and topic constraints | Fixture pass | None for fixtures |
+| AT-08 Reject, absent, expired, replayed, changed or wrong-account approval | Fixture pass ([write evidence](../write-and-quota/README.md)) | Manual native dismissal run on the candidate |
+| AT-09 Partial, restart, ambiguous timeout, reconciliation | Fixture pass | **Manual native resume dialog.** Live recovery is blocked. |
+| AT-10 Malformed IDs, hosts, limits, private content | Fixture pass | None for fixtures |
+| AT-11 Expired or revoked tokens, scope, refresh | Fixture pass with mocked OAuth | Live token lifecycle on the test account |
+| AT-12 Prompt injection and forged approval | Fixture pass | None for fixtures |
+| AT-13 Insufficient quota, concurrent reservations | Fixture pass | None for fixtures |
+| AT-14 Secrets, isolation, deletion, cache expiry | Fixture pass. Vault backend detected on the workstation. | Runner vault check. Inspection of the logs. |
+| AT-15 Caps, accounting, reset, external exhaustion | Fixture pass | None for fixtures |
+| AT-16 Rate limits, timeouts, 5xx, bounded retries | Fixture pass | None for fixtures |
+| AT-17 Offline performance | **Pass**, all 12 targets at `283a330` | Repeat on the final merged commit |
+| AT-18 Skills, notes, validation, offline CI | Skill tests and validators pass locally. CI now runs knowledge validation. | Hosted CI run on the PRs |
+| AT-19 Walkthroughs and live skill demo | Docs ready ([feature evidence](../features/README.md), [setup](../../user/setup-and-consent.md)) | **Codex walkthrough and live demo** (live is blocked) |
+| AT-20 Design, ADR, plan, review, trace, release | ADRs 0001–0010, [architecture](../../developer/architecture.md), coverage register, this record | **Human owner reviews**, stage reviews and the release tag |
+
+## Defects and regressions found in this cycle
+
+| ID | Found in | Defect | Fix | Regression test |
+| --- | --- | --- | --- | --- |
+| D-2026-11-28-1 | J2-08 probe | `compare_periods` reported denied or unrequested sources as `0 → 0` "no events", which presented missing evidence as zero activity | Compare only retrieved sources. Warn about not-requested sources. | `test_denied_and_unrequested_sources_are_not_reported_as_zero` (fails on the old code), `test_unretrieved_sources_are_not_compared_as_zero_activity` |
+| D-2026-11-28-2 | J2-07 audit | The runbook needed a live disconnect, but the CLI had only `auth` | Added `yt-intel disconnect` | `test_cli_disconnect_*` |
+
+There were no other product defects. One test expectation was corrected:
+moving a stored expiry produces `PROPOSAL_CHANGED`, because the digest
+covers the expiry.
+
+## Conflicts recorded, not resolved by an agent
+
+- **Protected traceability file.** The status checklist asked to backfill
+  `docs/requirements/traceability.csv`. That file is in the SHA-protected
+  submitted-SRS baseline
+  ([protected-baseline-2026-11-19.json](../../implementation/protected-baseline-2026-11-19.json)),
+  so it was left unchanged. The live trace is in
+  [coverage.csv](../../implementation/coverage.csv) and
+  [requirement-trace.csv](requirement-trace.csv). Changing the baseline
+  needs instructor direction.
+- **Teammate acknowledgement.** The ownership transfer was reported by the
+  team lead. Jeswin's and Paul's written acknowledgement is not in the
+  repository yet.
+
+## Human and external actions remaining
+
+1. **Issues and PRs.** Create issues for A2-08, J2-07, J2-08 and P2-08,
+   open one PR per branch in the merge order above, and let hosted CI run.
+2. **Owner reviews.** Record a dated human owner review for each PR,
+   against its exact commit, after AI-assisted review.
+3. **Manual runs.** Run the Codex walkthrough
+   ([prompts](../features/README.md#codex-walkthrough-prompts)) and the
+   native approve, reject and resume dialogs with synthetic data. Record
+   the actual decisions.
+4. **D-02.** Record the instructor or provider direction in
+   [d02-status.json](../policy-and-consent/d02-status.json) through a
+   reviewed PR.
+5. **Live setup.** Provision the test account, OAuth client and protected
+   runner, then run the supervised live demonstrations.
+6. **Reflections.** Each member writes their own reflection and
+   contribution record.
+7. **Release.** Re-run the checks and benchmark on the final merged
+   commit, then create the release tag.
+
+Prepared with AI assistance. This is not a review or an acceptance record.
