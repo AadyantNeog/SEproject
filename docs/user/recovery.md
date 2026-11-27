@@ -27,4 +27,45 @@ The [MCP recovery tests](../../tests/system/test_operation_replay.py) restart th
 | Creation is uncertain and the playlist ID is missing | Report that manual resolution is required | Zero |
 | Operation details have expired | Report that the operation result expired | Zero |
 
-Live playlist recovery and manual native resume verification remain pending.
+## Observe the native resume dialog in Codex
+
+The shipped fixture server never produces a partial result on its own.
+To see the real resume dialog, seed one half-finished operation into the
+fixture database your MCP client uses:
+
+```powershell
+& '.venv/Scripts/python.exe' scripts/seed_resume_fixture.py
+```
+
+The script writes to the standard fixture database, which is the one
+Codex's `yt-intel-fixture` server uses when no `--fixture-db` is set. Add
+`--fixture-db <path>` to target another database. It refuses the live
+database.
+
+The script does the following:
+1. Creates a private synthetic playlist named "Resume dialog demo".
+2. Inserts `vidIndex001` (1,200 s).
+3. Records the operation as interrupted before `vidIndex005` (300 s).
+4. Prints the operation ID and a prompt for Codex.
+
+It creates no approval.
+
+In Codex, ask the following, using the printed ID:
+
+> Using yt-intel-fixture, reconcile operation `<operation_id>`, show me the resume preview, and resume it if it is ready.
+
+Expected results:
+- **Reconciliation.** `reconcile_operation` returns `resume_ready`. The
+  verified item is `vidIndex001`, and the missing suffix is `vidIndex005`.
+- **Dialog.** `resume_operation` opens the native dialog. Check that it
+  shows the resume of exactly that one missing item into the recorded
+  playlist.
+- **Approve.** The operation becomes `completed` with 2 items and 1,500 s.
+- **Reject or close.** The result is `APPROVAL_REJECTED`, nothing is
+  written, and the preview is cleared.
+
+Run the script again to get a fresh operation for the other decision. The
+automated version of this check is
+[`test_resume_dialog_setup.py`](../../tests/system/test_resume_dialog_setup.py).
+
+Live playlist recovery remains pending.

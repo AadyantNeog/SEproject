@@ -75,6 +75,28 @@
         "privacyStatus": "private",
         "uploadStatus": "processed"
       }
+    },
+    "vidIndex005": {
+      "id": "vidIndex005",
+      "snippet": {
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "Index Maintenance Basics",
+        "channelTitle": "Systems Study Lab",
+        "description": "Synthetic recovery-demo video: rebuilding and vacuuming database indexes. Not returned by fixture search.",
+        "tags": ["database", "indexing", "maintenance"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-08T10:00:00Z",
+        "defaultAudioLanguage": "en-US",
+        "defaultLanguage": "en",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT5M"
+      },
+      "status": {
+        "privacyStatus": "public",
+        "uploadStatus": "processed"
+      }
     }
   },
   "channels": {
