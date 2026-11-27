@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
+from sqlite3 import Error as SqliteError
 from tempfile import TemporaryDirectory
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -32,15 +34,25 @@ class WorkflowStarted(Contract):
     expires_at: UtcDateTime
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class FixtureWorkflowRuntime:
     binding: AccountBinding
-    ledger: SqliteQuotaLedger
-    service: WorkflowService
-    _storage: TemporaryDirectory[str]
+    profile: QuotaProfile
+    database_path: Path
+    _storage: TemporaryDirectory[str] | None
+
+    @cached_property
+    def ledger(self) -> SqliteQuotaLedger:
+        return SqliteQuotaLedger(Database(self.database_path), self.profile)
+
+    @cached_property
+    def service(self) -> WorkflowService:
+        return WorkflowService(self.ledger, self.profile)
 
 
-def fixture_workflow_runtime(project_root: Path) -> FixtureWorkflowRuntime | None:
+def fixture_workflow_runtime(
+    project_root: Path, *, database_path: Path | None = None
+) -> FixtureWorkflowRuntime | None:
     profile_path = project_file(
         project_root, Path("config/quota-profiles/youtube-2026-11-16.json")
     )
@@ -53,11 +65,11 @@ def fixture_workflow_runtime(project_root: Path) -> FixtureWorkflowRuntime | Non
     if binding.mode != "fixture":
         raise ValueError("workflow fixtures require a synthetic account")
     profile = QuotaProfile.load(profile_path)
-    storage = TemporaryDirectory(prefix="yt-intel-quota-")
-    ledger = SqliteQuotaLedger(Database(Path(storage.name) / "state.sqlite3"), profile)
-    return FixtureWorkflowRuntime(
-        binding, ledger, WorkflowService(ledger, profile), storage
-    )
+    storage = None
+    if database_path is None:
+        storage = TemporaryDirectory(prefix="yt-intel-quota-")
+        database_path = Path(storage.name) / "state.sqlite3"
+    return FixtureWorkflowRuntime(binding, profile, database_path, storage)
 
 
 def register_fixture_workflows(
@@ -94,6 +106,16 @@ def register_fixture_workflows(
             )
         except ContractError as error:
             return _failed(request_id, error.detail)
+        except (OSError, SqliteError):
+            return _failed(
+                request_id,
+                ErrorDetail(
+                    code="PROVIDER_UNAVAILABLE",
+                    message="The local workflow quota ledger could not be accessed.",
+                    retryable=False,
+                    safe_next_action="Check access to the fixture database and try again.",
+                ),
+            )
         result = ResultEnvelope[WorkflowStarted](
             mode="fixture",
             request_id=request_id,
