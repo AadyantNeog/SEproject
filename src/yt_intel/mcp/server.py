@@ -17,6 +17,7 @@ from .discovery import register_fixture_discovery
 from .planning import register_fixture_planning
 from .recommendations import register_fixture_recommendations
 from .resources import register_fixture_resources
+from .workflows import fixture_workflow_runtime, register_fixture_workflows
 
 
 class FixtureStatus(Contract):
@@ -39,6 +40,9 @@ def build_fixture_server(
         register_fixture_discovery(server, project_root, candidate_sets)
         register_fixture_planning(server, project_root, fixture_db, candidate_sets)
         register_fixture_recommendations(server, project_root)
+        workflows = fixture_workflow_runtime(project_root)
+        if workflows is not None:
+            register_fixture_workflows(server, workflows)
     return server
 
 

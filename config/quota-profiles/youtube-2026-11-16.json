@@ -1,0 +1,17 @@
+{
+  "profile_id": "youtube-2026-11-16",
+  "reference_date": "2026-11-16",
+  "reference_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+  "limits": {"general": 10000, "search": 100},
+  "costs": {
+    "videos.list": {"general": 1},
+    "channels.list": {"general": 1},
+    "search.list": {"search": 1},
+    "subscriptions.list": {"general": 1},
+    "playlists.list": {"general": 1},
+    "playlistItems.list": {"general": 1},
+    "videoCategories.list": {"general": 1},
+    "playlists.insert": {"general": 50},
+    "playlistItems.insert": {"general": 50}
+  }
+}
