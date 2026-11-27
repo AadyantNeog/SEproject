@@ -9,6 +9,7 @@ import anyio
 
 from yt_intel.contracts.common import AccountBinding, OpaqueId, VideoId
 from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
+from yt_intel.contracts.proposals import ProposalRef
 from yt_intel.contracts.workflow import (
     CallCeiling,
     CancellationToken,
@@ -23,12 +24,20 @@ from yt_intel.infrastructure.clock import SystemClock
 from yt_intel.infrastructure.quota import QuotaProfile
 
 _WORKFLOW_LIFETIME = timedelta(minutes=5)
-type PreviewStage = Literal["get_video", "find_similar_videos", "propose_playlist"]
+type WorkflowStage = Literal[
+    "get_video",
+    "find_similar_videos",
+    "propose_playlist",
+    "prepare_creation",
+    "create_playlist",
+]
 
-_NEXT_STAGE: dict[PreviewStage, tuple[PreviewStage, ...]] = {
+_NEXT_STAGE: dict[WorkflowStage, tuple[WorkflowStage, ...]] = {
     "get_video": ("find_similar_videos",),
     "find_similar_videos": ("propose_playlist",),
-    "propose_playlist": (),
+    "propose_playlist": ("prepare_creation",),
+    "prepare_creation": ("create_playlist",),
+    "create_playlist": (),
 }
 _VIDEO_TO_PLAYLIST: dict[Endpoint, CallCeiling] = {
     # Seed twice (explicit fetch and discovery), four hydration batches, revalidation.
@@ -46,6 +55,8 @@ class _ActiveWorkflow:
     session: WorkflowSession
     seed: VideoId | None
     candidate_set_id: OpaqueId | None = None
+    proposal_ref: ProposalRef | None = None
+    operation_id: OpaqueId | None = None
     running: bool = False
 
 
@@ -53,6 +64,8 @@ class _ActiveWorkflow:
 class StageAccess:
     context: RequestContext
     candidate_set_id: OpaqueId | None = None
+    proposal_ref: ProposalRef | None = None
+    operation_id: OpaqueId | None = None
 
 
 def _workflow_error(code: ErrorCode, message: str) -> ContractError:
@@ -126,13 +139,15 @@ class WorkflowService:
     async def stage(
         self,
         workflow_id: OpaqueId,
-        stage: PreviewStage,
+        stage: WorkflowStage,
         *,
         binding: AccountBinding,
         request_id: OpaqueId,
         cancellation: CancellationToken,
         video: VideoId | None = None,
         candidate_set_id: OpaqueId | None = None,
+        proposal_ref: ProposalRef | None = None,
+        operation_id: OpaqueId | None = None,
     ) -> AsyncIterator[StageAccess]:
         """Give the next handler the original reservation for one stage."""
         entry = self._sessions.get(workflow_id)
@@ -149,7 +164,18 @@ class WorkflowService:
             raise _workflow_error(
                 "INVALID_INPUT", "Workflow stage is out of order or busy."
             )
-        if stage == "propose_playlist":
+        if stage in {"prepare_creation", "create_playlist"}:
+            if proposal_ref is None or proposal_ref != entry.proposal_ref:
+                raise _workflow_error(
+                    "PROPOSAL_CHANGED", "Preview does not belong to this workflow."
+                )
+            if stage == "create_playlist" and (
+                operation_id is None or operation_id != entry.operation_id
+            ):
+                raise _workflow_error(
+                    "OPERATION_CONFLICT", "Operation does not belong to this workflow."
+                )
+        elif stage == "propose_playlist":
             if candidate_set_id is None or candidate_set_id != entry.candidate_set_id:
                 raise _workflow_error(
                     "INVALID_INPUT", "Candidate set does not belong to this workflow."
@@ -190,9 +216,21 @@ class WorkflowService:
                 entry.candidate_set_id = access.candidate_set_id
             elif stage == "get_video":
                 entry.seed = video
+            elif stage == "propose_playlist":
+                entry.proposal_ref = access.proposal_ref
+            elif stage == "prepare_creation":
+                if access.operation_id is None:
+                    raise _workflow_error(
+                        "OPERATION_CONFLICT", "No operation was prepared."
+                    )
+                entry.operation_id = access.operation_id
             entry.session = session.model_copy(
                 update={"stage": stage, "next_stages": _NEXT_STAGE[stage]}
             )
+            if stage == "create_playlist":
+                self._sessions.pop(workflow_id, None)
+                with anyio.CancelScope(shield=True):
+                    await self._ledger.release(session.reservation_id)
         except BaseException:
             self._sessions.pop(workflow_id, None)
             with anyio.CancelScope(shield=True):

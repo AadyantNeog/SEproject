@@ -215,9 +215,22 @@ Subsequent operations must append their actual outcome here.
 
 - At Aadyant's request, Codex added fair page scheduling, continuation of deferred work and active-profile quota pricing to [PR #41](https://github.com/AadyantNeog/SEproject/pull/41). All 291 offline tests, scoped Ruff, mypy, the planning checks and the wheel build passed. See [[2026-11-27-j2-04-library-review-fixes]].
 
+## 2026-11-27 P2-07 local check
+
+- [Issue #42](https://github.com/AadyantNeog/SEproject/issues/42) adds the local check skill, wheel-to-MCP probe and reusable benchmark. Build, startup, read-only fetch and cleanup passed on Windows. The fixture fetch harness completed one warm-up and 30 samples with no live quota. See [[2026-11-27-p2-07-local-check]].
+- Opened [draft PR #43](https://github.com/AadyantNeog/SEproject/pull/43). The Windows offline suite passed 294 tests. Scoped Ruff, strict mypy, and 34 planning checks from a fresh checkout passed.
+
 ## 2026-11-27 A2-03 recommendations from saved library snapshots
 
 - Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].
+
+## 2026-11-27 P2-07 local check review follow-up
+
+- P2-07 review follow-up preserved both log entries when merging main. The local check passed build, offline test, startup, fetch and cleanup. The checkout-built wheel benchmark reported 54.3 ms median and 63.6 ms p95 over 30 fixture calls with zero live quota.
+
+## 2026-11-27 P2-04 MCP execution review follow-up
+
+- Wired preparation, creation and operation status in [draft PR #39](https://github.com/AadyantNeog/SEproject/pull/39) and carried the original quota reservation through the fixture workflow. Both stdio scenarios passed. Rejection dispatched zero POSTs and recorded zero write debits. The simulated approval case completed and replay sent no further writes. See [[2026-11-27-p2-04-mcp-execution]].
 
 ## 2026-11-27 J2-05 analytics and valid timestamp comparisons
 
@@ -245,3 +258,11 @@ Subsequent operations must append their actual outcome here.
 
 - Updated `.agents/skills/brain-ingest/SKILL.md` (`v0.2.0`), authored `.agents/skills/brain-refine/SKILL.md` (`v0.1.0`) and `.agents/skills/brain-query/SKILL.md` (`v0.1.0`), implemented `scripts/validate_knowledge.py`, added repeatable evaluation tests (`tests/skills/test_brain_workflows.py`) and the `SK-06` evaluation record (`docs/evidence/skills/brain-workflows.md`), and applied `brain-refine` to repair a real broken wikilink in `brain/projects/youtube-mcp/2026-11-26-p2-01-storage.md` (`[[05-operation-journal-retention-and-live-gates]]` -> ADR-0005) on `codex/j2-06-knowledge-skills` from `origin/main` (`d2ee1b8`). See [[2026-11-27-j2-06-knowledge-skills]].
 - Verified `python scripts/validate_knowledge.py` (0 issues across all notes, 19 research notes, 4 skills, 9 ADRs, wikilinks, and traceability registers), 5 J2-06 skill evaluation tests (including fixture stdio MCP discovery for all 3 brain skills), 307 total offline tests (`pytest -m "not live" -q`), strict `mypy src` (66 source files), and scoped Ruff lint/format checks. Published [issue #49](https://github.com/AadyantNeog/SEproject/issues/49) and [draft PR #50](https://github.com/AadyantNeog/SEproject/pull/50); Aadyant's lead review remains pending.
+
+## 2026-11-27 P2-04 sync with the local-check harness
+
+- Codex synced [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) after [PR #43](https://github.com/AadyantNeog/SEproject/pull/43) landed. Both index and log records were preserved, and all 313 offline tests passed. See [[2026-11-27-p2-04-review-sync]].
+
+## 2026-11-27 J2-06 sync with playlist creation
+
+- Codex synced [PR #50](https://github.com/AadyantNeog/SEproject/pull/50) after [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) landed and preserved both log entries. Knowledge validation reported zero issues and all 318 offline tests passed. See [[2026-11-27-j2-06-review-sync]].

@@ -46,6 +46,8 @@ from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
 from yt_intel.services.analysis import AnalysisService
 from yt_intel.services.library import LibraryBounds, LibraryService, LibrarySummary
 
+from .workflows import FixtureWorkflowRuntime
+
 _FIXTURE_ACCOUNT = AccountBinding(
     installation_id="fixture-installation",
     credential_binding_id="fixture-binding",
@@ -58,6 +60,7 @@ _PROJECT_ID = "fixture-project"
 
 class _GetVideoInput(Contract):
     video: Label
+    workflow_id: OpaqueId | None = None
 
 
 class _GetLibraryInput(Contract):
@@ -176,6 +179,7 @@ def register_fixture_library(
     server: MCPServer[None],
     project_root: Path,
     fixture_db: Path | None,
+    workflows: FixtureWorkflowRuntime | None = None,
 ) -> Callable[[], FixtureLibraryRuntime] | None:
     """Register Jeswin's get_video, get_library, get_account_status, and disconnect_account tools."""
     catalog_path = project_file(
@@ -192,6 +196,14 @@ def register_fixture_library(
         return None
 
     dataset = FixtureDataset.from_json_file(catalog_path)
+    discovery_path = project_file(
+        project_root, Path("tests/fixtures/youtube_reads/catalog.json")
+    )
+    discovery_dataset = (
+        FixtureDataset.from_json_file(discovery_path)
+        if discovery_path.is_file()
+        else None
+    )
     profile = QuotaProfile.load(profile_path)
     runtime: FixtureLibraryRuntime | None = None
 
@@ -233,6 +245,7 @@ def register_fixture_library(
     async def get_video(
         ctx: Context[None, object],
         video: str,
+        workflow_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, ResultEnvelope[Video]]:
         """Fetch normalised metadata for one YouTube video URL or ID (read-only)."""
         request_id = uuid4().hex
@@ -241,49 +254,69 @@ def register_fixture_library(
                 (ctx.request_context.params or {}).get("arguments", {})
             )
             video_id = parse_video_id(parsed.video)
-            active = _runtime()
-            binding = await active.accounts.require_binding()
-            now = datetime.now(UTC)
-            deadline = now + timedelta(seconds=30)
-            plan = WorkflowPlan(
-                plan_id=f"get-video-{uuid4().hex[:12]}",
-                binding=binding,
-                project_id=active.project_id,
-                quota_profile_id=profile.profile_id,
-                endpoint_ceilings={
-                    "videos.list": CallCeiling(calls=1, attempts_per_call=3)
-                },
-                buckets={},
-                candidate_cap=1,
-                page_cap=1,
-                sample_cap=0,
-                deadline=deadline,
-                cancellation_policy="cooperative",
-                reconciliation_allowance={},
-            )
-            plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
-            reservation = await active.ledger.reserve(plan)
-            try:
-                req_ctx = RequestContext(
-                    request_id=request_id,
-                    binding=binding,
-                    reservation_id=reservation.reservation_id,
-                    deadline=deadline,
-                    cancellation=_FixtureCancellation(),
-                )
-                batch = await active.provider.get_videos(req_ctx, (video_id,))
-            finally:
-                await active.ledger.release(reservation.reservation_id)
-            item = batch.videos.get(video_id)
-            if item is None:
-                raise ContractError(
-                    ErrorDetail(
-                        code="CONTENT_UNAVAILABLE",
-                        message="Requested video is unavailable in this fixture dataset.",
-                        retryable=False,
-                        safe_next_action="Supply an accessible video ID or URL.",
+            if parsed.workflow_id is not None:
+                if workflows is None or discovery_dataset is None:
+                    raise ContractError(
+                        ErrorDetail(
+                            code="INVALID_INPUT",
+                            message="Workflow session is unavailable.",
+                            retryable=False,
+                            safe_next_action="Start a fixture workflow.",
+                        )
                     )
+                async with workflows.service.stage(
+                    parsed.workflow_id,
+                    "get_video",
+                    binding=workflows.binding,
+                    request_id=request_id,
+                    cancellation=_FixtureCancellation(),
+                    video=video_id,
+                ) as access:
+                    async with FixtureYouTubeProvider(
+                        discovery_dataset, quota_ledger=workflows.ledger
+                    ) as provider:
+                        batch = await provider.get_videos(access.context, (video_id,))
+                    item = batch.videos.get(video_id)
+                    if item is None or item.availability != "available":
+                        raise _missing_fixture_video()
+            else:
+                active = _runtime()
+                binding = await active.accounts.require_binding()
+                deadline = datetime.now(UTC) + timedelta(seconds=30)
+                plan = WorkflowPlan(
+                    plan_id=f"get-video-{uuid4().hex[:12]}",
+                    binding=binding,
+                    project_id=active.project_id,
+                    quota_profile_id=profile.profile_id,
+                    endpoint_ceilings={
+                        "videos.list": CallCeiling(calls=1, attempts_per_call=3)
+                    },
+                    buckets={},
+                    candidate_cap=1,
+                    page_cap=1,
+                    sample_cap=0,
+                    deadline=deadline,
+                    cancellation_policy="cooperative",
+                    reconciliation_allowance={},
                 )
+                plan = plan.model_copy(
+                    update={"buckets": profile.required_buckets(plan)}
+                )
+                reservation = await active.ledger.reserve(plan)
+                try:
+                    req_ctx = RequestContext(
+                        request_id=request_id,
+                        binding=binding,
+                        reservation_id=reservation.reservation_id,
+                        deadline=deadline,
+                        cancellation=_FixtureCancellation(),
+                    )
+                    batch = await active.provider.get_videos(req_ctx, (video_id,))
+                finally:
+                    await active.ledger.release(reservation.reservation_id)
+                item = batch.videos.get(video_id)
+                if item is None:
+                    raise _missing_fixture_video()
         except ValidationError:
             return _error_result(
                 ErrorDetail(
@@ -527,3 +560,14 @@ def register_fixture_library(
         )
 
     return _runtime
+
+
+def _missing_fixture_video() -> ContractError:
+    return ContractError(
+        ErrorDetail(
+            code="CONTENT_UNAVAILABLE",
+            message="Requested video is unavailable in this fixture dataset.",
+            retryable=False,
+            safe_next_action="Supply an accessible video ID or URL.",
+        )
+    )
