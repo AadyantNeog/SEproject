@@ -358,7 +358,9 @@ def summarise_library(
     if period_a is not None or period_b is not None:
         if period_a is None or period_b is None:
             raise ValueError("both period_a and period_b are required for comparison")
-        comparison = compare_periods(snapshot, period_a, period_b)
+        comparison = compare_periods(
+            snapshot, period_a, period_b, sources=config.sources
+        )
 
     warnings: list[str] = []
     for src_name, src_cov in snapshot.sources.items():

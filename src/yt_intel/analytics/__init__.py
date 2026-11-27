@@ -7,6 +7,7 @@ from .periods import (
     UnavailableTrend,
     compare_periods,
     validate_non_overlapping_periods,
+    validate_period_pair,
 )
 from .summaries import (
     ANALYTICS_VERSION,
@@ -40,4 +41,5 @@ __all__ = [
     "compare_periods",
     "summarise_library",
     "validate_non_overlapping_periods",
+    "validate_period_pair",
 ]

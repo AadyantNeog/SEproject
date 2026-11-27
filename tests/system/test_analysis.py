@@ -75,7 +75,31 @@ def test_analyse_library_over_fixture_stdio_with_and_without_periods(
                 assert pc["subscription_creations"]["count_a"] == 1
                 assert pc["subscription_creations"]["count_b"] == 0
 
-                # 3. Overlapping periods fail cleanly with INVALID_INPUT
+                # 3. Source-filtered period comparison respects selected sources
+                pl_only_res = await client.call_tool(
+                    "analyse_library",
+                    {
+                        "snapshot_id": snapshot_id,
+                        "sources": ["playlists"],
+                        "period_a": {
+                            "start": "2026-09-01T00:00:00Z",
+                            "end": "2026-10-01T00:00:00Z",
+                        },
+                        "period_b": {
+                            "start": "2026-11-01T00:00:00Z",
+                            "end": "2026-12-01T00:00:00Z",
+                        },
+                    },
+                )
+                assert not pl_only_res.is_error
+                assert pl_only_res.structured_content is not None
+                pl_pc = pl_only_res.structured_content["data"]["period_comparison"]
+                assert pl_pc["sources"] == ["playlists"]
+                assert pl_pc["playlist_additions"]["count_b"] >= 1
+                assert pl_pc["subscription_creations"] is None
+                assert pl_pc["likes_trend"] is None
+
+                # 4. Overlapping periods fail cleanly with INVALID_INPUT
                 overlap_res = await client.call_tool(
                     "analyse_library",
                     {
@@ -96,7 +120,7 @@ def test_analyse_library_over_fixture_stdio_with_and_without_periods(
                     overlap_res.structured_content["error"]["code"] == "INVALID_INPUT"
                 )
 
-                # 4. Missing/foreign snapshot_id fails cleanly with CONTENT_UNAVAILABLE
+                # 5. Missing/foreign snapshot_id fails cleanly with CONTENT_UNAVAILABLE
                 missing_res = await client.call_tool(
                     "analyse_library", {"snapshot_id": "snap-does-not-exist"}
                 )
@@ -106,5 +130,67 @@ def test_analyse_library_over_fixture_stdio_with_and_without_periods(
                     missing_res.structured_content["error"]["code"]
                     == "CONTENT_UNAVAILABLE"
                 )
+
+    anyio.run(_run)
+
+
+def test_analyse_library_validates_periods_before_fetching_or_opening_db(
+    tmp_path: Path,
+) -> None:
+    async def _run() -> None:
+        db_file = tmp_path / "no-fetch-on-invalid-period.sqlite3"
+        params = StdioServerParameters(
+            command=sys.executable,
+            args=[
+                "-m",
+                "yt_intel",
+                "serve",
+                "--provider",
+                "fixture",
+                "--project-root",
+                str(ROOT),
+                "--fixture-db",
+                str(db_file),
+            ],
+        )
+        async with stdio_client(params) as (reader, writer):
+            async with ClientSession(reader, writer, read_timeout_seconds=15) as client:
+                await client.initialize()
+
+                # Missing period_b with snapshot_id=None must fail BEFORE any fetch/DB init
+                half_res = await client.call_tool(
+                    "analyse_library",
+                    {
+                        "period_a": {
+                            "start": "2026-09-01T00:00:00Z",
+                            "end": "2026-10-01T00:00:00Z",
+                        }
+                    },
+                )
+                assert half_res.is_error
+                assert half_res.structured_content is not None
+                assert half_res.structured_content["error"]["code"] == "INVALID_INPUT"
+                assert not db_file.exists()
+
+                # Overlapping periods with snapshot_id=None must fail BEFORE any fetch/DB init
+                overlap_res = await client.call_tool(
+                    "analyse_library",
+                    {
+                        "period_a": {
+                            "start": "2026-10-01T00:00:00Z",
+                            "end": "2026-11-15T00:00:00Z",
+                        },
+                        "period_b": {
+                            "start": "2026-11-01T00:00:00Z",
+                            "end": "2026-12-01T00:00:00Z",
+                        },
+                    },
+                )
+                assert overlap_res.is_error
+                assert overlap_res.structured_content is not None
+                assert (
+                    overlap_res.structured_content["error"]["code"] == "INVALID_INPUT"
+                )
+                assert not db_file.exists()
 
     anyio.run(_run)

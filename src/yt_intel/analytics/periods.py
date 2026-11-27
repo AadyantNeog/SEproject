@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Literal, Self
 
@@ -7,7 +8,9 @@ from pydantic import model_validator
 
 from yt_intel.contracts.common import Contract, Label, NonNegative, UtcDateTime
 from yt_intel.contracts.errors import ContractError, ErrorDetail
-from yt_intel.contracts.models import LibrarySnapshot
+from yt_intel.contracts.models import LibrarySnapshot, LibrarySource
+
+_ALL_SOURCES: tuple[LibrarySource, ...] = ("likes", "subscriptions", "playlists")
 
 
 class TimePeriod(Contract):
@@ -54,12 +57,13 @@ class PeriodComparison(Contract):
 
     period_a: TimePeriod
     period_b: TimePeriod
+    sources: tuple[LibrarySource, ...] = _ALL_SOURCES
     interval_convention: Literal["utc_start_inclusive_end_exclusive"] = (
         "utc_start_inclusive_end_exclusive"
     )
-    playlist_additions: PeriodMetricComparison
-    subscription_creations: PeriodMetricComparison
-    likes_trend: UnavailableTrend = UnavailableTrend()
+    playlist_additions: PeriodMetricComparison | None = None
+    subscription_creations: PeriodMetricComparison | None = None
+    likes_trend: UnavailableTrend | None = None
 
 
 def validate_non_overlapping_periods(
@@ -75,6 +79,25 @@ def validate_non_overlapping_periods(
                 safe_next_action="Supply two non-overlapping UTC [start, end) intervals.",
             )
         )
+
+
+def validate_period_pair(
+    period_a: TimePeriod | None, period_b: TimePeriod | None
+) -> tuple[TimePeriod, TimePeriod] | None:
+    """Validate an optional pair of non-overlapping UTC [start, end) intervals."""
+    if period_a is None and period_b is None:
+        return None
+    if period_a is None or period_b is None:
+        raise ContractError(
+            ErrorDetail(
+                code="INVALID_INPUT",
+                message="Both period_a and period_b must be provided for period comparison.",
+                retryable=False,
+                safe_next_action="Supply two non-overlapping UTC [start, end) intervals or omit both.",
+            )
+        )
+    validate_non_overlapping_periods(period_a, period_b)
+    return (period_a, period_b)
 
 
 def _build_metric(
@@ -130,34 +153,49 @@ def compare_periods(
     snapshot: LibrarySnapshot,
     period_a: TimePeriod,
     period_b: TimePeriod,
+    *,
+    sources: Sequence[LibrarySource] = _ALL_SOURCES,
 ) -> PeriodComparison:
     """Pure comparison of playlist-addition and subscription-creation timestamps.
 
-    Strictly uses ``PlaylistOccurrence.added_at`` and ``SubscriptionSignal.subscribed_at``.
-    Never substitutes ``Video.published_at`` or ``LibrarySnapshot.fetched_at``.
+    Strictly uses ``PlaylistOccurrence.added_at`` and ``SubscriptionSignal.subscribed_at``,
+    respecting the selected ``sources``. Never substitutes ``Video.published_at`` or
+    ``LibrarySnapshot.fetched_at``.
     """
     validate_non_overlapping_periods(period_a, period_b)
+    selected = tuple(dict.fromkeys(sources))
 
-    playlist_timestamps = [occ.added_at for occ in snapshot.playlist_occurrences]
-    subscription_timestamps = [sig.subscribed_at for sig in snapshot.subscriptions]
-
-    return PeriodComparison(
-        period_a=period_a,
-        period_b=period_b,
-        playlist_additions=_build_metric(
+    playlist_additions: PeriodMetricComparison | None = None
+    if "playlists" in selected:
+        playlist_timestamps = [occ.added_at for occ in snapshot.playlist_occurrences]
+        playlist_additions = _build_metric(
             metric="playlist_additions",
             population_kind="selected_playlist_item_occurrences",
             timestamp_basis="playlist_item.added_at",
             timestamps=playlist_timestamps,
             period_a=period_a,
             period_b=period_b,
-        ),
-        subscription_creations=_build_metric(
+        )
+
+    subscription_creations: PeriodMetricComparison | None = None
+    if "subscriptions" in selected:
+        subscription_timestamps = [sig.subscribed_at for sig in snapshot.subscriptions]
+        subscription_creations = _build_metric(
             metric="subscription_creations",
             population_kind="unique_subscribed_channels",
             timestamp_basis="subscription.subscribed_at",
             timestamps=subscription_timestamps,
             period_a=period_a,
             period_b=period_b,
-        ),
+        )
+
+    likes_trend = UnavailableTrend() if "likes" in selected else None
+
+    return PeriodComparison(
+        period_a=period_a,
+        period_b=period_b,
+        sources=selected,
+        playlist_additions=playlist_additions,
+        subscription_creations=subscription_creations,
+        likes_trend=likes_trend,
     )

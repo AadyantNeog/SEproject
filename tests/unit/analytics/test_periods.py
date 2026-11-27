@@ -3,7 +3,12 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pydantic import ValidationError
 
-from yt_intel.analytics.periods import TimePeriod, compare_periods
+from yt_intel.analytics.periods import (
+    TimePeriod,
+    compare_periods,
+    validate_period_pair,
+)
+from yt_intel.analytics.summaries import AnalysisConfig, summarise_library
 from yt_intel.contracts.common import AccountBinding
 from yt_intel.contracts.errors import ContractError
 from yt_intel.contracts.models import (
@@ -164,6 +169,7 @@ def test_half_open_utc_boundaries_zero_baselines_and_no_publication_substitution
     # Playlist additions: A has 1 (start-inclusive; end-exclusive; missing added_at NOT substituted!)
     # B has 2 (boundary at 2026-11-01 + mid Nov) -> diff=+1, pct=+100.0%
     pa = comp.playlist_additions
+    assert pa is not None
     assert pa.timestamp_basis == "playlist_item.added_at"
     assert pa.count_a == 1
     assert pa.count_b == 2
@@ -173,6 +179,7 @@ def test_half_open_utc_boundaries_zero_baselines_and_no_publication_substitution
 
     # Subscriptions: A has 0, B has 1 -> zero baseline yields percent_change=None!
     sc = comp.subscription_creations
+    assert sc is not None
     assert sc.timestamp_basis == "subscription.subscribed_at"
     assert sc.count_a == 0
     assert sc.count_b == 1
@@ -181,7 +188,8 @@ def test_half_open_utc_boundaries_zero_baselines_and_no_publication_substitution
     assert sc.percent_change_reason == "undefined_zero_baseline"
     assert sc.unknown_timestamp_count == 1
 
-    # Likes trend is always explicitly unavailable
+    # Likes trend is always explicitly unavailable when likes are selected
+    assert comp.likes_trend is not None
     assert comp.likes_trend.available is False
     assert comp.likes_trend.reason == "like_event_timestamps_unavailable"
 
@@ -197,6 +205,7 @@ def test_empty_periods_zero_to_zero_keeps_percent_change_undefined() -> None:
         end=datetime(2025, 3, 1, tzinfo=UTC),
     )
     comp = compare_periods(snap, p1, p2)
+    assert comp.playlist_additions is not None
     assert comp.playlist_additions.count_a == 0
     assert comp.playlist_additions.count_b == 0
     assert comp.playlist_additions.absolute_difference == 0
@@ -204,7 +213,50 @@ def test_empty_periods_zero_to_zero_keeps_percent_change_undefined() -> None:
     assert comp.playlist_additions.percent_change_reason == "undefined_zero_baseline"
 
 
-def test_rejects_naive_inverted_and_overlapping_periods() -> None:
+def test_compare_periods_respects_selected_sources() -> None:
+    snap = _snapshot()
+    period_a = TimePeriod(
+        start=datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+        end=datetime(2026, 11, 1, 0, 0, tzinfo=UTC),
+    )
+    period_b = TimePeriod(
+        start=datetime(2026, 11, 1, 0, 0, tzinfo=UTC),
+        end=datetime(2026, 12, 1, 0, 0, tzinfo=UTC),
+    )
+
+    # Playlists only: subscription_creations and likes_trend must be omitted (None)
+    pl_report = summarise_library(
+        snap,
+        AnalysisConfig(sources=("playlists",)),
+        period_a=period_a,
+        period_b=period_b,
+    )
+    assert pl_report.period_comparison is not None
+    assert pl_report.period_comparison.sources == ("playlists",)
+    assert pl_report.period_comparison.playlist_additions is not None
+    assert pl_report.period_comparison.playlist_additions.count_a == 1
+    assert pl_report.period_comparison.playlist_additions.count_b == 2
+    assert pl_report.period_comparison.subscription_creations is None
+    assert pl_report.period_comparison.likes_trend is None
+
+    # Subscriptions only: playlist_additions and likes_trend must be omitted (None)
+    sub_comp = compare_periods(snap, period_a, period_b, sources=("subscriptions",))
+    assert sub_comp.sources == ("subscriptions",)
+    assert sub_comp.playlist_additions is None
+    assert sub_comp.subscription_creations is not None
+    assert sub_comp.subscription_creations.count_b == 1
+    assert sub_comp.likes_trend is None
+
+    # Likes only: likes_trend is explicitly unavailable; playlist/subscription trends omitted
+    like_comp = compare_periods(snap, period_a, period_b, sources=("likes",))
+    assert like_comp.sources == ("likes",)
+    assert like_comp.playlist_additions is None
+    assert like_comp.subscription_creations is None
+    assert like_comp.likes_trend is not None
+    assert like_comp.likes_trend.available is False
+
+
+def test_rejects_naive_inverted_incomplete_and_overlapping_periods() -> None:
     with pytest.raises(ValidationError):
         TimePeriod(
             start=datetime(2026, 10, 1),  # naive!
@@ -227,3 +279,7 @@ def test_rejects_naive_inverted_and_overlapping_periods() -> None:
     with pytest.raises(ContractError) as exc:
         compare_periods(_snapshot(), p1, p2)
     assert exc.value.detail.code == "INVALID_INPUT"
+
+    with pytest.raises(ContractError) as half_exc:
+        validate_period_pair(p1, None)
+    assert half_exc.value.detail.code == "INVALID_INPUT"

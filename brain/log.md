@@ -215,7 +215,12 @@ Subsequent operations must append their actual outcome here.
 
 - At Aadyant's request, Codex added fair page scheduling, continuation of deferred work and active-profile quota pricing to [PR #41](https://github.com/AadyantNeog/SEproject/pull/41). All 291 offline tests, scoped Ruff, mypy, the planning checks and the wheel build passed. See [[2026-11-27-j2-04-library-review-fixes]].
 
+## 2026-11-27 A2-03 recommendations from saved library snapshots
+
+- Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].
+
 ## 2026-11-27 J2-05 analytics and valid timestamp comparisons
 
 - Implemented pure analytics modules (`src/yt_intel/analytics/{__init__,periods,summaries}.py`), `AnalysisService` (`src/yt_intel/services/analysis.py`), the `analyse_library` MCP handler (`src/yt_intel/mcp/library.py`), and unit/system tests (`tests/unit/analytics/{test_summaries,test_periods}.py`, `tests/system/test_analysis.py`) on `codex/j2-05-analytics` from `origin/main` (`c5293cf`). See [[2026-11-27-j2-05-analytics]].
 - Verified 6 J2-05 unit/system tests (including the SRS runtime oracle `[240, 600, 600, 1200]` + unknown denominator, UTC `[start, end)` period comparisons without `video.published_at` substitution, zero-baseline `percent_change=None`, and fixture stdio MCP execution), 297 total offline tests (`pytest -m "not live" -q`), strict `mypy src` (66 source files), and scoped Ruff lint/format checks on all 8 J2-05 files. Published [issue #45](https://github.com/AadyantNeog/SEproject/issues/45) and [draft PR #46](https://github.com/AadyantNeog/SEproject/pull/46); Aadyant's lead review remains pending.
+- For Aadyant's review follow-up on PR #46, merged `origin/main` (`c0884b5`, preserving A2-03 `FixtureLibraryRuntime` and brain entries), added `validate_period_pair` before runtime/fetch/snapshot reads so invalid, incomplete, or overlapping periods fail before any provider call or DB creation, and scoped `compare_periods` / `PeriodComparison` / rendered report sections to the selected `sources`. Re-verified 8 J2-05 tests, 300 total offline tests, strict `mypy src` (66 source files), and scoped Ruff lint/format checks (8 files). Committed locally pending Jeswin's push and PR reply wording.

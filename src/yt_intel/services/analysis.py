@@ -5,7 +5,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC
 
-from yt_intel.analytics.periods import TimePeriod, validate_non_overlapping_periods
+from yt_intel.analytics.periods import (
+    TimePeriod,
+    validate_period_pair,
+)
 from yt_intel.analytics.summaries import (
     AnalysisConfig,
     AnalysisReport,
@@ -81,40 +84,48 @@ def build_report_sections(report: AnalysisReport) -> tuple[ReportSection, ...]:
     ]
     if report.period_comparison is not None:
         pc = report.period_comparison
-        pa = pc.playlist_additions
-        sc = pc.subscription_creations
-        pa_pct = (
-            f"{pa.percent_change:.1f}%"
-            if pa.percent_change is not None
-            else f"undefined ({pa.percent_change_reason})"
-        )
-        sc_pct = (
-            f"{sc.percent_change:.1f}%"
-            if sc.percent_change is not None
-            else f"undefined ({sc.percent_change_reason})"
-        )
+        period_fields: list[tuple[str, str]] = [
+            (
+                "Period A",
+                f"{pc.period_a.start.isoformat()} to {pc.period_a.end.isoformat()}",
+            ),
+            (
+                "Period B",
+                f"{pc.period_b.start.isoformat()} to {pc.period_b.end.isoformat()}",
+            ),
+        ]
+        if pc.playlist_additions is not None:
+            pa = pc.playlist_additions
+            pa_pct = (
+                f"{pa.percent_change:.1f}%"
+                if pa.percent_change is not None
+                else f"undefined ({pa.percent_change_reason})"
+            )
+            period_fields.append(
+                (
+                    "Playlist additions (added_at)",
+                    f"A={pa.count_a}, B={pa.count_b}, diff={pa.absolute_difference:+d}, change={pa_pct}",
+                )
+            )
+        if pc.subscription_creations is not None:
+            sc = pc.subscription_creations
+            sc_pct = (
+                f"{sc.percent_change:.1f}%"
+                if sc.percent_change is not None
+                else f"undefined ({sc.percent_change_reason})"
+            )
+            period_fields.append(
+                (
+                    "Subscription creations (subscribed_at)",
+                    f"A={sc.count_a}, B={sc.count_b}, diff={sc.absolute_difference:+d}, change={sc_pct}",
+                )
+            )
+        if pc.likes_trend is not None:
+            period_fields.append(("Likes trend", pc.likes_trend.explanation))
         sections.append(
             ReportSection(
                 title="Period comparison (UTC [start, end))",
-                fields=(
-                    (
-                        "Period A",
-                        f"{pc.period_a.start.isoformat()} to {pc.period_a.end.isoformat()}",
-                    ),
-                    (
-                        "Period B",
-                        f"{pc.period_b.start.isoformat()} to {pc.period_b.end.isoformat()}",
-                    ),
-                    (
-                        "Playlist additions (added_at)",
-                        f"A={pa.count_a}, B={pa.count_b}, diff={pa.absolute_difference:+d}, change={pa_pct}",
-                    ),
-                    (
-                        "Subscription creations (subscribed_at)",
-                        f"A={sc.count_a}, B={sc.count_b}, diff={sc.absolute_difference:+d}, change={sc_pct}",
-                    ),
-                    ("Likes trend", pc.likes_trend.explanation),
-                ),
+                fields=tuple(period_fields),
             )
         )
     return tuple(sections)
@@ -160,14 +171,7 @@ class AnalysisService:
                 "Library snapshot has expired past its retention limit.",
                 safe_next_action="Collect a fresh library snapshot with get_library.",
             )
-        if (period_a is None) != (period_b is None):
-            raise _analysis_error(
-                "INVALID_INPUT",
-                "Both period_a and period_b must be provided for period comparison.",
-                safe_next_action="Supply two non-overlapping UTC [start, end) intervals or omit both.",
-            )
-        if period_a is not None and period_b is not None:
-            validate_non_overlapping_periods(period_a, period_b)
+        validate_period_pair(period_a, period_b)
 
         config = (
             AnalysisConfig(sources=tuple(dict.fromkeys(sources)))
@@ -197,6 +201,7 @@ class AnalysisService:
         period_a: TimePeriod | None = None,
         period_b: TimePeriod | None = None,
     ) -> AnalysisOutcome:
+        validate_period_pair(period_a, period_b)
         now = self._clock.now().astimezone(UTC)
         snapshot = await self._snapshots.get_snapshot(binding, snapshot_id, now=now)
         if snapshot is None:

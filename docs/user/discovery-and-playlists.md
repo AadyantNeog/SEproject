@@ -12,7 +12,7 @@ In Windows Codex, open the project checkout and connect the local MCP server usi
 
 Ask Codex to read `yt-intel://fixture/previews/create` from `yt-intel-fixture`. It shows the synthetic **Database indexing practice** playlist, with two items totalling **22:00 (1,320 seconds)** and **8:00 (480 seconds)** unused. You can also read `yt-intel://skills/video-to-playlist` to inspect the skill instructions through the same connection.
 
-The fixture server also offers `recommend_videos` for a bundled synthetic library. Try asking for English recommendations on database indexing with a 12-minute total limit and a 10-minute cap per video. The result shows which sources supported the ranking. A full seed-to-playlist request will report the missing workflow tools. For repeatable cases and the remaining end-to-end steps, see the [evaluation record](../evidence/skills/video-to-playlist.md).
+For recommendations, ask Codex to call `get_library` for likes, then use its snapshot ID with `recommend_videos` to find English videos within 22 minutes total. The result shows which preferences supported the ranking and how much time remains. You can also run `recommend_videos` by itself to use the bundled example. A full seed-to-playlist request will report any missing workflow tools. For repeatable cases, see the [evaluation record](../evidence/skills/video-to-playlist.md).
 
 Once the product handlers are available, try a request with this shape:
 
