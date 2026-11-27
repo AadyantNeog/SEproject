@@ -1,3 +1,4 @@
+import json
 import sys
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -292,4 +293,66 @@ async def test_recovery_after_process_restart(
             else 2
             if scenario in {"applied", "drift"}
             else 1 + expected_writes
+        )
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    ("status", "error_code"),
+    [
+        ({"privacyStatus": "public"}, "PROPOSAL_CHANGED"),
+        ({}, "VERIFICATION_PENDING"),
+        ({"privacyStatus": "privacystatusunspecified"}, "VERIFICATION_PENDING"),
+    ],
+    ids=["changed-to-public", "missing-privacy", "unknown-privacy"],
+)
+async def test_resume_rechecks_playlist_privacy_after_preview(
+    tmp_path, status, error_code
+):
+    path = tmp_path / "operations.sqlite3"
+    playlist = await _interrupted_operation(path, "missing")
+    assert playlist is not None
+    launcher, audit = _launcher(tmp_path, path, "approve")
+    args = {"operation_id": OPERATION}
+
+    async with _client(launcher) as client:
+        result = await client.call_tool("reconcile_operation", args)
+        assert not result.is_error and result.structured_content is not None
+        assert result.structured_content["data"]["state"] == "resume_ready"
+        preview = result.structured_content["data"]["preview"]
+        assert preview["body"]["privacy"] == "private"
+
+        # Simulate a remote settings change after the saved preview is issued.
+        with Database(path).transaction() as connection:
+            row = connection.execute(
+                "SELECT body FROM fixture_remote_playlists WHERE playlist_id = ?",
+                (playlist,),
+            ).fetchone()
+            body = json.loads(row["body"])
+            body["status"] = status
+            connection.execute(
+                "UPDATE fixture_remote_playlists SET body = ? WHERE playlist_id = ?",
+                (json.dumps(body), playlist),
+            )
+
+        resumed = await client.call_tool("resume_operation", {**args, **preview["ref"]})
+        assert resumed.is_error and resumed.structured_content is not None
+        assert resumed.structured_content["error"]["code"] == error_code
+
+    assert audit.read_text(encoding="utf-8").splitlines() == [
+        preview["ref"]["proposal_id"]
+    ]
+    with Database(path).transaction(immediate=False) as connection:
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM quota_attempts WHERE endpoint IN ('playlists.insert', 'playlistItems.insert')"
+            ).fetchone()[0]
+            == 0
+        )
+        assert (
+            connection.execute(
+                "SELECT COUNT(*) FROM fixture_remote_items WHERE playlist_id = ?",
+                (playlist,),
+            ).fetchone()[0]
+            == 1
         )

@@ -77,7 +77,10 @@ class FixturePlaylistWrites:
                 },
             )
         if request.method == "GET" and path == "/youtube/v3/playlists":
-            return httpx.Response(200, json={"items": self._owned()})
+            parts = request.url.params.get("part", "").split(",")
+            return httpx.Response(
+                200, json={"items": self._owned(include_status="status" in parts)}
+            )
         if path != "/youtube/v3/playlistItems":
             return httpx.Response(404)
         if request.method == "GET":
@@ -138,7 +141,7 @@ class FixturePlaylistWrites:
                 json.loads(row["body"]), [json.loads(item["payload"]) for item in items]
             )
 
-    def _owned(self) -> list[dict[str, object]]:
+    def _owned(self, *, include_status: bool) -> list[dict[str, object]]:
         if self._database is None:
             records = [
                 (identifier, playlist.body)
@@ -161,6 +164,7 @@ class FixturePlaylistWrites:
                     **cast(dict[str, Any], body["snippet"]),
                     "channelId": self._channel_id,
                 },
+                **({"status": body.get("status")} if include_status else {}),
             }
             for identifier, body in records[:50]
         ]

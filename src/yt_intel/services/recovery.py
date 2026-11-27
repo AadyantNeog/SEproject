@@ -252,15 +252,25 @@ class PlaylistRecoveryService:
                 "ACCOUNT_MISMATCH", "Recovery account could not be verified."
             )
         owned = await self._provider.list_my_playlists(ctx, 50)
-        if not any(
-            item.playlist_id == playlist_id
-            and item.channel_id == ctx.binding.channel_id
-            and item.title == original.body.title
-            for item in owned.items
-        ):
+        destination = next(
+            (
+                item
+                for item in owned.items
+                if item.playlist_id == playlist_id
+                and item.channel_id == ctx.binding.channel_id
+                and item.title == original.body.title
+            ),
+            None,
+        )
+        if destination is None or destination.privacy is None:
             raise _blocked(
                 "VERIFICATION_PENDING",
-                "Exact playlist ownership and title could not be verified.",
+                "Exact playlist ownership, title and privacy could not be verified.",
+            )
+        if destination.privacy != original.body.privacy:
+            raise _blocked(
+                "PROPOSAL_CHANGED",
+                "Playlist privacy differs from the approved preview.",
             )
         page = await self._provider.list_playlist_items(ctx, playlist_id, 50)
         if (

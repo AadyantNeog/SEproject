@@ -26,7 +26,7 @@ from yt_intel.contracts.models import (
     SubscriptionSignal,
     Video,
 )
-from yt_intel.contracts.proposals import PlaylistBody
+from yt_intel.contracts.proposals import PlaylistBody, Privacy
 from yt_intel.contracts.provider import (
     ChannelBatch,
     ChannelByHandle,
@@ -429,10 +429,15 @@ def normalize_owned_playlist_item(item: Mapping[str, object]) -> OwnedPlaylist |
     if not isinstance(ref, ChannelById):
         return None
     title = _clean_label(snippet.get("title")) or "(untitled playlist)"
+    privacy: Privacy | None = None
+    match _as_mapping(item.get("status")).get("privacyStatus"):
+        case "private" | "unlisted" | "public" as known:
+            privacy = known
     return OwnedPlaylist(
         playlist_id=raw_id,
         channel_id=ref.channel_id,
         title=title,
+        privacy=privacy,
     )
 
 
@@ -790,7 +795,7 @@ class LiveYouTubeReadProvider(YouTubeReadProvider):
         self._require_mode(ctx)
         limit = validate_result_limit(page_size)
         params: dict[str, str] = {
-            "part": "snippet,contentDetails",
+            "part": "snippet,contentDetails,status",
             "mine": "true",
             "maxResults": str(limit),
         }

@@ -19,7 +19,7 @@ from .common import (
     VideoId,
 )
 from .models import Channel, Page, PlaylistOccurrence, SubscriptionSignal, Video
-from .proposals import PlaylistBody
+from .proposals import PlaylistBody, Privacy
 from .workflow import RequestContext
 
 
@@ -60,6 +60,7 @@ class OwnedPlaylist(Contract):
     playlist_id: PlaylistId
     channel_id: ChannelId
     title: Label
+    privacy: Privacy | None = None
 
 
 class CreatedPlaylist(Contract):
