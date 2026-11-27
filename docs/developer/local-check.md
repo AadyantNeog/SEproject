@@ -33,3 +33,21 @@ The fixture metadata fetch is a harness smoke check. Input validation,
 ranking, proposal construction, and cached reads need their own measurements.
 Where live checks are separately authorized, report their provider quota
 and network and OAuth time separately.
+
+## Feature targets (A2-08)
+
+To measure the A2-08 NFR-08 targets, run:
+
+```powershell
+& '.venv/Scripts/python.exe' scripts/benchmark_features.py --runs 30
+```
+
+The command measures input validation, similar-video, similar-channel and
+recommendation ranking, and proposal construction. It runs them in process
+over a deterministic 200-candidate synthetic workload. It then repeats the
+fixture discovery, recommendation, preview and invalid-input calls through
+MCP stdio. Each stdio call gets its own temporary fixture database. Add
+`--no-stdio` to skip the stdio targets and `--output <file>` to save the
+JSON. The command exits nonzero if a target misses its bound. The latest
+results are in the [performance report](../evidence/performance/report.md).
+Cached-read timing belongs to J2-08 and is not part of this command.
