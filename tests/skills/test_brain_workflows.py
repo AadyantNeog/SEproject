@@ -243,7 +243,9 @@ async def test_brain_skills_are_discoverable_as_mcp_resources() -> None:
                 ).contents[0]
                 assert isinstance(res, TextResourceContents)
                 assert res.mime_type == "text/markdown"
-                canonical = (ROOT / ".agents" / "skills" / name / "SKILL.md").read_text(
-                    encoding="utf-8"
+                canonical = (
+                    (ROOT / ".agents" / "skills" / name / "SKILL.md")
+                    .read_bytes()
+                    .decode("utf-8")
                 )
                 assert res.text == canonical
