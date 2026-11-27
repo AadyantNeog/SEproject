@@ -9,7 +9,7 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from yt_intel.contracts.approval import ApprovalAdapter
 from yt_intel.contracts.common import Contract
 from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
-from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.database import Database, default_database_path
 from yt_intel.infrastructure.repositories import SqliteCacheRepository
 from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
@@ -40,16 +40,21 @@ def build_fixture_server(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
     )(fixture_status)
     if project_root is not None:
-        workflows = fixture_workflow_runtime(project_root, fixture_db)
-        candidate_sets = FixtureCandidateSets(
-            lambda: SqliteCacheRepository(Database(fixture_db))
+        state_path = (
+            (fixture_db or default_database_path("fixture")).expanduser().resolve()
         )
-        register_fixture_discovery(server, project_root, candidate_sets, workflows)
+        workflows = fixture_workflow_runtime(project_root, database_path=state_path)
+        candidate_sets = FixtureCandidateSets(
+            lambda: SqliteCacheRepository(Database(state_path))
+        )
+        register_fixture_discovery(
+            server, project_root, state_path, candidate_sets, workflows
+        )
         library_runtime = register_fixture_library(
-            server, project_root, fixture_db, workflows
+            server, project_root, state_path, workflows
         )
         register_fixture_planning(
-            server, project_root, fixture_db, candidate_sets, workflows
+            server, project_root, state_path, candidate_sets, workflows
         )
         register_fixture_recommendations(server, project_root, library_runtime)
         if workflows is not None:
@@ -57,7 +62,7 @@ def build_fixture_server(
             register_fixture_execution(
                 server,
                 project_root,
-                fixture_db,
+                state_path,
                 workflows,
                 approval_adapter=creation_approval,
             )

@@ -222,3 +222,24 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 P2-04 MCP execution review follow-up
 
 - Wired preparation, creation and operation status in [draft PR #39](https://github.com/AadyantNeog/SEproject/pull/39) and carried the original quota reservation through the fixture workflow. Both stdio scenarios passed. Rejection dispatched zero POSTs and recorded zero write debits. The simulated approval case completed and replay sent no further writes. See [[2026-11-27-p2-04-mcp-execution]].
+## 2026-11-27 J2-05 analytics and valid timestamp comparisons
+
+- Implemented pure analytics modules (`src/yt_intel/analytics/{__init__,periods,summaries}.py`), `AnalysisService` (`src/yt_intel/services/analysis.py`), the `analyse_library` MCP handler (`src/yt_intel/mcp/library.py`), and unit/system tests (`tests/unit/analytics/{test_summaries,test_periods}.py`, `tests/system/test_analysis.py`) on `codex/j2-05-analytics` from `origin/main` (`c5293cf`). See [[2026-11-27-j2-05-analytics]].
+- Verified 6 J2-05 unit/system tests (including the SRS runtime oracle `[240, 600, 600, 1200]` + unknown denominator, UTC `[start, end)` period comparisons without `video.published_at` substitution, zero-baseline `percent_change=None`, and fixture stdio MCP execution), 297 total offline tests (`pytest -m "not live" -q`), strict `mypy src` (66 source files), and scoped Ruff lint/format checks on all 8 J2-05 files. Published [issue #45](https://github.com/AadyantNeog/SEproject/issues/45) and [draft PR #46](https://github.com/AadyantNeog/SEproject/pull/46); Aadyant's lead review remains pending.
+- For Aadyant's review follow-up on PR #46, merged `origin/main` (`c0884b5`, preserving A2-03 `FixtureLibraryRuntime` and brain entries), added `validate_period_pair` before runtime/fetch/snapshot reads so invalid, incomplete, or overlapping periods fail before any provider call or DB creation, and scoped `compare_periods` / `PeriodComparison` / rendered report sections to the selected `sources`. Re-verified 8 J2-05 tests, 300 total offline tests, strict `mypy src` (66 source files), and scoped Ruff lint/format checks (8 files). Committed locally pending Jeswin's push and PR reply wording.
+
+## 2026-11-27 A2-02 standalone discovery quota
+
+- Connected both discovery tools to the SQLite ledger for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). Stdio tests verified search debits, refusal before the seed fetch, and cancellation without a cache entry. All 293 offline tests passed. See [[2026-11-27-a2-02-discovery-quota]].
+
+## 2026-11-27 J2-05 review sync
+
+- At Aadyant's request, Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) with `main` after [PR #47](https://github.com/AadyantNeog/SEproject/pull/47) and preserved both log entries. All 301 offline tests passed on the combined tree. See [[2026-11-27-j2-05-review-sync]].
+
+## 2026-11-27 A2-05 discovery and preview under a shared reservation
+
+- Wired the discovery and preview handlers to one workflow reservation for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). The stdio test uses a test-only seed adapter, then verifies the original reservation and candidate handoff through the real discovery and preview tools. All 294 offline tests passed. See [[2026-11-27-a2-05-composed-preview]].
+
+## 2026-11-27 J2-05 sync with composed preview
+
+- Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) again after PR #48 landed. All 302 offline tests passed on the latest combined tree. See [[2026-11-27-j2-05-review-sync]].

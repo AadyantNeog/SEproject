@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
+from sqlite3 import Error as SqliteError
 from tempfile import TemporaryDirectory
 from typing import Annotated, Literal
 from uuid import uuid4
@@ -37,12 +38,12 @@ class WorkflowStarted(Contract):
 class FixtureWorkflowRuntime:
     binding: AccountBinding
     profile: QuotaProfile
-    _database_path: Path
+    database_path: Path
     _storage: TemporaryDirectory[str] | None
 
     @cached_property
     def ledger(self) -> SqliteQuotaLedger:
-        return SqliteQuotaLedger(Database(self._database_path), self.profile)
+        return SqliteQuotaLedger(Database(self.database_path), self.profile)
 
     @cached_property
     def service(self) -> WorkflowService:
@@ -50,7 +51,7 @@ class FixtureWorkflowRuntime:
 
 
 def fixture_workflow_runtime(
-    project_root: Path, fixture_db: Path | None = None
+    project_root: Path, *, database_path: Path | None = None
 ) -> FixtureWorkflowRuntime | None:
     profile_path = project_file(
         project_root, Path("config/quota-profiles/youtube-2026-11-16.json")
@@ -65,10 +66,10 @@ def fixture_workflow_runtime(
         raise ValueError("workflow fixtures require a synthetic account")
     profile = QuotaProfile.load(profile_path)
     storage = None
-    if fixture_db is None:
+    if database_path is None:
         storage = TemporaryDirectory(prefix="yt-intel-quota-")
-        fixture_db = Path(storage.name) / "state.sqlite3"
-    return FixtureWorkflowRuntime(binding, profile, fixture_db, storage)
+        database_path = Path(storage.name) / "state.sqlite3"
+    return FixtureWorkflowRuntime(binding, profile, database_path, storage)
 
 
 def register_fixture_workflows(
@@ -105,6 +106,16 @@ def register_fixture_workflows(
             )
         except ContractError as error:
             return _failed(request_id, error.detail)
+        except (OSError, SqliteError):
+            return _failed(
+                request_id,
+                ErrorDetail(
+                    code="PROVIDER_UNAVAILABLE",
+                    message="The local workflow quota ledger could not be accessed.",
+                    retryable=False,
+                    safe_next_action="Check access to the fixture database and try again.",
+                ),
+            )
         result = ResultEnvelope[WorkflowStarted](
             mode="fixture",
             request_id=request_id,

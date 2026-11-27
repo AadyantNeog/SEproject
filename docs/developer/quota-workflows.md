@@ -14,20 +14,22 @@ still finish. Buckets outside the failed endpoint's cost stay available.
 The fixture MCP checkout exposes `begin_workflow` with
 `{"kind":"video_to_playlist","video":"dQw4w9WgXcQ"}`. It builds the plan on
 the server and returns an opaque workflow ID, reserved amounts, and expiry.
-Its temporary database is scoped to the fixture server process. The stdio
-test checks actual reservation and refusal. It makes no provider calls.
+The MCP server uses the same fixture database as standalone tools. Set
+`--fixture-db` to choose a separate database for a fixture run. Session IDs
+are local to the server process, while SQLite retains quota spend across
+restarts. The standalone workflow-start test checks reservation and refusal
+with no provider calls.
 
 ## Handler integration
 
-Create one `FixtureWorkflowRuntime` in the MCP server composition and pass it
-to each handler registration. `begin_workflow` uses `runtime.service`;
-the read executor uses `runtime.ledger`. Keep the account binding and
-cancellation token server owned. Use the existing standalone path only
-when the caller did not supply a workflow ID.
+The MCP server composes one `FixtureWorkflowRuntime` for workflow start,
+discovery and preview. `begin_workflow` uses `runtime.service` and discovery
+debits `runtime.ledger`. Keep the account binding and cancellation token
+server owned. Use the standalone path when no workflow ID is supplied.
 
 | Owner | Handler | Use of the shared session |
 | --- | --- | --- |
-| Jeswin | `get_video` | Normalize the video with `parse_video_id`, enter the `get_video` stage with `video=seed`, then fetch using `access.context`. |
+| Jeswin | `get_video` | Production handler wiring is pending. Normalize the video with `parse_video_id`, enter the `get_video` stage with `video=seed`, then fetch using `access.context`. |
 | Aadyant | `find_similar_videos` | Enter the discovery stage with the same normalized seed. Use `access.context` for provider calls. After storing the candidate set, assign its server-issued ID to `access.candidate_set_id`. |
 | Aadyant | `propose_playlist` | Enter the preview stage with the returned candidate set ID. Load the account-bound candidate set and build the preview inside the stage. |
 
@@ -54,6 +56,9 @@ reference is refused before the handler runs. The reservation
 retains its original expiry and remains available for the future creation
 stages after a successful preview.
 
+Discovery and preview keep the database-backed quota and stage checks from
+main. The preview publishes its saved proposal reference for operation preparation.
+
 The stdio tests cover workflow start and quota refusal, then verify seed,
 discovery, preview, operation preparation and fixture execution through
 one SQLite reservation. They inspect both the recorded debit and the
@@ -62,4 +67,4 @@ writes. See [fixture creation](fixture-playlist-creation.md) for the command
 sequence. Recovery remains P2-05.
 
 Tracking: [issue #26](https://github.com/AadyantNeog/SEproject/issues/26) and
-[draft PR #27](https://github.com/AadyantNeog/SEproject/pull/27).
+[quota ledger PR #27](https://github.com/AadyantNeog/SEproject/pull/27).
