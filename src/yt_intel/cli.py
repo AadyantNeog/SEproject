@@ -20,7 +20,7 @@ from .auth.oauth import (
 from .auth.vault import KeyringTokenVault
 from .bootstrap import create_fixture_server
 from .client_skills import sync_claude_skills
-from .contracts.account import AccountStatus, TokenVault
+from .contracts.account import AccountStatus, DisconnectResult, TokenVault
 from .contracts.common import OpaqueId
 from .contracts.errors import ContractError, ErrorDetail
 from .contracts.workflow import Clock, QuotaLedger
@@ -177,6 +177,64 @@ async def run_cli_auth(
         await oauth_executor.aclose()
 
 
+async def run_cli_disconnect(
+    *,
+    client_secrets_path: Path,
+    vault: TokenVault | None = None,
+    database_path: Path | None = None,
+    account_state_path: Path | None = None,
+    quota_profile_path: Path | None = None,
+    clock: Clock | None = None,
+    oauth_transport: httpx.AsyncBaseTransport | None = None,
+) -> DisconnectResult | None:
+    """Disconnect the saved live account: revoke, delete vault tokens and local data.
+
+    Returns None when no account is saved. A disconnect left pending by an
+    earlier failure is retried, because the saved record stays disabled.
+    """
+    db_path = (
+        database_path if database_path is not None else default_database_path("live")
+    )
+    state_path = (
+        account_state_path
+        if account_state_path is not None
+        else db_path.with_name("account-live.json")
+    )
+    state_store = JsonAccountStateStore(state_path)
+    record = state_store.load()
+    if record is None:
+        return None
+    config = load_oauth_client_config(client_secrets_path)
+    db = Database(db_path)
+    db.migrate()
+    ledger, _, _ = _load_sqlite_quota_ledger(
+        db, quota_profile_path=quota_profile_path, clock=clock
+    )
+    oauth_executor = AccountedHttpExecutor(
+        quota_ledger=ledger, transport=oauth_transport, clock=clock
+    )
+    service = LocalAccountService(
+        installation_id="local-cli",
+        mode="live",
+        vault=vault if vault is not None else KeyringTokenVault(),
+        oauth_client=OAuthClient(config, oauth_executor, clock=clock),
+        account_data=SqliteAccountDataRepository(db, clock=clock),
+        clock=clock,
+        state_store=state_store,
+    )
+    try:
+        return await service.disconnect(record.binding)
+    finally:
+        await oauth_executor.aclose()
+
+
+def _client_secrets(explicit: Path | None) -> Path | None:
+    if explicit is not None:
+        return explicit
+    env_path = os.environ.get(_OAUTH_SECRETS_ENV, "").strip()
+    return Path(env_path) if env_path else None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="yt-intel")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -233,14 +291,49 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=120.0,
         help="Browser callback timeout in seconds (default: 120)",
     )
+    disconnect = commands.add_parser(
+        "disconnect",
+        help="Revoke the saved live account and delete its tokens and local data",
+    )
+    disconnect.add_argument(
+        "--client-secrets",
+        type=Path,
+        default=None,
+        help=f"Path to local Google Desktop OAuth JSON (or set {_OAUTH_SECRETS_ENV})",
+    )
     args = parser.parse_args(argv)
 
+    if args.command == "disconnect":
+        disconnect_secrets = _client_secrets(args.client_secrets)
+        if disconnect_secrets is None:
+            print(
+                f"AUTH_REQUIRED: Supply --client-secrets <path> or set {_OAUTH_SECRETS_ENV}.",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            outcome = anyio.run(
+                lambda: run_cli_disconnect(client_secrets_path=disconnect_secrets)
+            )
+        except ContractError as exc:
+            print(
+                f"{exc.detail.code}: {exc.detail.message} Next: {exc.detail.safe_next_action}",
+                file=sys.stderr,
+            )
+            return 1
+        if outcome is None:
+            print("No saved live account. Nothing to disconnect.")
+            return 0
+        print(
+            f"revoked={outcome.revoked} tokens_removed={outcome.tokens_removed} "
+            f"local_data_removed={outcome.local_data_removed}"
+        )
+        for warning in outcome.warnings:
+            print(f"{warning.code}: {warning.message}", file=sys.stderr)
+        return 0 if outcome.tokens_removed and outcome.local_data_removed else 1
+
     if args.command == "auth":
-        secrets_path: Path | None = args.client_secrets
-        if secrets_path is None:
-            env_path = os.environ.get(_OAUTH_SECRETS_ENV, "").strip()
-            if env_path:
-                secrets_path = Path(env_path)
+        secrets_path = _client_secrets(args.client_secrets)
         if secrets_path is None:
             print(
                 f"AUTH_REQUIRED: Supply --client-secrets <path> or set {_OAUTH_SECRETS_ENV}.",

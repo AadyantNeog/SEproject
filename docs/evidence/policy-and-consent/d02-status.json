@@ -1,0 +1,9 @@
+{
+  "dependency": "D-02",
+  "state": "unresolved",
+  "summary": "Instructor or provider direction on API policy applicability for live-derived processing has not been recorded.",
+  "evidence_url": null,
+  "recorded_by": null,
+  "recorded_on": null,
+  "change_rule": "Only a human may set state to resolved, through a reviewed PR that links the instructor or provider evidence. An agent, model output or environment flag cannot resolve D-02."
+}

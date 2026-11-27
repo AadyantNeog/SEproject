@@ -2,6 +2,8 @@
 
 Version 2.2 · 21 November 2026 · Owner: Paul T Mathew (BT2024135)
 
+**v2.3 transfer, 28 November 2026:** P2-08 moved to Aadyant by team decision ([ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)). This brief remains the historical v2.2 allocation and the record of your merged work and credit. You still author your own reflection and contribution record.
+
 This equal-workload brief replaces the earlier P01–P04 assignment. Read root AGENTS.md, SRS/brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own P2-01–P2-08: eight tasks, 56–80 planned hours and one third of implementation responsibility, including reliability/security code, tests/docs/integration, self-checks, review preparation and feedback fixes.
 
 Review A2-01 repository/clock/quota/approval/operation interfaces and prepare independent fault oracles. After common contracts merge, start P2-01 SQLite migrations/repositories/cache/retention/replay tombstones. Supply account-bound expiry/deletion interfaces to Jeswin's disconnect and proposal/operation repositories to Aadyant. Runtime data stays outside git; disconnect never restores quota or converts a stale operation ID into a new create.

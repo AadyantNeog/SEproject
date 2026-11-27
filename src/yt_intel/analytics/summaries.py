@@ -368,6 +368,11 @@ def summarise_library(
             warnings.append(
                 f"Source '{src_name}' was {src_cov.state} in this snapshot."
             )
+        elif src_name in config.sources and src_cov.state == "not_requested":
+            warnings.append(
+                f"Source '{src_name}' was not requested in this snapshot; "
+                "its counts are not evidence of zero activity."
+            )
     if combined_summary.runtime.unknown_count > 0:
         warnings.append(
             f"{combined_summary.runtime.unknown_count} of {combined_summary.runtime.retrieved_count} "

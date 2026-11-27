@@ -1,0 +1,93 @@
+name: Live read-only check
+
+# J2-07. Separately scheduled, read-only and fixed-budget. It never runs on
+# pull requests and holds no repository secrets. The operator provisions the
+# protected self-hosted runner, signs in there with `yt-intel auth --read`
+# so tokens stay in that machine's OS vault, and sets the repository
+# variables below. Until then the readiness job reports the prerequisites as
+# blocked and the live job does not run. See
+# docs/evidence/policy-and-consent/README.md.
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-read-only
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: Live prerequisites
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - id: gate
+        name: Check recorded prerequisites
+        shell: bash
+        env:
+          RUNNER_ENABLED: ${{ vars.YT_INTEL_LIVE_READ_ENABLED }}
+          TEST_VIDEO: ${{ vars.YT_INTEL_LIVE_CHECK_VIDEO }}
+        run: |
+          set -euo pipefail
+          d02="$(python3 -c "import json; r = json.load(open('docs/evidence/policy-and-consent/d02-status.json')); print('resolved' if r.get('state') == 'resolved' and str(r.get('evidence_url') or '').startswith('https://') and r.get('recorded_by') else 'unresolved')")"
+          runner="$([ "${RUNNER_ENABLED:-}" = "true" ] && echo provisioned || echo missing)"
+          video="$([ -n "${TEST_VIDEO:-}" ] && echo configured || echo missing)"
+          ready=false
+          if [ "$d02" = resolved ] && [ "$runner" = provisioned ] && [ "$video" = configured ]; then ready=true; fi
+          {
+            echo "## Live read-only prerequisites"
+            echo "| Prerequisite | State |"
+            echo "| --- | --- |"
+            echo "| D-02 recorded resolution | $d02 |"
+            echo "| Protected runner (YT_INTEL_LIVE_READ_ENABLED) | $runner |"
+            echo "| Authorised test video (YT_INTEL_LIVE_CHECK_VIDEO) | $video |"
+            echo
+            if [ "$ready" = true ]; then echo "Ready. The live job runs on the protected runner."; else echo "**Blocked.** No live request was sent. This is not a passed live check."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+
+  live-read:
+    name: Fixed-budget read-only check
+    needs: readiness
+    if: needs.readiness.outputs.ready == 'true'
+    runs-on: [self-hosted, windows, yt-intel-live-read]
+    environment: live-read-only
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install locked environment
+        shell: pwsh
+        run: |
+          python -m venv .venv-live
+          & .venv-live/Scripts/python.exe -m pip install --require-hashes -r requirements.lock
+          & .venv-live/Scripts/python.exe -m pip install --no-deps --no-build-isolation -e .
+      - name: Run the read-only check
+        shell: pwsh
+        env:
+          YT_INTEL_LIVE_READ_CHECK: '1'
+          YT_INTEL_LIVE_CHECK_VIDEO: ${{ vars.YT_INTEL_LIVE_CHECK_VIDEO }}
+        # YT_INTEL_OAUTH_CLIENT_SECRETS is set in the runner's own
+        # environment and points outside the checkout.
+        run: |
+          & .venv-live/Scripts/python.exe scripts/live_read_check.py --output live-read-report.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Keep the redacted report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: live-read-report
+          path: live-read-report.json
+          if-no-files-found: ignore
+          retention-days: 30

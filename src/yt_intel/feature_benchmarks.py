@@ -1,4 +1,4 @@
-"""A2-08 NFR-08 measurements for validation, ranking and proposal construction.
+"""NFR-08 measurements: validation, ranking, proposals (A2-08) and cached reads (J2-08).
 
 The in-process targets use a deterministic synthetic workload of 200 candidate
 videos so the SRS bound "ranking up to 200 candidates" is exercised at its
@@ -26,6 +26,7 @@ from typing import Any
 
 from mcp.client.session import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
+from mcp_types import ResourceLink, TextContent, TextResourceContents
 
 from yt_intel.contracts.common import AccountBinding
 from yt_intel.contracts.errors import ContractError
@@ -50,11 +51,17 @@ from yt_intel.domain.language import normalize_language_tag, parse_language_tag
 from yt_intel.domain.profiles import build_profile, rank_recommendations
 from yt_intel.domain.proposals import PlaylistPlanner
 from yt_intel.domain.ranking import ChannelCorpus, rank_channels, rank_videos
+from yt_intel.infrastructure.database import Database
 from yt_intel.local_checks import MIN_RUNS, Measurement, measure
 
 CANDIDATES = 200
 CHANNELS = 20
-TARGET_MS = {"validation": 100.0, "ranking": 2000.0, "proposal": 2000.0}
+TARGET_MS = {
+    "validation": 100.0,
+    "ranking": 2000.0,
+    "proposal": 2000.0,
+    "cached_read": 2000.0,
+}
 NOW = datetime(2026, 11, 28, 9, 0, tzinfo=UTC)
 BINDING = AccountBinding(
     installation_id="benchmark-installation",
@@ -474,10 +481,53 @@ async def _stdio_target(
                 observed["error_code"] = code
 
             observed["input"] = dict(_INVALID_VIDEO)
+        elif name == "analyse_library_cached":
+            library = _data(await _call(client, "get_library", {}))
+            snapshot = library["data"]["snapshot_id"]
+            database = Database(workspace / f"{name}.sqlite3")
+            before = _provider_attempts(database)
+
+            async def sample() -> None:
+                content = _data(
+                    await _call(client, "analyse_library", {"snapshot_id": snapshot})
+                )
+                assert content["data"]["snapshot_id"] == snapshot
+                assert content["data"]["combined_videos"]["count"] == 3
+                observed["combined_videos"] = content["data"]["combined_videos"][
+                    "count"
+                ]
+
+            observed["input"] = {"snapshot_id": "<saved fixture snapshot>"}
+            timing = await measure(sample, runs)
+            observed["provider_attempts_during_samples"] = (
+                _provider_attempts(database) - before
+            )
+            assert observed["provider_attempts_during_samples"] == 0
+            return timing, observed
+        elif name == "read_saved_preview":
+            preview = await _call(client, "propose_playlist", dict(_PREVIEW))
+            _data(preview)
+            link, text = preview.content[1], preview.content[0]
+            assert isinstance(link, ResourceLink) and isinstance(text, TextContent)
+            uri, expected = link.uri, text.text
+
+            async def sample() -> None:
+                contents = (await client.read_resource(uri)).contents
+                assert len(contents) == 1
+                assert isinstance(contents[0], TextResourceContents)
+                assert contents[0].text == expected
+
+            observed["input"] = {"uri": "yt-intel://proposals/<saved preview>/1"}
         else:
             raise ValueError(f"Unknown stdio target {name}.")
         timing = await measure(sample, runs)
     return timing, observed
+
+
+def _provider_attempts(database: Database) -> int:
+    with database.transaction(immediate=False) as connection:
+        row = connection.execute("SELECT COUNT(*) FROM quota_attempts").fetchone()
+    return int(row[0])
 
 
 # Fixture-sized end-to-end calls. They include provider fixture reads, the
@@ -490,6 +540,8 @@ STDIO_TARGETS = {
     "recommend_videos": "ranking",
     "propose_playlist": "proposal",
     "find_similar_videos_invalid_input": "validation",
+    "analyse_library_cached": "cached_read",
+    "read_saved_preview": "cached_read",
 }
 
 
