@@ -43,7 +43,11 @@ def run() -> int:
     tasks = data['tasks']
     task_map = {t['id']: t for t in tasks}
     expected_ids = {f'{prefix}2-{i:02}' for prefix in PEOPLE.values() for i in range(1, 9)}
-    check('Current task register', data['plan_version'] == '2.2' and len(tasks) == len(task_map) == 24 and set(task_map) == expected_ids, '24 unique A2/J2/P2 implementation tasks under governance version 2.2, eight for each member')
+    check('Current task register', data['plan_version'] == '2.3' and len(tasks) == len(task_map) == 24 and set(task_map) == expected_ids, '24 unique A2/J2/P2 implementation tasks under planning version 2.3; the v2.2 allocation of eight per member is kept as history')
+    transfer = data.get('ownership_transfer', {})
+    transferred = set(transfer.get('transferred_tasks', []))
+    implementer = {t['id']: t.get('implementer', t['owner']) for t in tasks}
+    check('Ownership transfer record', transfer.get('decided_on') == '2026-11-28' and transferred == {'J2-07', 'J2-08', 'P2-08'} and transfer.get('implementer') == 'Aadyant' and transfer.get('original_owner_preserved') is True and transfer.get('merged_work_credit_unchanged') is True and transfer.get('review_mode') == 'chosen_ai_review_plus_recorded_human_owner_review' and all((ROOT / transfer[key]).is_file() for key in ('decision_record', 'distilled_note')) and all(implementer[tid] == 'Aadyant' and task_map[tid]['owner'] != 'Aadyant' for tid in transferred) and all('implementer' not in t for t in tasks if t['id'] not in transferred), 'Remaining J2/P2 work moved to Aadyant with original owner, merged-work credit and decision record preserved')
     counts = Counter(t['owner'] for t in tasks)
     check('Equal task counts', counts == Counter({person: 8 for person in PEOPLE}), str(dict(counts)))
     totals = {person: [sum(t['hours'][i] for t in tasks if t['owner'] == person) for i in (0, 1)] for person in PEOPLE}
@@ -55,7 +59,7 @@ def run() -> int:
     expected_scope = {'pull_requests', 'code', 'tests_and_fixtures', 'designs_and_contracts', 'documentation', 'skills', 'brain_notes', 'reports_and_demos', 'stage_and_release_evidence'}
     check('All teammate deliverables reviewed', set(policy['scope']) == expected_scope and set(policy['evidence']) == {'reviewer_identity', 'commit_or_artifact_version', 'actual_decision', 'review_link'}, 'Lead review includes every listed deliverable type with real reviewer/version/decision/link evidence')
     check('Review workload disclosure', 'excludes centralized lead review/coordination' in data['effort_unit'] and 'additional' in policy['lead_review_effort'] and 'pending' in policy['remote_enforcement_status'], 'Equal implementation estimates do not claim equal total workload or existing repository enforcement')
-    check('Every task retains actual human review', all(t['eligible_reviewers'] == reviewer_matrix[t['owner']] and t['human_review_responsible'] == 'Aadyant' and t['review_status'] == ('pending_ai_and_human_owner_review' if t['owner']=='Aadyant' else 'pending_lead_human_review') and ('actual recorded human owner review' in t['review_requirement'] if t['owner']=='Aadyant' else 'human lead review by Aadyant' in t['review_requirement']) for t in tasks), 'Own tasks require chosen-AI plus actual recorded owner review; teammate tasks require actual lead review; no invented completion')
+    check('Every task retains actual human review', all(t['eligible_reviewers'] == reviewer_matrix[implementer[t['id']]] and t['human_review_responsible'] == 'Aadyant' and t['review_status'] == ('pending_ai_and_human_owner_review' if implementer[t['id']]=='Aadyant' else 'pending_lead_human_review') and ('actual recorded human owner review' in t['review_requirement'] if implementer[t['id']]=='Aadyant' else 'human lead review by Aadyant' in t['review_requirement']) for t in tasks), 'Aadyant-implemented tasks (own and transferred) require chosen-AI plus actual recorded owner review; teammate tasks require actual lead review; no invented completion')
     srs_state = data['srs_status']
     check('Submitted SRS status and freeze', srs_state['state']=='submitted_user_reported' and srs_state['baseline_changes_authorized'] is False and srs_state['exact_submission_date'] is None and srs_state['submitted_rendition'] is None, 'User-reported submission recorded without invented date/rendition or SRS editing authority')
     check('Task scope and ownership', all(t['owner'] in PEOPLE and t['id'].startswith(PEOPLE[t['owner']] + '2-') and 0 < t['hours'][0] <= t['hours'][1] and t['deliverable'] and t['paths'] for t in tasks), 'Each task has a real owner, positive range, deliverable and path targets')
@@ -84,12 +88,15 @@ def run() -> int:
     row_ids = [r['requirement_id'] for r in rows]
     check('Exact requirement coverage', len(rows) == len(set(row_ids)) == len(source) == 46 and set(row_ids) == set(source), '46 unchanged numbered requirements, no duplicates/missing/extra IDs')
     check('Requirement text identity', all(r['requirement_title'] == source[r['requirement_id']]['title'] and r['srs_verification'] == source[r['requirement_id']]['verification'] for r in rows), 'Exact source titles and verification strings preserved')
-    check('Current coverage task references', all(r['plan_version'] == '2.2' and set(r['task_ids'].split(';')) <= set(task_map) and r['planned_test_or_evidence_paths'] for r in rows), 'Every governance-v2.2 planning row uses registered A2/J2/P2 tasks and planned evidence targets')
+    check('Current coverage task references', all(r['plan_version'] == '2.3' and set(r['task_ids'].split(';')) <= set(task_map) and r['planned_test_or_evidence_paths'] for r in rows), 'Every governance-v2.2 planning row uses registered A2/J2/P2 tasks and planned evidence targets')
     check('Requirement review gates', all('Aadyant reviews all teammate artefacts' in r['review_gate'] and 'recorded human owner review' in r['review_gate'] and 'Jeswin/Paul not assigned' in r['review_gate'] and '19-owner-ai-assisted-review-and-submitted-srs' in r['brain_notes'] for r in rows), 'All 46 rows retain human review while removing teammate assignment to lead PRs')
     check('Coverage owner consistency', all(set(r['primary_owner'].split(';')) <= {task_map[tid]['owner'] for tid in r['task_ids'].split(';')} for r in rows), 'Each stated requirement owner owns at least one mapped task')
     mapped_tasks = {tid for r in rows for tid in r['task_ids'].split(';')}
     check('All tasks traced', mapped_tasks == set(task_map), 'All 24 tasks appear in requirement coverage')
-    check('Honest pending evidence', all(r['issue_url'] == r['pr_url'] == 'pending' and 'execution evidence and human review pending' in r['implementation_status'] for r in rows), 'No uncreated Issue/PR, executed test or human review is claimed')
+    link = re.compile(r'https://github\.com/AadyantNeog/SEproject/(issues|pull)/\d+')
+    def links_ok(value: str, kind: str) -> bool:
+        return value == 'pending' or all((m := link.fullmatch(part)) is not None and m.group(1) == kind for part in value.split(';'))
+    check('Honest pending evidence', all(links_ok(r['issue_url'], 'issues') and links_ok(r['pr_url'], 'pull') and 'human review pending' in r['implementation_status'] for r in rows), 'Issue/PR columns hold pending or real repository URLs; no human review is claimed')
     ats = {at for r in rows for at in r['acceptance_ids'].split(';') if at}
     master = (PLAN / 'MASTER_PLAN.md').read_text(encoding='utf-8')
     check('Acceptance coverage', ats == {f'AT-{i:02}' for i in range(1, 21)} and all(f'| AT-{i:02} |' in master for i in range(1, 21)), 'AT-01 through AT-20 remain mapped with current responsibility')

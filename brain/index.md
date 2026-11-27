@@ -75,6 +75,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[17-equal-team-allocation]]
 - [[18-team-lead-review-governance]]
 - [[19-owner-ai-assisted-review-and-submitted-srs]]
+- [[20-solo-completion-ownership-transfer]]
 
 ## Structure
 

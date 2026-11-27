@@ -2,6 +2,8 @@
 
 Version 2.2 · 21 November 2026 · Owner: Aadyant Neog (BT2024186)
 
+**v2.3 transfer, 28 November 2026:** you also implement J2-07, J2-08 and P2-08, the release checklist and the open exit criteria on merged slices ([ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)). Follow the J2/P2 deliverables in [tasks.json](../tasks.json) and use your own-work review mode for them. Your planned implementation range is now 70–100 h. Credit Jeswin and Paul for their merged work.
+
 This equal-workload brief replaces the earlier A01–A12 assignment. Read root AGENTS.md, the unchanged SRS, brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own A2-01–A2-08: eight tasks, 56–80 planned hours, one third of the implementation baseline. Actual human contribution/review remains yours; this AI-authored brief is not evidence you completed anything.
 
 Start A2-01 with G0 checks: inspect the checkout/environment, preserve existing SRS/PDF work, use the canonical Python 3.13 interpreter, establish locked packaging/common protocols/strict DTOs and a fixture stdio smoke. Jeswin/Paul provide provider/account and storage/quota/approval technical input; you use your chosen AI and record your own actual human review of the foundation PR. Publish immutable LibrarySnapshot, Video, Proposal/ResumeProposal and error examples so both can implement in parallel.
