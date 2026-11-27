@@ -56,12 +56,15 @@ reference is refused before the handler runs. The reservation
 retains its original expiry and remains available for the future creation
 stages after a successful preview.
 
-The stdio integration test uses a test-only seed adapter with the real
-fixture provider and ledger. It calls the registered discovery and preview
-tools, checks order and candidate ownership, and verifies that one SQLite
-reservation recorded the complete fixture spend. A full MCP walkthrough
-still needs `get_video` wired to the seed stage. Creation and recovery have
-their own handler integration tasks.
+Discovery and preview keep the database-backed quota and stage checks from
+main. The preview publishes its saved proposal reference for operation preparation.
+
+The stdio tests cover workflow start and quota refusal, then verify seed,
+discovery, preview, operation preparation and fixture execution through
+one SQLite reservation. They inspect both the recorded debit and the
+synthetic transport. Rejection consumes no write quota and dispatches no
+writes. See [fixture creation](fixture-playlist-creation.md) for the command
+sequence. Recovery remains P2-05.
 
 Tracking: [issue #26](https://github.com/AadyantNeog/SEproject/issues/26) and
 [quota ledger PR #27](https://github.com/AadyantNeog/SEproject/pull/27).

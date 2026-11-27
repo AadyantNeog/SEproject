@@ -66,7 +66,10 @@ async def test_fixture_playlist_preview_is_stored(tmp_path: Path) -> None:
                 and tool.annotations.read_only_hint is False
             )
             assert tool.annotations.open_world_hint is False
-            assert "create_playlist" not in tools
+            creation_tool = tools["create_playlist"]
+            assert creation_tool.annotations is not None
+            assert creation_tool.annotations.read_only_hint is False
+            assert "confirmed" not in creation_tool.input_schema["properties"]
 
             for args, code in (
                 ({"title": "Need clarification"}, "CLARIFICATION_REQUIRED"),
@@ -100,6 +103,17 @@ async def test_fixture_playlist_preview_is_stored(tmp_path: Path) -> None:
             assert result.status == "ok" and result.mode == "fixture"
             assert result.data is not None
             proposal = result.data
+            unprepared = await client.call_tool(
+                "create_playlist",
+                {
+                    **proposal.ref.model_dump(),
+                    "workflow_id": "missing-workflow",
+                    "operation_id": "missing-operation",
+                },
+            )
+            assert unprepared.is_error
+            assert unprepared.structured_content is not None
+            assert unprepared.structured_content["error"]["code"] == "INVALID_INPUT"
             assert proposal.state == "proposed" and proposal.ref.version == 1
             assert proposal.body.privacy == "private"
             assert [item.video_id for item in proposal.items] == ["fixture0301"]

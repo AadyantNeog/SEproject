@@ -224,7 +224,14 @@ Subsequent operations must append their actual outcome here.
 
 - Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].
 
+## 2026-11-27 P2-07 local check review follow-up
+
 - P2-07 review follow-up preserved both log entries when merging main. The local check passed build, offline test, startup, fetch and cleanup. The checkout-built wheel benchmark reported 54.3 ms median and 63.6 ms p95 over 30 fixture calls with zero live quota.
+
+## 2026-11-27 P2-04 MCP execution review follow-up
+
+- Wired preparation, creation and operation status in [draft PR #39](https://github.com/AadyantNeog/SEproject/pull/39) and carried the original quota reservation through the fixture workflow. Both stdio scenarios passed. Rejection dispatched zero POSTs and recorded zero write debits. The simulated approval case completed and replay sent no further writes. See [[2026-11-27-p2-04-mcp-execution]].
+
 ## 2026-11-27 J2-05 analytics and valid timestamp comparisons
 
 - Implemented pure analytics modules (`src/yt_intel/analytics/{__init__,periods,summaries}.py`), `AnalysisService` (`src/yt_intel/services/analysis.py`), the `analyse_library` MCP handler (`src/yt_intel/mcp/library.py`), and unit/system tests (`tests/unit/analytics/{test_summaries,test_periods}.py`, `tests/system/test_analysis.py`) on `codex/j2-05-analytics` from `origin/main` (`c5293cf`). See [[2026-11-27-j2-05-analytics]].
@@ -246,3 +253,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-05 sync with composed preview
 
 - Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) again after PR #48 landed. All 302 offline tests passed on the latest combined tree. See [[2026-11-27-j2-05-review-sync]].
+
+## 2026-11-27 P2-04 sync with the local-check harness
+
+- Codex synced [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) after [PR #43](https://github.com/AadyantNeog/SEproject/pull/43) landed. Both index and log records were preserved, and all 313 offline tests passed. See [[2026-11-27-p2-04-review-sync]].

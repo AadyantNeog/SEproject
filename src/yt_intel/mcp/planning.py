@@ -107,10 +107,11 @@ def register_fixture_planning(
                     request_id=request_id,
                     cancellation=FixtureCancellation(),
                     candidate_set_id=references.candidate_set_id,
-                ):
+                ) as access:
                     proposal, coverage = await service.propose(
                         request, references.candidate_set_id
                     )
+                    access.proposal_ref = proposal.ref
         except (OSError, SqliteError):
             return _preview_error(
                 request_id,

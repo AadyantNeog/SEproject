@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from secrets import token_urlsafe
 from typing import Protocol
 
@@ -119,6 +120,21 @@ class ApprovalService:
     ) -> ApprovalGrant:
         if not await self._is_current(proposal):
             raise InvalidGrant("proposal changed; open a new preview")
+        return self._consume(grant, proposal, operation_id)
+
+    def consume_for_claim[T](
+        self,
+        grant: ApprovalGrant,
+        proposal: ApprovableProposal,
+        operation_id: OpaqueId,
+        claim: Callable[[Callable[[], ApprovalGrant]], T],
+    ) -> T:
+        """The claim transaction must verify the current proposal before consuming."""
+        return claim(lambda: self._consume(grant, proposal, operation_id))
+
+    def _consume(
+        self, grant: ApprovalGrant, proposal: ApprovableProposal, operation_id: OpaqueId
+    ) -> ApprovalGrant:
         return self._grants.consume(
             grant_id=grant.grant_id,
             operation_id=operation_id,

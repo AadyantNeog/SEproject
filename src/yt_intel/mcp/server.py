@@ -6,6 +6,7 @@ from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 
+from yt_intel.contracts.approval import ApprovalAdapter
 from yt_intel.contracts.common import Contract
 from yt_intel.contracts.errors import ErrorDetail, ResultEnvelope
 from yt_intel.infrastructure.database import Database, default_database_path
@@ -14,6 +15,7 @@ from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 from .discovery import register_fixture_discovery
+from .execution import register_fixture_execution
 from .library import register_fixture_library
 from .planning import register_fixture_planning
 from .recommendations import register_fixture_recommendations
@@ -27,7 +29,10 @@ class FixtureStatus(Contract):
 
 
 def build_fixture_server(
-    project_root: Path | None, *, fixture_db: Path | None = None
+    project_root: Path | None,
+    *,
+    fixture_db: Path | None = None,
+    creation_approval: ApprovalAdapter | None = None,
 ) -> MCPServer[None]:
     server: MCPServer[None] = MCPServer("YouTube Video Intelligence")
     register_fixture_resources(server, project_root)
@@ -45,13 +50,22 @@ def build_fixture_server(
         register_fixture_discovery(
             server, project_root, state_path, candidate_sets, workflows
         )
-        library_runtime = register_fixture_library(server, project_root, state_path)
+        library_runtime = register_fixture_library(
+            server, project_root, state_path, workflows
+        )
         register_fixture_planning(
             server, project_root, state_path, candidate_sets, workflows
         )
         register_fixture_recommendations(server, project_root, library_runtime)
         if workflows is not None:
             register_fixture_workflows(server, workflows)
+            register_fixture_execution(
+                server,
+                project_root,
+                state_path,
+                workflows,
+                approval_adapter=creation_approval,
+            )
     return server
 
 

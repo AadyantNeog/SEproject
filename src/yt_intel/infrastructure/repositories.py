@@ -1,22 +1,26 @@
 import hashlib
 import json
 import sqlite3
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, TypeAdapter
 
-from yt_intel.contracts.approval import ApprovableProposal
+from yt_intel.contracts.approval import ApprovableProposal, ApprovalGrant
 from yt_intel.contracts.common import (
     AccountBinding,
     Contract,
     Digest,
     NonNegative,
     OpaqueId,
+    PlaylistId,
+    Positive,
     UtcDateTime,
+    VideoId,
 )
 from yt_intel.contracts.models import LibrarySnapshot
-from yt_intel.contracts.proposals import ProposalRef
+from yt_intel.contracts.proposals import PlaylistProposal, ProposalRef
 from yt_intel.contracts.repositories import (
     AccountDataRepository,
     CacheRepository,
@@ -24,7 +28,7 @@ from yt_intel.contracts.repositories import (
     ProposalRepository,
     SnapshotRepository,
 )
-from yt_intel.contracts.workflow import Clock
+from yt_intel.contracts.workflow import BucketVector, Clock
 
 from .clock import SystemClock
 from .database import Database
@@ -48,6 +52,19 @@ class OperationResultExpired(RuntimeError):
 
 class StaleOperationUpdate(RuntimeError):
     """An operation update was based on an earlier persisted revision."""
+
+
+class WriteStep(Contract):
+    endpoint: Literal["playlists.insert", "playlistItems.insert"]
+    position: NonNegative | None = None
+    planned_cost: BucketVector
+    remote_id: OpaqueId | None = None
+    outcome: Literal["pending", "saved", "refused", "unknown"] = "pending"
+
+
+class OperationItem(Contract):
+    video_id: VideoId
+    duration_seconds: Positive
 
 
 class OperationIntent(Contract):
@@ -74,6 +91,11 @@ class OperationIntent(Contract):
     created_at: UtcDateTime
     updated_at: UtcDateTime
     retained_until: UtcDateTime
+    proposal_ref: ProposalRef | None = None
+    workflow_id: OpaqueId | None = None
+    playlist_id: PlaylistId | None = None
+    planned_items: tuple[OperationItem, ...] = ()
+    write_steps: tuple[WriteStep, ...] = ()
 
     def to_json(self) -> str:
         return json.dumps(
@@ -86,6 +108,17 @@ class OperationIntent(Contract):
                 "created_at": _timestamp(self.created_at),
                 "updated_at": _timestamp(self.updated_at),
                 "retained_until": _timestamp(self.retained_until),
+                "proposal_ref": self.proposal_ref.model_dump(mode="json")
+                if self.proposal_ref
+                else None,
+                "workflow_id": self.workflow_id,
+                "playlist_id": self.playlist_id,
+                "planned_items": [
+                    item.model_dump(mode="json") for item in self.planned_items
+                ],
+                "write_steps": [
+                    step.model_dump(mode="json") for step in self.write_steps
+                ],
             },
             sort_keys=True,
             separators=(",", ":"),
@@ -400,6 +433,57 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
     def __init__(self, database: Database, clock: Clock | None = None) -> None:
         self.database = database
         self.clock = clock or SystemClock()
+
+    def claim_approved_creation(
+        self,
+        intent: OperationIntent,
+        proposal: PlaylistProposal,
+        consume: Callable[[], ApprovalGrant],
+    ) -> OperationIntent:
+        """Claim a still-current preview and burn its in-memory grant under the write lock."""
+        stamp = _timestamp(self.clock.now())
+        if intent.binding != proposal.binding or intent.digest != proposal.digest:
+            raise OperationConflict("operation does not match the approved proposal")
+        with self.database.transaction() as connection:
+            current = connection.execute(
+                "SELECT payload, expires_at, retained_until FROM proposals "
+                "WHERE binding_key = ? AND proposal_id = ? ORDER BY version DESC LIMIT 1",
+                (_binding_key(proposal.binding), proposal.ref.proposal_id),
+            ).fetchone()
+            if (
+                current is None
+                or min(current["expires_at"], current["retained_until"]) <= stamp
+                or proposal.state != "proposed"
+                or _PROPOSAL_ADAPTER.validate_json(current["payload"]) != proposal
+            ):
+                raise OperationConflict("approval is for a stale proposal")
+            claimed = intent.model_copy(
+                update={
+                    "state": "preflighting",
+                    "revision": intent.revision + 1,
+                    "updated_at": self.clock.now(),
+                }
+            )
+            changed = connection.execute(
+                "UPDATE operations SET state = ?, revision = ?, updated_at = ?, payload = ? "
+                "WHERE operation_id = ? AND binding_key = ? AND digest = ? AND revision = ? "
+                "AND state = 'not_started' AND retained_until > ?",
+                (
+                    claimed.state,
+                    claimed.revision,
+                    stamp,
+                    claimed.to_json(),
+                    intent.operation_id,
+                    _binding_key(intent.binding),
+                    intent.digest,
+                    intent.revision,
+                    stamp,
+                ),
+            )
+            if changed.rowcount != 1:
+                raise OperationConflict("operation has already been claimed")
+            consume()
+            return claimed
 
     async def get_operation(
         self, binding: AccountBinding, operation_id: OpaqueId
