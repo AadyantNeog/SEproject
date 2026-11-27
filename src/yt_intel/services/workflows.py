@@ -1,12 +1,19 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import timedelta
+from typing import Literal
 from uuid import uuid4
 
 from yt_intel.contracts.common import AccountBinding, OpaqueId, VideoId
+from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.workflow import (
     CallCeiling,
+    CancellationToken,
     Clock,
     Endpoint,
     QuotaLedger,
+    RequestContext,
     WorkflowPlan,
     WorkflowSession,
 )
@@ -14,6 +21,13 @@ from yt_intel.infrastructure.clock import SystemClock
 from yt_intel.infrastructure.quota import QuotaProfile
 
 _WORKFLOW_LIFETIME = timedelta(minutes=5)
+type PreviewStage = Literal["get_video", "find_similar_videos", "propose_playlist"]
+
+_NEXT_STAGE: dict[PreviewStage, tuple[PreviewStage, ...]] = {
+    "get_video": ("find_similar_videos",),
+    "find_similar_videos": ("propose_playlist",),
+    "propose_playlist": (),
+}
 _VIDEO_TO_PLAYLIST: dict[Endpoint, CallCeiling] = {
     # Seed twice (explicit fetch and discovery), four hydration batches, revalidation.
     "videos.list": CallCeiling(calls=7, attempts_per_call=3),
@@ -25,6 +39,31 @@ _VIDEO_TO_PLAYLIST: dict[Endpoint, CallCeiling] = {
 }
 
 
+@dataclass(slots=True)
+class _ActiveWorkflow:
+    session: WorkflowSession
+    seed: VideoId | None
+    candidate_set_id: OpaqueId | None = None
+    running: bool = False
+
+
+@dataclass(slots=True)
+class StageAccess:
+    context: RequestContext
+    candidate_set_id: OpaqueId | None = None
+
+
+def _workflow_error(code: ErrorCode, message: str) -> ContractError:
+    return ContractError(
+        ErrorDetail(
+            code=code,
+            message=message,
+            retryable=False,
+            safe_next_action="Use the current workflow and follow its stage order.",
+        )
+    )
+
+
 class WorkflowService:
     """Create account-bound workflow sessions from server-defined call bounds."""
 
@@ -34,7 +73,7 @@ class WorkflowService:
         self._ledger = ledger
         self._profile = profile
         self._clock = clock or SystemClock()
-        self._sessions: dict[OpaqueId, tuple[WorkflowSession, VideoId | None]] = {}
+        self._sessions: dict[OpaqueId, _ActiveWorkflow] = {}
 
     async def begin_video_to_playlist(
         self, binding: AccountBinding, project_id: OpaqueId, seed: VideoId | None
@@ -43,7 +82,7 @@ class WorkflowService:
         self._sessions = {
             identifier: entry
             for identifier, entry in self._sessions.items()
-            if entry[0].idle_expires_at > now
+            if entry.session.idle_expires_at > now
         }
         plan = WorkflowPlan(
             plan_id=uuid4().hex,
@@ -78,5 +117,83 @@ class WorkflowService:
             },
             idle_expires_at=min(reservation.reset_at, plan.deadline),
         )
-        self._sessions[session.workflow_id] = (session, seed)
+        self._sessions[session.workflow_id] = _ActiveWorkflow(session, seed)
         return session
+
+    @asynccontextmanager
+    async def stage(
+        self,
+        workflow_id: OpaqueId,
+        stage: PreviewStage,
+        *,
+        binding: AccountBinding,
+        request_id: OpaqueId,
+        cancellation: CancellationToken,
+        video: VideoId | None = None,
+        candidate_set_id: OpaqueId | None = None,
+    ) -> AsyncIterator[StageAccess]:
+        """Give the next handler the original reservation for one stage."""
+        entry = self._sessions.get(workflow_id)
+        if entry is None:
+            raise _workflow_error("INVALID_INPUT", "Workflow session is unavailable.")
+        session = entry.session
+        if session.plan.binding != binding:
+            raise _workflow_error(
+                "ACCOUNT_MISMATCH", "Workflow belongs to another account."
+            )
+        if self._clock.now() >= session.idle_expires_at or cancellation.is_cancelled():
+            raise _workflow_error(
+                "WORKFLOW_TIMEOUT", "Workflow expired or was cancelled."
+            )
+        if entry.running or stage not in session.next_stages:
+            raise _workflow_error(
+                "INVALID_INPUT", "Workflow stage is out of order or busy."
+            )
+        if stage == "propose_playlist":
+            if candidate_set_id is None or candidate_set_id != entry.candidate_set_id:
+                raise _workflow_error(
+                    "INVALID_INPUT", "Candidate set does not belong to this workflow."
+                )
+        elif video is None or (entry.seed is not None and entry.seed != video):
+            raise _workflow_error(
+                "INVALID_INPUT", "Video does not match the workflow seed."
+            )
+
+        access = StageAccess(
+            context=RequestContext(
+                request_id=request_id,
+                binding=binding,
+                reservation_id=session.reservation_id,
+                deadline=session.idle_expires_at,
+                cancellation=cancellation,
+                workflow_id=workflow_id,
+            )
+        )
+        entry.running = True
+        try:
+            yield access
+            if (
+                cancellation.is_cancelled()
+                or self._clock.now() >= session.idle_expires_at
+            ):
+                raise _workflow_error(
+                    "WORKFLOW_TIMEOUT", "Workflow expired or was cancelled."
+                )
+            if stage == "find_similar_videos":
+                if access.candidate_set_id is None:
+                    raise _workflow_error(
+                        "INSUFFICIENT_DATA",
+                        "Discovery did not produce a candidate set.",
+                    )
+                entry.candidate_set_id = access.candidate_set_id
+            elif stage == "get_video":
+                entry.seed = video
+            entry.session = session.model_copy(
+                update={"stage": stage, "next_stages": _NEXT_STAGE[stage]}
+            )
+        except BaseException:
+            self._sessions.pop(workflow_id, None)
+            await self._ledger.release(session.reservation_id)
+            raise
+        finally:
+            entry.running = False

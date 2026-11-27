@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Annotated, Literal
@@ -9,7 +10,7 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
 from yt_intel.client_skills import project_file
-from yt_intel.contracts.common import Contract, OpaqueId, UtcDateTime
+from yt_intel.contracts.common import AccountBinding, Contract, OpaqueId, UtcDateTime
 from yt_intel.contracts.errors import ContractError, ErrorDetail, ResultEnvelope
 from yt_intel.contracts.proposals import PlaylistProposal
 from yt_intel.contracts.workflow import BucketVector
@@ -31,7 +32,15 @@ class WorkflowStarted(Contract):
     expires_at: UtcDateTime
 
 
-def register_fixture_workflows(server: MCPServer[None], project_root: Path) -> None:
+@dataclass(frozen=True, slots=True)
+class FixtureWorkflowRuntime:
+    binding: AccountBinding
+    ledger: SqliteQuotaLedger
+    service: WorkflowService
+    _storage: TemporaryDirectory[str]
+
+
+def fixture_workflow_runtime(project_root: Path) -> FixtureWorkflowRuntime | None:
     profile_path = project_file(
         project_root, Path("config/quota-profiles/youtube-2026-11-16.json")
     )
@@ -39,13 +48,21 @@ def register_fixture_workflows(server: MCPServer[None], project_root: Path) -> N
         project_root, Path("tests/fixtures/contracts/playlist_proposal.json")
     )
     if not profile_path.is_file() or not proposal_path.is_file():
-        return
+        return None
     binding = PlaylistProposal.model_validate_json(proposal_path.read_bytes()).binding
     if binding.mode != "fixture":
         raise ValueError("workflow fixtures require a synthetic account")
     profile = QuotaProfile.load(profile_path)
-    storage: TemporaryDirectory[str] | None = None
-    service: WorkflowService | None = None
+    storage = TemporaryDirectory(prefix="yt-intel-quota-")
+    ledger = SqliteQuotaLedger(Database(Path(storage.name) / "state.sqlite3"), profile)
+    return FixtureWorkflowRuntime(
+        binding, ledger, WorkflowService(ledger, profile), storage
+    )
+
+
+def register_fixture_workflows(
+    server: MCPServer[None], runtime: FixtureWorkflowRuntime
+) -> None:
 
     @server.tool(
         annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
@@ -56,19 +73,14 @@ def register_fixture_workflows(server: MCPServer[None], project_root: Path) -> N
         video: str | None = None,
     ) -> Annotated[CallToolResult, ResultEnvelope[WorkflowStarted]]:
         """Reserve the full synthetic video-to-playlist budget before fetching a seed."""
-        nonlocal storage, service
         request_id = uuid4().hex
         try:
             inputs = WorkflowInput.model_validate(
                 (ctx.request_context.params or {}).get("arguments", {})
             )
             seed = parse_video_id(inputs.video) if inputs.video is not None else None
-            if service is None:
-                storage = TemporaryDirectory(prefix="yt-intel-quota-")
-                database = Database(Path(storage.name) / "state.sqlite3")
-                service = WorkflowService(SqliteQuotaLedger(database, profile), profile)
-            session = await service.begin_video_to_playlist(
-                binding, "fixture-project", seed
+            session = await runtime.service.begin_video_to_playlist(
+                runtime.binding, "fixture-project", seed
             )
         except ValidationError:
             return _failed(

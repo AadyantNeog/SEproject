@@ -17,10 +17,47 @@ the server and returns an opaque workflow ID, reserved amounts, and expiry.
 Its temporary database is scoped to the fixture server process. The stdio
 test checks actual reservation and refusal. It makes no provider calls.
 
-The next MCP integration requires the seed, discovery and proposal handlers
-to use the same session and enforce the server's stage and input bounds.
-The current fixture proof covers workflow start. Creation and recovery
-remain gated by their respective tasks.
+## Handler integration
+
+Create one `FixtureWorkflowRuntime` in the MCP server composition and pass it
+to each handler registration. `begin_workflow` uses `runtime.service`;
+the read executor uses `runtime.ledger`. Keep the account binding and
+cancellation token server owned. Use the existing standalone path only
+when the caller did not supply a workflow ID.
+
+| Owner | Handler | Use of the shared session |
+| --- | --- | --- |
+| Jeswin | `get_video` | Normalize the video with `parse_video_id`, enter the `get_video` stage with `video=seed`, then fetch using `access.context`. |
+| Aadyant | `find_similar_videos` | Enter the discovery stage with the same normalized seed. Use `access.context` for provider calls. After storing the candidate set, assign its server-issued ID to `access.candidate_set_id`. |
+| Aadyant | `propose_playlist` | Enter the preview stage with the returned candidate set ID. Load the account-bound candidate set and build the preview inside the stage. |
+
+For example, the seed handler wraps its existing service call this way:
+
+```python
+async with runtime.service.stage(
+    workflow_id,
+    "get_video",
+    binding=active_binding,
+    request_id=request_id,
+    cancellation=cancellation,
+    video=seed,
+) as access:
+    result = await fetch_seed(access.context, seed)
+```
+
+Let service errors propagate out of the context manager before rendering the
+MCP error response. A successful stage advances the workflow. A failed stage
+closes it and releases unused quota. An invalid account, stage, seed or
+candidate reference is refused before the handler runs. The reservation
+retains its original expiry and remains available for the future creation
+stages after a successful preview.
+
+The stdio test covers workflow start and quota refusal. The service test
+exercises the three stages with one SQLite reservation and a mock HTTP
+transport. Once the owner handlers are registered, add a stdio test that
+starts the workflow, calls the three tools in order with its returned ID,
+and verifies a preview whose candidate set came from the discovery stage.
+Creation and recovery remain gated by their respective tasks.
 
 Tracking: [issue #26](https://github.com/AadyantNeog/SEproject/issues/26) and
 [draft PR #27](https://github.com/AadyantNeog/SEproject/pull/27).
