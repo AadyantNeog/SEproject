@@ -1,6 +1,6 @@
 # P2-03 native approval evidence
 
-Status: **Windows PowerShell dismissal verified by Paul. Windows Codex fixture dismissal passed. The full product write path with the real native dialog, approve and reject, was observed in Codex Desktop on 28 November 2026.**
+Status: **Windows PowerShell dismissal verified by Paul. Windows Codex fixture dismissal passed. The full product write path and the resume path were observed with the real native dialog, approving and rejecting each, in Codex Desktop on 28 November 2026.**
 
 The Windows checkout uses Python 3.13.0 and Tcl/Tk 8.6.14. The fixture stdio
 server and both previews are covered by offline MCP integration tests.
@@ -74,9 +74,31 @@ only to the simulated YouTube endpoint.
   command that read `brain/index.md`, the SRS and the skill file. It made
   no other tool use.
 
-The native **resume** dialog after a partial result is still to be
-observed. The normal fixture server cannot produce a partial result
-without a seeded interrupted operation. Live writes stay blocked on D-02.
+## Native resume dialog in Codex Desktop (28 November 2026)
+
+On 27 November 2026, 23:27–23:30 UTC, Aadyant observed the native **resume**
+dialog. He ran `scripts/seed_resume_fixture.py` (merged in #67) against
+`main` at `bb00e4c`. Each run seeded a fresh fixture operation that had
+stopped after item 1 of 2. He restarted the `yt-intel-fixture` server, then
+asked Codex Desktop v26.1120 to reconcile and resume each operation. Codex
+called `reconcile_operation`, which returned `resume_ready`, and then
+`resume_operation`. The shipped `NativeApprovalAdapter` showed the dialog.
+
+| Run | Seeded operation | Dialog contents checked | Human action | Server result |
+| --- | --- | --- | --- | --- |
+| Approve | `resume-demo-op-deb55156faba` | Resume proposal `ef3f65ee…` v1, digest `90a14ac1…`, purpose resume, existing playlist `PLfixture361dae1b…`, original digest `cd4891b4…`. Verified: `vidIndex001`. Missing: `vidIndex005` (300 s) ([screenshot](2026-11-28-codex-resume-approve-dialog.png)) | Aadyant clicked **Approve this exact proposal** | `completed`, 2 confirmed items, 1,500 s, nothing pending, same playlist ID |
+| Reject | `resume-demo-op-2db50f464157` | Resume proposal `376510e6…` v1, digest `531ddf8d…`, existing playlist `PLfixture09eba0b9…`, same verified and missing items ([screenshot](2026-11-28-codex-resume-reject-dialog.png)) | Aadyant clicked **Reject** | `APPROVAL_REJECTED`. `get_operation` still shows `partial`: 1 confirmed item (1,200 s) and `vidIndex005` pending. Nothing was written. |
+
+**What this shows.**
+- **Exact resume.** The dialog showed the server's exact resume proposal:
+  the account binding, the existing playlist, the original operation and
+  digest, the verified prefix and only the missing suffix.
+- **Human decision.** The missing item was inserted only after Aadyant
+  approved.
+- **Rejection.** Rejecting left the playlist and operation unchanged, with
+  no write.
+
+Live writes and live recovery stay blocked on D-02.
 
 ## Earlier Claude Code integration steps
 

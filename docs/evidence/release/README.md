@@ -78,10 +78,10 @@ acceptance. The per-requirement links are in
 | AT-03 Channel resolution and ranking | Fixture pass | Live run, blocked on D-02 |
 | AT-04 Personalisation, sparse sources, pagination | Fixture pass | Live run, blocked on D-02 |
 | AT-05 Hand-calculated analysis and UTC boundaries | Fixture pass ([read evidence](../read-and-privacy/README.md)) | Live analytics, blocked (`POLICY_BLOCKED`) |
-| AT-06 Constrained proposal, approval and creation | Fixture pass with the scripted approval seam | **Manual native-dialog run.** Live creation is blocked. |
+| AT-06 Constrained proposal, approval and creation | Fixture pass. Native-dialog approve observed in Codex. | Live creation is blocked |
 | AT-07 Duration, language and topic constraints | Fixture pass | None for fixtures |
-| AT-08 Reject, absent, expired, replayed, changed or wrong-account approval | Fixture pass ([write evidence](../write-and-quota/README.md)) | Manual native dismissal run on the candidate |
-| AT-09 Partial, restart, ambiguous timeout, reconciliation | Fixture pass | **Manual native resume dialog.** Live recovery is blocked. |
+| AT-08 Reject, absent, expired, replayed, changed or wrong-account approval | Fixture pass ([write evidence](../write-and-quota/README.md)). Native reject observed in Codex. | None for fixtures |
+| AT-09 Partial, restart, ambiguous timeout, reconciliation | Fixture pass. Native resume approve and reject observed in Codex. | Live recovery is blocked |
 | AT-10 Malformed IDs, hosts, limits, private content | Fixture pass | None for fixtures |
 | AT-11 Expired or revoked tokens, scope, refresh | Fixture pass with mocked OAuth | Live token lifecycle on the test account |
 | AT-12 Prompt injection and forged approval | Fixture pass | None for fixtures |
@@ -125,10 +125,9 @@ covers the expiry.
    #54 and #55 are closed. The completed older issues (#1, #6, #8, #10,
    #12, #14 and #26) were closed with evidence comments. #22, #53 and #56
    stay open for the items below.
-2. **Manual runs.** Run the Codex walkthrough
-   ([prompts](../features/README.md#codex-walkthrough-prompts)) and the
-   native approve, reject and resume dialogs with synthetic data. Record
-   the actual decisions.
+2. **Manual runs (done 28 November 2026).** The Codex walkthrough, the
+   native create approve and reject, and the resume approve and reject are
+   recorded. #22 and #53 are closed.
 3. **D-02.** Record the instructor or provider direction in
    [d02-status.json](../policy-and-consent/d02-status.json) through a
    reviewed PR.

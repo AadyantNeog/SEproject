@@ -16,14 +16,14 @@ Checks on merged `main`:
 
 | Order | Action | Who | Closes |
 | --- | --- | --- | --- |
-| 1 | Run the Windows Codex Desktop walkthrough of FR-1, FR-2, FR-3 and FR-5 planning with the [prompts](../evidence/features/README.md#codex-walkthrough-prompts). Record the tool traces. | Aadyant (human) | part of #53 |
-| 2 | With synthetic data, run the real native dialog to approve once and to reject or close once. Run the native resume dialog after a partial result. Record the actual decisions in the [native approval record](../evidence/native-approval/README.md). Then run the full `video-to-playlist` skill in Codex and record its tool trace. | Aadyant (human) | #53, #22, part of #56 |
+| 1 | ~~Codex Desktop walkthrough of FR-1, FR-2, FR-3 and FR-5 planning~~. **Done** 28 November ([evidence](../evidence/features/README.md#observed-in-codex-desktop-on-windows)). | Aadyant (human) | #53 closed |
+| 2 | ~~Native create and resume dialogs, approve and reject, and the full `video-to-playlist` skill in Codex~~. **Done** 28 November ([record](../evidence/native-approval/README.md)). | Aadyant (human) | #22 and #53 closed, part of #56 |
 | 3 | Obtain the D-02 direction from the instructor or provider. Record it in [d02-status.json](../evidence/policy-and-consent/d02-status.json) through a reviewed PR. | Aadyant with the instructor | gate for 4 |
 | 4 | Set up the authorised test account and channel, the Desktop OAuth client and the protected runner, following the [readiness record](../evidence/policy-and-consent/README.md). Run the scheduled read-only check, then the supervised live FR-1 to FR-5 demonstrations, including one approved live write and its quota spend. | Aadyant | part of #56 |
 | 5 | Get Jeswin's and Paul's written acknowledgement of the transfer. Each member writes their own reflection and contribution record. Record the stage reviews and the demo walkthrough. | Team | #56 |
 | 6 | Re-run the checks if any code changes, then create the release tag. | Aadyant | — |
 
-Open issues: [#22](https://github.com/AadyantNeog/SEproject/issues/22), [#53](https://github.com/AadyantNeog/SEproject/issues/53) and [#56](https://github.com/AadyantNeog/SEproject/issues/56). Each one lists the items it is waiting on.
+Open issue: [#56](https://github.com/AadyantNeog/SEproject/issues/56), which lists the live, review and release items it is waiting on.
 
 ## Release checklist
 
