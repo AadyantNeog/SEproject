@@ -28,15 +28,35 @@ For the client refusal, use the [Codex setup](../../developer/codex-fixture.md) 
 
 Verify in the tool trace that no seed lookup or write ran and check that the response identifies the missing reservation tool and the native confirmation requirement.
 
-## End-to-end cases pending
+## End-to-end fixture cases
 
-Run the following on the integrated MCP server with the quota ledger and write journal. Use supervised native confirmation and synthetic data first.
+28 November 2026 · A2-08. The guarded write and recovery handlers from
+P2-04 and P2-05 are now merged, so these cases run through stdio on the
+integrated fixture server. They use the quota ledger and write journal. The
+test launchers inject a fixture approval adapter. That adapter exists only
+in isolated test construction and is not human consent. All cases passed
+on Windows with Python 3.13.1 at commit `4c98b2c`.
 
-| Case | Required evidence |
-| --- | --- |
-| Successful creation | Composed reservation precedes every provider call. Show the metadata-only summary, candidate-set reference, exact preview and native approval. Verify the returned ID, actual ordered items, counts, duration and channel coverage. |
-| Insufficient quota | Decline the workflow before any seed, similarity or write request. Verify zero provider calls in the attempt record. |
-| Human refusal or changed proposal | Reject or close the native prompt and verify zero writes. Revise an approved proposal and verify that the old authority fails and a fresh prompt is required. |
-| Partial or unknown response | Show only recorded progress. Verify reconciliation precedes any resumed insertion and that recovery requires renewed native confirmation. |
+| Case | Automated evidence | Observed |
+| --- | --- | --- |
+| Successful creation | [`test_composed_execution_uses_one_reservation_and_rejection_has_no_writes[approve-completed]`](../../../tests/system/test_playlist_execution_stdio.py) | **Pass.** `begin_workflow` came first, followed by `get_video`, `find_similar_videos`, `propose_playlist`, `prepare_creation` and `create_playlist`. One reservation covered every attempt and was then released. The result had state `completed`, the playlist URL, 1 confirmed item and its exact duration. Exactly 2 POST writes were made. A replay returned the stored result. |
+| Insufficient quota | [`test_begin_workflow_reserves_composed_budget_over_stdio`](../../../tests/system/test_composed_workflow_budget.py) and [`test_discovery_rejects_insufficient_quota_before_seed`](../../../tests/system/test_discovery_stdio.py) | **Pass.** Each composed reservation held 2,583 general and 12 search units. The fourth workflow returned `QUOTA_INSUFFICIENT`. An unaffordable discovery recorded zero attempts and zero reservations. |
+| Human refusal | `…[reject-rejected]` in the same execution test | **Pass.** The result was `APPROVAL_REJECTED` with state `rejected`, no playlist ID and 0 POST writes. |
+| Changed proposal | [`test_saved_preview_denies_stale_and_foreign_versions`](../../../tests/system/test_playlist_planning_stdio.py) and [`test_resume_rechecks_playlist_privacy_after_preview`](../../../tests/system/test_operation_replay.py) | **Pass.** A superseded, foreign or expired version was unavailable. Resume refused after the remote playlist privacy changed or became unknown. |
+| Partial response | `…[approve-partial]` in the same execution test | **Pass.** The second insert was refused. The result had state `partial` with 1 confirmed item. The pending items were reported as `refused` and `not_attempted`. Exactly 3 POST writes were made. |
+| Restart, unknown result and resume | [`test_recovery_after_process_restart`](../../../tests/system/test_operation_replay.py), 6 scenarios | **Pass.** Reconciliation ran before any resume. A missing item resumed only after approval: 1 write when approved, 0 when rejected. Already-applied, drifted, unknown-create and expired-result cases made 0 writes. |
 
-AT-06 and AT-08 end-to-end evidence is **blocked** until the relevant handlers and guarded fixture write/recovery paths are integrated. The selected-client dialog fixture evidence lives in the [native approval record](../native-approval/README.md).
+### Still needed
+
+- **Native approval run.** One supervised run of the successful and refused
+  paths with the real native dialog (P2-03) and synthetic data. This needs a
+  human at the dialog. The diagnostic evidence lives in the
+  [native approval record](../native-approval/README.md).
+- **Codex product-skill run.** A Codex Desktop run of the full skill with the
+  composed workflow tools now available. Record the actual tool trace and
+  the human decision.
+- **Live runs.** Live creation stays blocked on D-02 and the live
+  prerequisites.
+
+AT-06 and AT-08 fixture evidence is now automated. Their human-observed
+native-approval evidence is still pending.
