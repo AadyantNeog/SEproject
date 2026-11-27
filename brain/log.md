@@ -214,3 +214,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-04 library review fixes
 
 - At Aadyant's request, Codex added fair page scheduling, continuation of deferred work and active-profile quota pricing to [PR #41](https://github.com/AadyantNeog/SEproject/pull/41). All 291 offline tests, scoped Ruff, mypy, the planning checks and the wheel build passed. See [[2026-11-27-j2-04-library-review-fixes]].
+
+## 2026-11-27 P2-07 local check
+
+- [Issue #42](https://github.com/AadyantNeog/SEproject/issues/42) adds the local check skill, wheel-to-MCP probe and reusable benchmark. Build, startup, read-only fetch and cleanup passed on Windows. The fixture fetch harness completed one warm-up and 30 samples with no live quota. See [[2026-11-27-p2-07-local-check]].
