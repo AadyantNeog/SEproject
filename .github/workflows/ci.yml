@@ -63,5 +63,5 @@ jobs:
             --output "$archive"
           printf '%s  %s\n' 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c "$archive" | sha256sum --check
           tar -xzf "$archive" -C "$scan_dir" gitleaks
-          "$scan_dir/gitleaks" git --redact=100 --no-banner .
-          "$scan_dir/gitleaks" dir --redact=100 --no-banner .
+          "$scan_dir/gitleaks" git --gitleaks-ignore-path .gitleaksignore --redact=100 --no-banner .
+          "$scan_dir/gitleaks" dir --gitleaks-ignore-path .gitleaksignore --redact=100 --no-banner .

@@ -17,6 +17,10 @@ The PR workflow runs with read-only repository permissions and checkout does
 not persist Git credentials. YouTube and OAuth credentials are unnecessary.
 The Linux secret job checks the tracked history and working tree with a
 version-pinned, checksum-verified Gitleaks release and redacts findings.
+The three entries in `.gitleaksignore` identify historical fixed test values
+in OAuth mock responses and a redaction test. The exceptions apply to those
+exact fingerprints. The history and working tree scans still run and fail on
+new findings.
 
 After J2-06 lands, add Jeswin's knowledge validator to the workflow. Until
 then the implementation plan check validates planning records only.
