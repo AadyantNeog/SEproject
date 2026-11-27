@@ -13,8 +13,10 @@ from yt_intel.mcp.workflows import fixture_workflow_runtime
 
 
 class Cancellation:
-    def __init__(self):
+    def __init__(self, *, cancelled=False):
         self._event = anyio.Event()
+        if cancelled:
+            self._event.set()
 
     def is_cancelled(self):
         return self._event.is_set()
@@ -71,8 +73,11 @@ async def test_seed_discovery_and_preview_share_one_reservation():
         ) as access:
             assert access.context.reservation_id == session.reservation_id
             with pytest.raises(ContractError, match="busy"):
+                cancelled_args = stage_args | {
+                    "cancellation": Cancellation(cancelled=True)
+                }
                 async with service.stage(
-                    session.workflow_id, "get_video", video=seed, **stage_args
+                    session.workflow_id, "get_video", video=seed, **cancelled_args
                 ):
                     pytest.fail("concurrent seed stage was accepted")
             await executor.execute_youtube(
@@ -108,6 +113,46 @@ async def test_seed_discovery_and_preview_share_one_reservation():
             ):
                 pytest.fail("already-completed stage was replayed")
     assert sent == ["videos", "search"]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("cancel_before_entry", [True, False])
+async def test_cancelled_stage_releases_quota_immediately(cancel_before_entry):
+    runtime = fixture_workflow_runtime(Path(__file__).resolve().parents[2])
+    assert runtime is not None
+    service = runtime.service
+    seed = "vidIndex001"
+    args = (runtime.binding, "fixture-project", seed)
+    session = await service.begin_video_to_playlist(*args)
+    await service.begin_video_to_playlist(*args)
+    await service.begin_video_to_playlist(*args)
+    with pytest.raises(ContractError) as full:
+        await service.begin_video_to_playlist(*args)
+    assert full.value.detail.code == "QUOTA_INSUFFICIENT"
+
+    stage_args = {
+        "binding": runtime.binding,
+        "request_id": "fixture-cancellation",
+        "cancellation": Cancellation(cancelled=cancel_before_entry),
+        "video": seed,
+    }
+    if cancel_before_entry:
+        with pytest.raises(ContractError) as cancelled:
+            async with service.stage(session.workflow_id, "get_video", **stage_args):
+                pytest.fail("cancelled stage entered")
+        assert cancelled.value.detail.code == "WORKFLOW_TIMEOUT"
+    else:
+        with anyio.CancelScope() as scope:
+            async with service.stage(session.workflow_id, "get_video", **stage_args):
+                scope.cancel()
+                await anyio.lowlevel.checkpoint()
+
+    replacement = await service.begin_video_to_playlist(*args)
+    assert replacement.reservation_id != session.reservation_id
+    assert replacement.plan.buckets == session.plan.buckets
+    with pytest.raises(ContractError, match="session is unavailable"):
+        async with service.stage(session.workflow_id, "get_video", **stage_args):
+            pytest.fail("cancelled workflow was reused")
 
 
 @pytest.mark.anyio

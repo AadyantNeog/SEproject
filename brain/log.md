@@ -186,3 +186,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-05 discovery progress and cancellation
 
 - Added progress for fixture discovery and verified that a cancelled stdio request closes its provider and leaves the candidate cache untouched for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). All 258 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-discovery-progress]].
+
+## 2026-11-27 P2-02 cancellation follow-up
+
+- At Aadyant's request, Codex fixed the reservation leak on cancellation before the next valid workflow stage in [PR #27](https://github.com/AadyantNeog/SEproject/pull/27). The regression confirms another workflow can start immediately. All 269 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-p2-02-cancellation-follow-up]].

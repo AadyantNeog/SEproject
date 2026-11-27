@@ -47,8 +47,10 @@ async with runtime.service.stage(
 
 Let service errors propagate out of the context manager before rendering the
 MCP error response. A successful stage advances the workflow. A failed stage
-closes it and releases unused quota. An invalid account, stage, seed or
-candidate reference is refused before the handler runs. The reservation
+closes it and releases unused quota. Cancelling the next valid stage also
+releases the reservation immediately, including when cancellation arrives
+before the handler starts. An invalid account, stage, seed or candidate
+reference is refused before the handler runs. The reservation
 retains its original expiry and remains available for the future creation
 stages after a successful preview.
 

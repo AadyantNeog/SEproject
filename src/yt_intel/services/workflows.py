@@ -5,6 +5,8 @@ from datetime import timedelta
 from typing import Literal
 from uuid import uuid4
 
+import anyio
+
 from yt_intel.contracts.common import AccountBinding, OpaqueId, VideoId
 from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.workflow import (
@@ -141,10 +143,8 @@ class WorkflowService:
             raise _workflow_error(
                 "ACCOUNT_MISMATCH", "Workflow belongs to another account."
             )
-        if self._clock.now() >= session.idle_expires_at or cancellation.is_cancelled():
-            raise _workflow_error(
-                "WORKFLOW_TIMEOUT", "Workflow expired or was cancelled."
-            )
+        if self._clock.now() >= session.idle_expires_at:
+            raise _workflow_error("WORKFLOW_TIMEOUT", "Workflow expired.")
         if entry.running or stage not in session.next_stages:
             raise _workflow_error(
                 "INVALID_INPUT", "Workflow stage is out of order or busy."
@@ -171,6 +171,8 @@ class WorkflowService:
         )
         entry.running = True
         try:
+            if cancellation.is_cancelled():
+                raise _workflow_error("WORKFLOW_TIMEOUT", "Workflow was cancelled.")
             yield access
             if (
                 cancellation.is_cancelled()
@@ -193,7 +195,8 @@ class WorkflowService:
             )
         except BaseException:
             self._sessions.pop(workflow_id, None)
-            await self._ledger.release(session.reservation_id)
+            with anyio.CancelScope(shield=True):
+                await self._ledger.release(session.reservation_id)
             raise
         finally:
             entry.running = False
