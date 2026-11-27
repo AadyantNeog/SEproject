@@ -219,3 +219,7 @@ Subsequent operations must append their actual outcome here.
 
 - [Issue #42](https://github.com/AadyantNeog/SEproject/issues/42) adds the local check skill, wheel-to-MCP probe and reusable benchmark. Build, startup, read-only fetch and cleanup passed on Windows. The fixture fetch harness completed one warm-up and 30 samples with no live quota. See [[2026-11-27-p2-07-local-check]].
 - Opened [draft PR #43](https://github.com/AadyantNeog/SEproject/pull/43). The Windows offline suite passed 294 tests. Scoped Ruff, strict mypy, and 34 planning checks from a fresh checkout passed.
+
+## 2026-11-27 A2-03 recommendations from saved library snapshots
+
+- Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].

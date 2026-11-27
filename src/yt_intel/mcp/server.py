@@ -39,9 +39,9 @@ def build_fixture_server(
             lambda: SqliteCacheRepository(Database(fixture_db))
         )
         register_fixture_discovery(server, project_root, candidate_sets)
-        register_fixture_library(server, project_root, fixture_db)
+        library_runtime = register_fixture_library(server, project_root, fixture_db)
         register_fixture_planning(server, project_root, fixture_db, candidate_sets)
-        register_fixture_recommendations(server, project_root)
+        register_fixture_recommendations(server, project_root, library_runtime)
         workflows = fixture_workflow_runtime(project_root)
         if workflows is not None:
             register_fixture_workflows(server, workflows)
