@@ -1,0 +1,760 @@
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, replace
+from datetime import UTC, timedelta
+from pathlib import Path
+from typing import Protocol
+
+import anyio
+
+from yt_intel.contracts.account import (
+    AccountService,
+    AccountStatus,
+    DisconnectResult,
+    TokenVault,
+)
+from yt_intel.contracts.common import AccountBinding, ChannelId, Label, Mode, OpaqueId
+from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
+from yt_intel.contracts.provider import YouTubeReadProvider
+from yt_intel.contracts.repositories import AccountDataRepository
+from yt_intel.contracts.workflow import (
+    BucketVector,
+    CallCeiling,
+    CancellationToken,
+    Clock,
+    QuotaLedger,
+    RequestContext,
+    WorkflowPlan,
+)
+from yt_intel.infrastructure.clock import SystemClock
+from yt_intel.infrastructure.http import AuthHeaderProvider
+
+from .oauth import (
+    YOUTUBE_READONLY_SCOPE,
+    YOUTUBE_WRITE_SCOPE,
+    LoopbackCallbackServer,
+    OAuthClient,
+    OAuthTokenSet,
+    PendingAuthRequest,
+    open_system_browser,
+    scopes_for_auth_mode,
+)
+
+_REFRESH_SKEW = timedelta(seconds=60)
+_DEFAULT_AUTH_TIMEOUT = timedelta(seconds=30)
+
+type QuotaCosts = Callable[[WorkflowPlan], BucketVector]
+
+
+class _NeverCancelled:
+    def is_cancelled(self) -> bool:
+        return False
+
+    async def wait(self) -> None:
+        await anyio.sleep_forever()
+
+
+@dataclass(frozen=True, slots=True)
+class AccountRecord:
+    """Non-secret active account metadata; tokens live exclusively in TokenVault."""
+
+    binding: AccountBinding
+    channel_title: Label
+    vault_reference: OpaqueId
+    granted_scopes: tuple[Label, ...]
+    disconnect_pending: bool = False
+
+
+class AccountStateStore(Protocol):
+    """Persistent store for non-secret active AccountRecord metadata."""
+
+    def load(self) -> AccountRecord | None: ...
+    def save(self, record: AccountRecord) -> None: ...
+    def clear(self) -> None: ...
+
+
+class JsonAccountStateStore:
+    """File-backed non-secret AccountRecord store (never stores OAuth tokens)."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def load(self) -> AccountRecord | None:
+        if not self._path.exists():
+            return None
+        try:
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            if not isinstance(raw, Mapping):
+                return None
+            binding = AccountBinding.model_validate(raw["binding"])
+            channel_title = str(raw["channel_title"])
+            vault_reference = str(raw["vault_reference"])
+            scopes_raw = raw["granted_scopes"]
+            if not isinstance(scopes_raw, list) or not all(
+                isinstance(s, str) and s for s in scopes_raw
+            ):
+                return None
+            return AccountRecord(
+                binding=binding,
+                channel_title=channel_title,
+                vault_reference=vault_reference,
+                granted_scopes=tuple(scopes_raw),
+                disconnect_pending=raw.get("disconnect_pending", False) is not False,
+            )
+        except Exception:
+            return None
+
+    def save(self, record: AccountRecord) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": "1",
+            "binding": record.binding.model_dump(mode="json"),
+            "channel_title": record.channel_title,
+            "vault_reference": record.vault_reference,
+            "granted_scopes": list(record.granted_scopes),
+            "disconnect_pending": record.disconnect_pending,
+        }
+        tmp = self._path.with_name(f"{self._path.name}.{uuid.uuid4().hex[:8]}.tmp")
+        tmp.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
+        os.replace(tmp, self._path)
+
+    def clear(self) -> None:
+        if self._path.exists():
+            self._path.unlink()
+
+
+def _account_error(
+    code: ErrorCode,
+    message: str,
+    *,
+    safe_next_action: str,
+    retryable: bool = False,
+) -> ContractError:
+    return ContractError(
+        ErrorDetail(
+            code=code,
+            message=message,
+            retryable=retryable,
+            safe_next_action=safe_next_action,
+        )
+    )
+
+
+def _disconnect_pending() -> ContractError:
+    return _account_error(
+        "OPERATION_CONFLICT",
+        "Account disconnect cleanup is pending.",
+        safe_next_action="Retry disconnect to finish cleanup before signing in.",
+    )
+
+
+def _vault_ref_for(binding: AccountBinding) -> OpaqueId:
+    return f"yt-intel-{binding.mode}-{binding.credential_binding_id}"
+
+
+class LocalAccountService(AccountService, AuthHeaderProvider):
+    """Single-account OAuth lifecycle, scope enforcement, refresh, and disconnect."""
+
+    def __init__(
+        self,
+        *,
+        installation_id: OpaqueId,
+        mode: Mode,
+        vault: TokenVault,
+        oauth_client: OAuthClient,
+        account_data: AccountDataRepository,
+        clock: Clock | None = None,
+        initial_record: AccountRecord | None = None,
+        state_store: AccountStateStore | None = None,
+    ) -> None:
+        self._installation_id = installation_id
+        self._mode: Mode = mode
+        self._vault = vault
+        self._oauth = oauth_client
+        self._account_data = account_data
+        self._clock: Clock = clock if clock is not None else SystemClock()
+        self._state_store = state_store
+        loaded_record = (
+            initial_record
+            if initial_record is not None
+            else (state_store.load() if state_store is not None else None)
+        )
+        self._record: AccountRecord | None = loaded_record
+        self._probe_tokens: dict[AccountBinding, OAuthTokenSet] = {}
+        self._refresh_lock = anyio.Lock()
+        self._lifecycle_lock = anyio.Lock()
+        self._disconnecting = False
+        self._disabled_for_disconnect = (
+            loaded_record is not None and loaded_record.disconnect_pending
+        )
+        self._generation = 0
+
+    @property
+    def active_record(self) -> AccountRecord | None:
+        if self._disconnecting or self._disabled_for_disconnect:
+            return None
+        return self._record
+
+    async def current(self) -> AccountStatus | None:
+        if self._record is None or self._disconnecting or self._disabled_for_disconnect:
+            return None
+        return AccountStatus(
+            binding=self._record.binding,
+            channel_title=self._record.channel_title,
+            scopes=self._record.granted_scopes,
+        )
+
+    async def require_binding(
+        self, *, required_scopes: tuple[Label, ...] = ()
+    ) -> AccountBinding:
+        if self._disconnecting or self._disabled_for_disconnect or self._record is None:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "No authorised YouTube account is connected.",
+                safe_next_action="Run `yt-intel auth --read` in your local terminal to connect an account.",
+            )
+        missing = [
+            scope
+            for scope in required_scopes
+            if scope not in self._record.granted_scopes
+        ]
+        if missing:
+            needs_write = YOUTUBE_WRITE_SCOPE in missing
+            cmd = (
+                "yt-intel auth --enable-writes"
+                if needs_write
+                else "yt-intel auth --read"
+            )
+            raise _account_error(
+                "SCOPE_REQUIRED",
+                "Authorised account is missing required YouTube OAuth scope.",
+                safe_next_action=f"Grant the required scope locally with `{cmd}`.",
+            )
+        return self._record.binding
+
+    async def authorize_via_browser(
+        self,
+        *,
+        enable_writes: bool,
+        read_provider: YouTubeReadProvider,
+        reservation_id: OpaqueId | None = None,
+        quota_ledger: QuotaLedger | None = None,
+        quota_costs: QuotaCosts | None = None,
+        project_id: OpaqueId = "default-project",
+        quota_profile_id: OpaqueId = "youtube-2026-11-16",
+        selected_channel_id: ChannelId | None = None,
+        timeout_seconds: float = 120.0,
+        open_browser: Callable[[str], bool] = open_system_browser,
+        cancellation: CancellationToken | None = None,
+    ) -> AccountStatus:
+        """Run the local loopback browser OAuth flow with explicit desktop scopes."""
+        if self._disabled_for_disconnect:
+            raise _disconnect_pending()
+        scopes = scopes_for_auth_mode(enable_writes=enable_writes)
+        cancel = cancellation if cancellation is not None else _NeverCancelled()
+        callback_server = LoopbackCallbackServer()
+        callback_server.start()
+        try:
+            pending = self._oauth.build_authorization_request(
+                scopes=scopes,
+                redirect_uri=callback_server.redirect_uri,
+                include_granted_scopes=False,
+            )
+            if not open_browser(pending.authorization_url):
+                raise _account_error(
+                    "PROVIDER_UNAVAILABLE",
+                    "Could not open the local web browser for Google OAuth sign-in.",
+                    safe_next_action="Ensure a desktop browser is available and re-run the local auth command.",
+                )
+            callback_params = await callback_server.wait_for_callback(
+                timeout_seconds=timeout_seconds,
+                cancellation=cancel,
+            )
+        finally:
+            callback_server.close()
+
+        return await self.complete_authorization(
+            pending,
+            callback_params,
+            read_provider=read_provider,
+            reservation_id=reservation_id,
+            quota_ledger=quota_ledger,
+            quota_costs=quota_costs,
+            project_id=project_id,
+            quota_profile_id=quota_profile_id,
+            required_scopes=scopes,
+            selected_channel_id=selected_channel_id,
+            require_same_channel=enable_writes and self.active_record is not None,
+            cancellation=cancel,
+        )
+
+    async def complete_authorization(
+        self,
+        pending: PendingAuthRequest,
+        callback_params: Mapping[str, str],
+        *,
+        read_provider: YouTubeReadProvider,
+        reservation_id: OpaqueId | None = None,
+        quota_ledger: QuotaLedger | None = None,
+        quota_costs: QuotaCosts | None = None,
+        project_id: OpaqueId = "default-project",
+        quota_profile_id: OpaqueId = "youtube-2026-11-16",
+        required_scopes: Sequence[str] = (YOUTUBE_READONLY_SCOPE,),
+        selected_channel_id: ChannelId | None = None,
+        require_same_channel: bool = False,
+        cancellation: CancellationToken | None = None,
+    ) -> AccountStatus:
+        """Complete PKCE exchange, verify channel while keeping account inactive, then bind."""
+        async with self._lifecycle_lock:
+            if self._disconnecting or self._disabled_for_disconnect:
+                raise _disconnect_pending()
+            if quota_ledger is not None and quota_costs is None:
+                raise _account_error(
+                    "PROVIDER_UNAVAILABLE",
+                    "Channel verification requires the configured quota profile.",
+                    safe_next_action="Provide the quota profile before signing in.",
+                )
+            cancel = cancellation if cancellation is not None else _NeverCancelled()
+            if cancel.is_cancelled():
+                raise _account_error(
+                    "WORKFLOW_TIMEOUT",
+                    "Authorisation was cancelled before token exchange.",
+                    safe_next_action="Re-run the local CLI auth command when ready.",
+                )
+            now = self._clock.now().astimezone(UTC)
+            deadline = now + _DEFAULT_AUTH_TIMEOUT
+
+            tokens = await self._oauth.exchange_code(
+                pending,
+                callback_params,
+                deadline=deadline,
+                cancellation=cancel,
+            )
+
+            missing = [
+                scope for scope in required_scopes if scope not in tokens.granted_scopes
+            ]
+            if missing:
+                await self._oauth.revoke_token(
+                    tokens.refresh_token or tokens.access_token,
+                    deadline=deadline,
+                    cancellation=cancel,
+                )
+                raise _account_error(
+                    "SCOPE_REQUIRED",
+                    "Google sign-in did not grant all required YouTube scopes.",
+                    safe_next_action="Re-run the local CLI auth command and approve the required scope.",
+                )
+
+            existing = None if self._disabled_for_disconnect else self._record
+            cred_id = (
+                existing.binding.credential_binding_id
+                if require_same_channel and existing is not None
+                else f"cred-{uuid.uuid4().hex[:16]}"
+            )
+            probe_cred_id = f"probe-{uuid.uuid4().hex[:16]}"
+            probe_binding = AccountBinding(
+                installation_id=self._installation_id,
+                credential_binding_id=probe_cred_id,
+                channel_id=(
+                    existing.binding.channel_id
+                    if existing is not None
+                    else "UC0000000000000000000000"
+                ),
+                mode=self._mode,
+            )
+            # Keep self._record inactive/unchanged until channel verification succeeds.
+            self._probe_tokens[probe_binding] = tokens
+            reserved_id: OpaqueId | None = None
+            try:
+                if cancel.is_cancelled():
+                    raise _account_error(
+                        "WORKFLOW_TIMEOUT",
+                        "Authorisation was cancelled before channel verification.",
+                        safe_next_action="Re-run the local CLI auth command when ready.",
+                    )
+                probe_deadline = (
+                    self._clock.now().astimezone(UTC) + _DEFAULT_AUTH_TIMEOUT
+                )
+                if quota_ledger is not None and quota_costs is not None:
+                    probe_plan = WorkflowPlan(
+                        plan_id=f"auth-channel-probe-{uuid.uuid4().hex[:12]}",
+                        binding=probe_binding,
+                        project_id=project_id,
+                        quota_profile_id=quota_profile_id,
+                        endpoint_ceilings={
+                            "channels.list": CallCeiling(calls=1, attempts_per_call=3)
+                        },
+                        buckets={},
+                        candidate_cap=0,
+                        page_cap=1,
+                        sample_cap=0,
+                        deadline=probe_deadline,
+                        cancellation_policy="cooperative",
+                        reconciliation_allowance={},
+                    )
+                    try:
+                        buckets = quota_costs(probe_plan)
+                    except ValueError:
+                        raise _account_error(
+                            "INVALID_INPUT",
+                            "The configured quota profile cannot price channel verification.",
+                            safe_next_action="Supply a profile with a cost for channels.list.",
+                        ) from None
+                    probe_plan = probe_plan.model_copy(update={"buckets": buckets})
+                    reservation = await quota_ledger.reserve(probe_plan)
+                    reserved_id = reservation.reservation_id
+                    active_reservation_id = reserved_id
+                elif reservation_id is not None:
+                    active_reservation_id = reservation_id
+                else:
+                    raise _account_error(
+                        "QUOTA_INSUFFICIENT",
+                        "A quota ledger or reservation ID is required for channel verification.",
+                        safe_next_action="Configure the quota ledger before running live sign-in.",
+                    )
+
+                probe_ctx = RequestContext(
+                    request_id=f"auth-channel-{uuid.uuid4().hex[:12]}",
+                    binding=probe_binding,
+                    reservation_id=active_reservation_id,
+                    deadline=probe_deadline,
+                    cancellation=cancel,
+                )
+                channels = await read_provider.get_my_channels(probe_ctx)
+
+                if cancel.is_cancelled():
+                    raise _account_error(
+                        "WORKFLOW_TIMEOUT",
+                        "Authorisation was cancelled during channel verification.",
+                        safe_next_action="Re-run the local CLI auth command when ready.",
+                    )
+
+                if not channels:
+                    raise _account_error(
+                        "CHANNEL_REQUIRED",
+                        "This Google account does not have an active YouTube channel.",
+                        safe_next_action="Create a YouTube channel for this account, then re-run `yt-intel auth --read`.",
+                    )
+
+                chosen = None
+                if selected_channel_id is not None:
+                    for ch in channels:
+                        if ch.channel_id == selected_channel_id:
+                            chosen = ch
+                            break
+                    if chosen is None:
+                        raise _account_error(
+                            "CHANNEL_REQUIRED",
+                            "Selected YouTube channel was not found on this Google account.",
+                            safe_next_action="Choose one of the channels returned for your authorised account.",
+                        )
+                elif len(channels) == 1:
+                    chosen = channels[0]
+                else:
+                    raise _account_error(
+                        "CLARIFICATION_REQUIRED",
+                        f"Multiple YouTube channels ({len(channels)}) found; operator selection is required.",
+                        safe_next_action="Re-run local CLI auth with the specific channel ID you want to bind.",
+                    )
+
+                if (
+                    require_same_channel
+                    and existing is not None
+                    and chosen.channel_id != existing.binding.channel_id
+                ):
+                    await self._oauth.revoke_token(
+                        tokens.refresh_token or tokens.access_token,
+                        deadline=self._clock.now().astimezone(UTC)
+                        + _DEFAULT_AUTH_TIMEOUT,
+                        cancellation=cancel,
+                    )
+                    raise _account_error(
+                        "ACCOUNT_MISMATCH",
+                        "Scope upgrade signed into a different YouTube channel than the active account.",
+                        safe_next_action="Authorise the same YouTube channel or disconnect before switching accounts.",
+                    )
+
+                final_binding = AccountBinding(
+                    installation_id=self._installation_id,
+                    credential_binding_id=cred_id,
+                    channel_id=chosen.channel_id,
+                    mode=self._mode,
+                )
+                final_vault_ref = _vault_ref_for(final_binding)
+                await self._vault.store(final_vault_ref, tokens.to_vault_bytes())
+                final_record = AccountRecord(
+                    binding=final_binding,
+                    channel_title=chosen.title,
+                    vault_reference=final_vault_ref,
+                    granted_scopes=tokens.granted_scopes,
+                )
+                if self._state_store is not None:
+                    self._state_store.save(final_record)
+                self._record = final_record
+                self._disabled_for_disconnect = False
+                self._generation += 1
+                return AccountStatus(
+                    binding=final_record.binding,
+                    channel_title=final_record.channel_title,
+                    scopes=final_record.granted_scopes,
+                )
+            finally:
+                self._probe_tokens.pop(probe_binding, None)
+                if quota_ledger is not None and reserved_id is not None:
+                    await quota_ledger.release(reserved_id)
+
+    async def get_headers(self, binding: AccountBinding) -> Mapping[str, str]:
+        """AuthHeaderProvider implementation: returns Bearer header, refreshing if needed."""
+        if self._disconnecting:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "Account disconnect is in progress; further access is blocked.",
+                safe_next_action="Wait for disconnect to complete before re-authorising.",
+            )
+        probe = self._probe_tokens.get(binding)
+        if probe is not None:
+            return {"Authorization": f"{probe.token_type} {probe.access_token}"}
+
+        record = self._record
+        if self._disabled_for_disconnect or record is None:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "No authorised account is available for provider requests.",
+                safe_next_action="Run `yt-intel auth --read` locally.",
+            )
+        if record.binding != binding:
+            raise _account_error(
+                "ACCOUNT_MISMATCH",
+                "Requested account binding does not match the active authorised account.",
+                safe_next_action="Use objects belonging to the currently connected account.",
+            )
+
+        tokens = await self._load_tokens(record)
+        now = self._clock.now().astimezone(UTC)
+        if tokens.expires_at > now + _REFRESH_SKEW:
+            if self._disconnecting or self._disabled_for_disconnect:
+                raise _account_error(
+                    "AUTH_REQUIRED",
+                    "Account was disconnected before dispatching the request.",
+                    safe_next_action="Re-authorise the account locally if needed.",
+                )
+            return {"Authorization": f"{tokens.token_type} {tokens.access_token}"}
+
+        # Serialize concurrent refresh calls so only one refresh hits Google OAuth.
+        async with self._refresh_lock:
+            current_record = self._record
+            gen = self._generation
+            if (
+                self._disconnecting
+                or self._disabled_for_disconnect
+                or current_record is None
+                or current_record.binding != binding
+            ):
+                raise _account_error(
+                    "AUTH_REQUIRED",
+                    "Account was disconnected while refreshing credentials.",
+                    safe_next_action="Re-authorise the account locally if needed.",
+                )
+            fresh_tokens = await self._load_tokens(current_record)
+            now = self._clock.now().astimezone(UTC)
+            if fresh_tokens.expires_at > now + _REFRESH_SKEW:
+                return {
+                    "Authorization": f"{fresh_tokens.token_type} {fresh_tokens.access_token}"
+                }
+            if not fresh_tokens.refresh_token:
+                raise _account_error(
+                    "AUTH_REVOKED",
+                    "Access token expired and no refresh token is stored.",
+                    safe_next_action="Re-authorise the account locally with `yt-intel auth --read`.",
+                )
+            refreshed = await self._oauth.refresh_access_token(
+                fresh_tokens.refresh_token,
+                existing_scopes=fresh_tokens.granted_scopes,
+                deadline=now + _DEFAULT_AUTH_TIMEOUT,
+                cancellation=_NeverCancelled(),
+            )
+            # Abort before writing back to vault if disconnect started during refresh.
+            if (
+                self._disconnecting
+                or self._disabled_for_disconnect
+                or self._generation != gen
+                or self._record is None
+                or self._record.binding != binding
+            ):
+                raise _account_error(
+                    "AUTH_REQUIRED",
+                    "Account was disconnected while refreshing credentials.",
+                    safe_next_action="Re-authorise the account locally if needed.",
+                )
+            await self._vault.store(
+                current_record.vault_reference, refreshed.to_vault_bytes()
+            )
+            if refreshed.granted_scopes != current_record.granted_scopes:
+                updated_record = AccountRecord(
+                    binding=current_record.binding,
+                    channel_title=current_record.channel_title,
+                    vault_reference=current_record.vault_reference,
+                    granted_scopes=refreshed.granted_scopes,
+                )
+                if self._state_store is not None:
+                    self._state_store.save(updated_record)
+                self._record = updated_record
+            return {"Authorization": f"{refreshed.token_type} {refreshed.access_token}"}
+
+    async def _load_tokens(self, record: AccountRecord) -> OAuthTokenSet:
+        raw = await self._vault.read(record.vault_reference)
+        if raw is None:
+            raise _account_error(
+                "AUTH_REVOKED",
+                "Stored credentials are missing from the protected OS vault.",
+                safe_next_action="Re-authorise the account locally with `yt-intel auth --read`.",
+            )
+        try:
+            return OAuthTokenSet.from_vault_bytes(raw)
+        except Exception:
+            raise _account_error(
+                "AUTH_REVOKED",
+                "Stored credentials in the protected vault are corrupted.",
+                safe_next_action="Disconnect and re-authorise the account locally.",
+            ) from None
+
+    async def disconnect(self, binding: AccountBinding) -> DisconnectResult:
+        """Block access immediately, drain refresh, revoke token, and delete vault + SQLite data."""
+        record = self._record
+        if record is None:
+            raise _account_error(
+                "AUTH_REQUIRED",
+                "No authorised account is currently connected.",
+                safe_next_action="Nothing to disconnect.",
+            )
+        if record.binding != binding:
+            raise _account_error(
+                "ACCOUNT_MISMATCH",
+                "Cannot disconnect a foreign or inactive account binding.",
+                safe_next_action="Inspect `get_account_status` for the active account.",
+            )
+
+        # Immediately block further access and invalidate any in-flight refresh BEFORE
+        # waiting for locks or cleanup.
+        self._disconnecting = True
+        self._disabled_for_disconnect = True
+        self._generation += 1
+        self._probe_tokens.clear()
+
+        async with self._lifecycle_lock:
+            warnings: list[ErrorDetail] = []
+            revoked = False
+            tokens_removed = False
+            local_data_removed = False
+
+            try:
+                # Drain any in-flight token refresh so it cannot write tokens back after delete.
+                async with self._refresh_lock:
+                    record = replace(record, disconnect_pending=True)
+                    self._record = record
+                    if self._state_store is not None:
+                        try:
+                            self._state_store.save(record)
+                        except OSError:
+                            warnings.append(
+                                _account_error(
+                                    "LOCAL_DELETION_FAILED",
+                                    "Could not persist the pending disconnect state.",
+                                    retryable=True,
+                                    safe_next_action="Restore access to the local account state and retry disconnect.",
+                                ).detail
+                            )
+                    now = self._clock.now().astimezone(UTC)
+                    deadline = now + _DEFAULT_AUTH_TIMEOUT
+                    cancel = _NeverCancelled()
+
+                    # 1. Best-effort remote token revocation.
+                    token_to_revoke: str | None = None
+                    try:
+                        raw = await self._vault.read(record.vault_reference)
+                        if raw is not None:
+                            parsed = OAuthTokenSet.from_vault_bytes(raw)
+                            token_to_revoke = (
+                                parsed.refresh_token or parsed.access_token
+                            )
+                    except Exception:
+                        token_to_revoke = None
+
+                    if token_to_revoke is not None:
+                        revoked = await self._oauth.revoke_token(
+                            token_to_revoke, deadline=deadline, cancellation=cancel
+                        )
+                        if not revoked:
+                            warnings.append(
+                                ErrorDetail(
+                                    code="PROVIDER_UNAVAILABLE",
+                                    message="Best-effort Google token revocation did not succeed.",
+                                    retryable=True,
+                                    safe_next_action="You may also revoke access from your Google Account security settings.",
+                                )
+                            )
+
+                    # 2. Delete tokens from protected OS vault.
+                    try:
+                        await self._vault.delete(record.vault_reference)
+                        tokens_removed = True
+                    except Exception:
+                        warnings.append(
+                            ErrorDetail(
+                                code="LOCAL_DELETION_FAILED",
+                                message="Failed to remove credentials from the protected OS vault.",
+                                retryable=True,
+                                safe_next_action="Remove the credential entry from Windows Credential Manager and retry disconnect.",
+                            )
+                        )
+
+                    # 3. Delete account-bound SQLite records via Paul's repository
+                    # (project-level quota accounting is preserved by P2-01).
+                    try:
+                        await self._account_data.delete_account(binding)
+                        local_data_removed = True
+                    except Exception:
+                        warnings.append(
+                            ErrorDetail(
+                                code="LOCAL_DELETION_FAILED",
+                                message="Failed to delete local account records from SQLite storage.",
+                                retryable=True,
+                                safe_next_action="Close any process holding the runtime database and retry disconnect.",
+                            )
+                        )
+
+                    if tokens_removed and local_data_removed:
+                        try:
+                            if self._state_store is not None:
+                                self._state_store.clear()
+                        except OSError:
+                            local_data_removed = False
+                            warnings.append(
+                                _account_error(
+                                    "LOCAL_DELETION_FAILED",
+                                    "Could not remove the saved account state.",
+                                    retryable=True,
+                                    safe_next_action="Restore access to the local account state and retry disconnect.",
+                                ).detail
+                            )
+                        else:
+                            self._record = None
+                            self._disabled_for_disconnect = False
+            finally:
+                self._disconnecting = False
+
+            return DisconnectResult(
+                local_data_removed=local_data_removed,
+                tokens_removed=tokens_removed,
+                revoked=revoked,
+                warnings=tuple(warnings),
+            )

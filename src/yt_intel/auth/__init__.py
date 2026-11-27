@@ -1,0 +1,61 @@
+"""Installed-app OAuth 2.0 PKCE flow, protected OS token vault, and account lifecycle."""
+
+from .account import (
+    AccountRecord,
+    AccountStateStore,
+    JsonAccountStateStore,
+    LocalAccountService,
+)
+from .oauth import (
+    GOOGLE_AUTH_URI,
+    GOOGLE_REVOKE_URI,
+    GOOGLE_TOKEN_URI,
+    YOUTUBE_READONLY_SCOPE,
+    YOUTUBE_WRITE_SCOPE,
+    LoopbackCallbackServer,
+    OAuthClient,
+    OAuthClientConfig,
+    OAuthTokenSet,
+    PendingAuthRequest,
+    build_loopback_redirect_uri,
+    generate_pkce_pair,
+    load_oauth_client_config,
+    open_system_browser,
+    scopes_for_auth_mode,
+    validate_loopback_redirect_uri,
+    verify_oauth_callback,
+)
+from .vault import (
+    DEFAULT_SERVICE_NAME,
+    KeyringTokenVault,
+    VaultBackendError,
+    verify_protected_keyring_backend,
+)
+
+__all__ = [
+    "AccountRecord",
+    "AccountStateStore",
+    "DEFAULT_SERVICE_NAME",
+    "GOOGLE_AUTH_URI",
+    "GOOGLE_REVOKE_URI",
+    "GOOGLE_TOKEN_URI",
+    "JsonAccountStateStore",
+    "KeyringTokenVault",
+    "LocalAccountService",
+    "LoopbackCallbackServer",
+    "OAuthClient",
+    "OAuthClientConfig",
+    "OAuthTokenSet",
+    "PendingAuthRequest",
+    "VaultBackendError",
+    "YOUTUBE_READONLY_SCOPE",
+    "YOUTUBE_WRITE_SCOPE",
+    "build_loopback_redirect_uri",
+    "generate_pkce_pair",
+    "load_oauth_client_config",
+    "open_system_browser",
+    "scopes_for_auth_mode",
+    "validate_loopback_redirect_uri",
+    "verify_oauth_callback",
+    "verify_protected_keyring_backend",
+]

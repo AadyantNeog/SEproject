@@ -143,6 +143,13 @@ Subsequent operations must append their actual outcome here.
 - Verified J2-02 contract tests (5 passed), full offline pytest suite (234 passed), strict `mypy src` (48 source files), and scoped Ruff lint/format checks. Published [draft PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Real P2-02 quota ledger integration, P2-04 write adapters, and Aadyant's lead review remain pending.
 - For Aadyant's review follow-up on PR #23, removed `maxResults` from ID-batch lookups, made the live provider reject `mode="fixture"` requests before debit/dispatch, made unsupported fixture writes fail clearly (`PROVIDER_UNAVAILABLE` / HTTP 501), and rejected malformed API responses (`items`/`nextPageToken`/`pageInfo`) with `PROVIDER_UNAVAILABLE`. Re-verified 11 J2-02 contract tests, 240 total offline tests, strict `mypy src` (48 source files), and scoped Ruff checks. Re-review by Aadyant remains pending.
 
+## 2026-11-26 J2-03 OAuth, protected secrets, and account lifecycle
+
+- Implemented `src/yt_intel/auth/{vault,oauth,account}.py`, `docs/user/privacy.md`, `tests/security/test_account_isolation.py`, and `tests/integration/test_oauth_lifecycle.py` on `codex/j2-03-oauth-account` from `origin/main` (`4c94c49`). See [[2026-11-26-j2-03-oauth-account]].
+- Verified 13 J2-03 security/integration tests (including real P2-01 `SqliteAccountDataRepository` disconnect), 258 total offline tests (`pytest -m "not live"`), strict `mypy src` (53 source files), and scoped Ruff lint/format checks. Published [issue #28](https://github.com/AadyantNeog/SEproject/issues/28) and [draft PR #29](https://github.com/AadyantNeog/SEproject/pull/29); Aadyant's lead review remains pending.
+- For Aadyant's review follow-up on `7e552d6`, wired `yt-intel auth --read/--enable-writes` with a local `127.0.0.1` loopback callback server, kept accounts inactive until channel verification completes, blocked access immediately during disconnect/refresh/partial-cleanup, enforced explicit desktop scopes (`include_granted_scopes=false`), and added cancellation, refresh-during-disconnect, and browser/CLI tests. Re-verified 16 J2-03 tests, full offline suite, strict `mypy src` (53 source files), and scoped Ruff checks. Re-review by Aadyant remains pending.
+- For Aadyant's second review on PR #29, merged `origin/main` (`6025d88`), added non-secret `JsonAccountStateStore` reload across separate CLI invocations so `--enable-writes` enforces same-channel verification, removed the bootstrap no-op ledger in favor of real `QuotaLedger` reserve/debit/release (dynamically binding Paul's P2-02 `SqliteQuotaLedger` and failing closed until P2-02 merges), and added a separate-invocation sign-in → enable-writes test. Re-verified 17 J2-03 tests, 275 total offline tests, strict `mypy src` (57 source files), and scoped Ruff checks. Committed locally pending Jeswin's PR comment wording and push.
+
 - At Aadyant's request, Codex added a total send timeout and OAuth-specific errors to [PR #19](https://github.com/AadyantNeog/SEproject/pull/19). All 229 offline tests, scoped Ruff and mypy passed. See [[2026-11-26-j2-01-executor-follow-up]] for the separate contribution.
 
 ## 2026-11-26 A2-05 Codex demonstration client
@@ -187,6 +194,14 @@ Subsequent operations must append their actual outcome here.
 
 - Added progress for fixture discovery and verified that a cancelled stdio request closes its provider and leaves the candidate cache untouched for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). All 258 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-discovery-progress]].
 
+## 2026-11-27 J2-03 sign-in follow-up
+
+- At Aadyant's request, Codex kept failed disconnect cleanup blocked across restarts and priced the sign-in lookup from the configured quota profile for [PR #29](https://github.com/AadyantNeog/SEproject/pull/29). All 275 offline tests, scoped Ruff and mypy passed. Verified custom costs and refusal before channel dispatch with Paul's draft P2-02 ledger. See [[2026-11-27-j2-03-auth-follow-up]].
+
 ## 2026-11-27 P2-02 cancellation follow-up
 
 - At Aadyant's request, Codex fixed the reservation leak on cancellation before the next valid workflow stage in [PR #27](https://github.com/AadyantNeog/SEproject/pull/27). The regression confirms another workflow can start immediately. All 269 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-p2-02-cancellation-follow-up]].
+
+## 2026-11-27 J2-03 sync with merged quota ledger
+
+- Synced [PR #29](https://github.com/AadyantNeog/SEproject/pull/29) with `main` after PR #27 and kept both knowledge log entries. All 286 offline tests passed. A synthetic sign-in check verified reservations, charges, and release with the merged ledger and confirmed that insufficient quota blocks channel dispatch. See [[2026-11-27-j2-03-auth-follow-up]].
