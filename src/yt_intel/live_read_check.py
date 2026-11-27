@@ -50,6 +50,7 @@ from yt_intel.infrastructure.database import Database, default_database_path
 from yt_intel.infrastructure.http import AccountedHttpExecutor
 from yt_intel.infrastructure.quota import QuotaProfile, SqliteQuotaLedger
 from yt_intel.infrastructure.repositories import SqliteAccountDataRepository
+from yt_intel.policy import D02_RECORD, policy_resolved
 from yt_intel.providers.youtube import LiveYouTubeReadProvider
 
 ENABLE_ENV = "YT_INTEL_LIVE_READ_CHECK"
@@ -57,7 +58,7 @@ VIDEO_ENV = "YT_INTEL_LIVE_CHECK_VIDEO"
 SECRETS_ENV = "YT_INTEL_OAUTH_CLIENT_SECRETS"
 PROJECT_ID = "live-read-check"
 _ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_POLICY = _ROOT / "docs/evidence/policy-and-consent/d02-status.json"
+DEFAULT_POLICY = _ROOT / D02_RECORD
 DEFAULT_PROFILE = _ROOT / "config/quota-profiles/live-read-check-2026-11-28.json"
 _ENDPOINTS: tuple[Endpoint, ...] = ("channels.list", "videos.list")
 
@@ -95,25 +96,6 @@ class CheckReport:
             "quota": self.quota,
             "results": self.results,
         }
-
-
-def policy_resolved(path: Path) -> bool:
-    """Accept only a human-recorded D-02 resolution with an evidence link."""
-    try:
-        record = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
-    if not isinstance(record, Mapping):
-        return False
-    evidence = record.get("evidence_url")
-    recorded_by = record.get("recorded_by")
-    return (
-        record.get("state") == "resolved"
-        and isinstance(evidence, str)
-        and evidence.startswith("https://")
-        and isinstance(recorded_by, str)
-        and bool(recorded_by.strip())
-    )
 
 
 def _blocked(report: CheckReport, code: str, message: str) -> CheckReport:
