@@ -25,6 +25,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-28-j2-07-live-read-setup]]
 - [[2026-11-28-j2-08-read-path-evidence]]
 - [[2026-11-28-p2-08-write-acceptance]]
+- [[2026-11-28-release-candidate-assembly]]
 - [[2026-11-27-p2-07-local-check]]
 - [[2026-11-26-a2-06-presentation]]
 - [[2026-11-26-a2-05-fixture-shell]]

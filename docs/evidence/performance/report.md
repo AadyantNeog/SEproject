@@ -1,11 +1,13 @@
 # NFR-08 performance report
 
-28 November 2026 · AT-17 · A2-08 feature targets · Issue pending · PR pending
+28 November 2026 · AT-17 · A2-08 feature targets and J2-08 cached reads · Issue pending · PR pending
 
 ## Result
 
-**All five NFR-08 feature targets passed on fixtures** at commit
-[`4c98b2c`](https://github.com/AadyantNeog/SEproject/commit/4c98b2c865893323707fb7d33e0c778e3d039778).
+**All twelve NFR-08 targets passed on fixtures** at release-candidate commit
+`283a330` (`283a330148618e31280f016e8598b59ac52f4a81`, branch
+`codex/release-candidate-evidence`, not yet on GitHub). An earlier run at
+`4c98b2c` also passed every target it measured.
 The working tree had no tracked changes. Every target had one warm-up and 30
 measured runs, and every sample checked its own result. The runs used only
 synthetic data and spent zero live quota. The raw report holds every sample:
@@ -13,11 +15,11 @@ synthetic data and spent zero live quota. The raw report holds every sample:
 
 | Target | NFR-08 bound | Median | p95 | Result |
 | --- | --- | ---: | ---: | --- |
-| Input validation of FR-1–FR-5 fields, in process | p95 ≤ 100 ms | 0.02 ms | 0.03 ms | Pass |
-| Similar-video ranking, 200 candidates | ≤ 2 s | 8.90 ms | 9.09 ms | Pass |
-| Similar-channel ranking, 200 videos in 20 channels | ≤ 2 s | 8.77 ms | 9.05 ms | Pass |
-| Recommendation ranking, 200 candidates, three sources | ≤ 2 s | 10.82 ms | 11.45 ms | Pass |
-| Proposal construction from 200 candidates | ≤ 2 s | 4.25 ms | 4.48 ms | Pass |
+| Input validation of FR-1–FR-5 fields, in process | p95 ≤ 100 ms | 0.03 ms | 0.03 ms | Pass |
+| Similar-video ranking, 200 candidates | ≤ 2 s | 9.52 ms | 12.39 ms | Pass |
+| Similar-channel ranking, 200 videos in 20 channels | ≤ 2 s | 9.05 ms | 9.62 ms | Pass |
+| Recommendation ranking, 200 candidates, three sources | ≤ 2 s | 11.50 ms | 12.10 ms | Pass |
+| Proposal construction from 200 candidates | ≤ 2 s | 4.19 ms | 4.44 ms | Pass |
 
 The SRS gives a single bound for ranking and proposal construction. This
 report checks the p95 against that bound, which is stricter than checking
@@ -34,11 +36,18 @@ bounds as an end-to-end check.
 
 | Tool and input | Checked output | Median | p95 | Bound |
 | --- | --- | ---: | ---: | --- |
-| `find_similar_videos` `{"video": "https://youtu.be/vidIndex001", "limit": 1}` | Ranked `vidIndex002` | 38.51 ms | 45.14 ms | ≤ 2 s |
-| `find_similar_channels` `{"channel": "https://www.youtube.com/@SystemsStudyLab"}` | Ranked `UCbbbbbbbbbbbbbbbbbbbbbb` | 52.28 ms | 58.12 ms | ≤ 2 s |
-| `recommend_videos` on a saved likes snapshot, `en`, 1,300 s | Ranked `vidIndex001` | 29.19 ms | 30.37 ms | ≤ 2 s |
-| `propose_playlist` on `fixture-recommendations`, 720 s total, 600 s per video, `en` | `fixture0301`, 600 s | 9.24 ms | 10.68 ms | ≤ 2 s |
-| `find_similar_videos` `{"video": "https://example.com/watch?v=vidIndex001"}` | `UNSUPPORTED_IDENTIFIER` | 0.71 ms | 0.88 ms | p95 ≤ 100 ms |
+| `find_similar_videos` `{"video": "https://youtu.be/vidIndex001", "limit": 1}` | Ranked `vidIndex002` | 41.12 ms | 47.38 ms | ≤ 2 s |
+| `find_similar_channels` `{"channel": "https://www.youtube.com/@SystemsStudyLab"}` | Ranked `UCbbbbbbbbbbbbbbbbbbbbbb` | 56.10 ms | 68.13 ms | ≤ 2 s |
+| `recommend_videos` on a saved likes snapshot, `en`, 1,300 s | Ranked `vidIndex001` | 31.74 ms | 37.18 ms | ≤ 2 s |
+| `propose_playlist` on `fixture-recommendations`, 720 s total, 600 s per video, `en` | `fixture0301`, 600 s | 10.04 ms | 11.75 ms | ≤ 2 s |
+| `find_similar_videos` `{"video": "https://example.com/watch?v=vidIndex001"}` | `UNSUPPORTED_IDENTIFIER` | 0.86 ms | 1.06 ms | p95 ≤ 100 ms |
+
+### Cached reads (J2-08)
+
+| Tool and input | Checked output | Median | p95 | Bound |
+| --- | --- | ---: | ---: | --- |
+| `analyse_library` on a stored full-library snapshot | 3 combined videos. **0 provider attempts during the 30 samples.** | 9.43 ms | 12.44 ms | p95 ≤ 2 s |
+| `read_resource` of a saved `yt-intel://proposals/{id}/1` preview | Text identical to the original preview | 6.08 ms | 6.97 ms | p95 ≤ 2 s |
 
 ## Reference machine
 
@@ -76,8 +85,6 @@ The in-process workload is deterministic and generated in
 
 ## Not covered here
 
-- **Cached reads.** The cached-read target (p95 ≤ 2 s) is part of J2-08 read
-  evidence and is still pending.
 - **Live latency.** Live network and OAuth latency were not measured. Live
   checks remain gated on D-02 and the live prerequisites. A fixture run is
   not live evidence.
