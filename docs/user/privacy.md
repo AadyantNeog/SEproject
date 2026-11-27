@@ -1,6 +1,8 @@
 # Privacy, Consent, and Local Account Management
 
-Version 1.0 · Owner: Jeswin Jose (J2-03) · Requirements: FR-6, NFR-02, NFR-04, NFR-05, NFR-07
+Version 1.1 · Author: Jeswin Jose (J2-03); J2-07 update by Aadyant on 28 November 2026 · Requirements: FR-6, NFR-02, NFR-04, NFR-05, NFR-07
+
+For step-by-step setup, consent, disconnect and token recovery, use [setup-and-consent.md](setup-and-consent.md).
 
 This notice explains how the local **YouTube Video Intelligence MCP Server** (`yt-intel`) handles Google OAuth consent, credential storage, YouTube metadata, AI-client disclosure, retention, and account disconnect.
 
@@ -41,7 +43,7 @@ This notice explains how the local **YouTube Video Intelligence MCP Server** (`y
 
 ## 6. Disconnect and Local Deletion
 
-Running `disconnect_account` (or the local disconnect workflow):
+Running `disconnect_account` in the fixture server, or `yt-intel disconnect` for the saved live account:
 1. Stops new workflows for the active account.
 2. Attempts best-effort token revocation with Google (`https://oauth2.googleapis.com/revoke`).
 3. Deletes stored tokens from the protected OS credential vault.
@@ -50,5 +52,14 @@ Running `disconnect_account` (or the local disconnect workflow):
 - If revocation or local deletion partially fails, the server reports each status explicitly (`revoked`, `tokens_removed`, `local_data_removed`, `warnings`) and never marks failed local deletion as complete.
 - If credential or account-data cleanup remains pending, the saved account stays disabled across restarts. A successful cleanup retry removes the saved account record.
 - Disconnecting removes local access and local data only; it **does not** delete any playlists or content on your YouTube account.
+
+## 7. Scheduled live read-only check
+
+An operator can schedule a read-only check on a protected runner they
+control. It uses the runner's own vault and a fixed budget of 10 quota
+units a day. It sends at most `channels.list?mine=true` and one
+`videos.list` per run. Its report holds statuses and counts, not metadata
+text. It stays blocked until D-02 has a recorded resolution. See
+[policy and consent readiness](../evidence/policy-and-consent/README.md).
 
 Distilled basis: [[08-oauth-and-secret-handling]], [[13-api-policy-dependency]], [[15-implementation-boundaries-and-contracts]].

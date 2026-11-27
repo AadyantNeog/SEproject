@@ -1,0 +1,10 @@
+{
+  "profile_id": "live-read-check-2026-11-28",
+  "reference_date": "2026-11-28",
+  "reference_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+  "limits": {"general": 10},
+  "costs": {
+    "channels.list": {"general": 1},
+    "videos.list": {"general": 1}
+  }
+}
