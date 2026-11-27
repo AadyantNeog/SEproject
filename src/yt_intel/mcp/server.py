@@ -14,6 +14,7 @@ from yt_intel.presentation.results import render_error
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
 from .discovery import register_fixture_discovery
+from .library import register_fixture_library
 from .planning import register_fixture_planning
 from .recommendations import register_fixture_recommendations
 from .resources import register_fixture_resources
@@ -38,6 +39,7 @@ def build_fixture_server(
             lambda: SqliteCacheRepository(Database(fixture_db))
         )
         register_fixture_discovery(server, project_root, candidate_sets)
+        register_fixture_library(server, project_root, fixture_db)
         register_fixture_planning(server, project_root, fixture_db, candidate_sets)
         register_fixture_recommendations(server, project_root)
         workflows = fixture_workflow_runtime(project_root)
