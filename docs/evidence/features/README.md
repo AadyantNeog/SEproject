@@ -84,7 +84,7 @@ prompts in Codex Desktop on Windows 11, with `yt-intel-fixture` as the
 only project MCP server, against `main` at `9778544`. The server launched
 the checkout's locked `.venv` with `serve --provider fixture`. Aadyant
 copied the transcript, including every tool call and structured result,
-from Codex. The Codex version was not recorded.
+from Codex. The client was Codex Desktop v26.1120.
 
 | Prompt | Tools Codex called | Observed | Result |
 | --- | --- | --- | --- |
@@ -111,10 +111,9 @@ This is fixture evidence from a real client. It is not live API evidence.
 
 ## Still open for A2-08
 
-- **Native approval.** A manually observed native approval and a refusal
-  in the full product-skill path are still pending. A human must run them.
-- **Codex version.** Record the Codex Desktop version used for the
-  walkthrough.
+- **Native approval.** Done on 28 November 2026. Approve and reject were
+  observed in the full product-skill path. See the
+  [native approval record](../native-approval/README.md#product-write-path-in-codex-desktop-28-november-2026).
 - **Owner review.** The dated human owner review of this record and the
   individually authored reflection are still pending.
 

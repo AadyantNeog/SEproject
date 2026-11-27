@@ -46,15 +46,29 @@ on Windows with Python 3.13.1 at commit `4c98b2c`.
 | Partial response | `…[approve-partial]` in the same execution test | **Pass.** The second insert was refused. The result had state `partial` with 1 confirmed item. The pending items were reported as `refused` and `not_attempted`. Exactly 3 POST writes were made. |
 | Restart, unknown result and resume | [`test_recovery_after_process_restart`](../../../tests/system/test_operation_replay.py), 6 scenarios | **Pass.** Reconciliation ran before any resume. A missing item resumed only after approval: 1 write when approved, 0 when rejected. Already-applied, drifted, unknown-create and expired-result cases made 0 writes. |
 
+### Observed in Codex Desktop with the real native dialog
+
+28 November 2026. Aadyant ran the full skill in Codex Desktop v26.1120 on
+Windows, against `main` at `2747ae7`, with the shipped native approval
+dialog and no test seam. See the
+[native approval record](../native-approval/README.md#product-write-path-in-codex-desktop-28-november-2026)
+for the screenshots.
+
+| Run | Prompt title | Tool sequence | Dialog contents checked | Human action | Server result |
+| --- | --- | --- | --- | --- | --- |
+| 1 | "Indexing dialog approve" | `begin_workflow` (2,583 general and 12 search units reserved) → `get_video` → `find_similar_videos` → `propose_playlist` → `prepare_creation` → `create_playlist` → `get_operation` | Proposal `e96b5f2a…` v1, digest `7c8a9443…`, destination Synthetic Database Lessons (`UCfixture000000000000001`), private, `vidIndex001` 1,200 s `en-US`, 600 s unused ([screenshot](../native-approval/2026-11-28-codex-approve-dialog.png)) | Aadyant clicked **Approve this exact proposal** | `completed`, fixture playlist `PLfixture97ff5dec…`, 1 confirmed item, 1,200 s. `get_operation` returned the same result. |
+| 2 | "Indexing dialog reject" | Same sequence up to `create_playlist` | Proposal `cfac9759…` v1, digest `9cfc3419…`, same destination, same item ([screenshot](../native-approval/2026-11-28-codex-reject-dialog.png)) | Aadyant clicked **Reject** | `APPROVAL_REJECTED`, no playlist ID, 0 confirmed items, 0 s |
+
+Both runs followed the skill's order. Codex reserved the workflow before
+fetching the seed, summarised the seed from its title and description,
+showed the complete preview, and left the decision to the native dialog.
+SK-05 and SK-06 now have a successful path and a refused path observed in
+the real client. AT-06 and AT-08 have human-observed fixture evidence.
+
 ### Still needed
 
-- **Native approval run.** One supervised run of the successful and refused
-  paths with the real native dialog (P2-03) and synthetic data. This needs a
-  human at the dialog. The diagnostic evidence lives in the
-  [native approval record](../native-approval/README.md).
-- **Codex product-skill run.** A Codex Desktop run of the full skill with the
-  composed workflow tools now available. Record the actual tool trace and
-  the human decision.
+- **Native resume dialog.** Observe the resume dialog after a partial
+  result. This needs a seeded interrupted fixture operation.
 - **Live runs.** Live creation stays blocked on D-02 and the live
   prerequisites.
 
