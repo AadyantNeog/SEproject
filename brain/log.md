@@ -205,3 +205,16 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-03 sync with merged quota ledger
 
 - Synced [PR #29](https://github.com/AadyantNeog/SEproject/pull/29) with `main` after PR #27 and kept both knowledge log entries. All 286 offline tests passed. A synthetic sign-in check verified reservations, charges, and release with the merged ledger and confirmed that insufficient quota blocks channel dispatch. See [[2026-11-27-j2-03-auth-follow-up]].
+
+## 2026-11-27 J2-04 authorised library collection and MCP handlers
+
+- Implemented `LibraryService` (`src/yt_intel/services/library.py`), Jeswin's owned MCP handlers `get_video`, `get_library`, `get_account_status`, and `disconnect_account` (`src/yt_intel/mcp/library.py`, wired in `src/yt_intel/mcp/server.py`), synthetic library fixtures (`tests/fixtures/libraries/library_catalog.json`), and integration/stdio tests (`tests/integration/test_library_sources.py`) on `codex/j2-04-library-collection` from `origin/main` (`b606932`). See [[2026-11-27-j2-04-library-collection]].
+- Verified 3 J2-04 integration/stdio tests (real P2-01 `SqliteSnapshotRepository` persistence, real P2-02 `SqliteQuotaLedger` preflight/debit/release, source fairness, private opaque continuation, denied/subset degradation, direct `RecommendationService` interoperability, and fixture stdio MCP execution), 289 total offline tests, strict `mypy src` (62 source files), and scoped Ruff checks. Published [issue #40](https://github.com/AadyantNeog/SEproject/issues/40) and [draft PR #41](https://github.com/AadyantNeog/SEproject/pull/41); Aadyant's lead review remains pending.
+
+## 2026-11-27 J2-04 library review fixes
+
+- At Aadyant's request, Codex added fair page scheduling, continuation of deferred work and active-profile quota pricing to [PR #41](https://github.com/AadyantNeog/SEproject/pull/41). All 291 offline tests, scoped Ruff, mypy, the planning checks and the wheel build passed. See [[2026-11-27-j2-04-library-review-fixes]].
+
+## 2026-11-27 A2-03 recommendations from saved library snapshots
+
+- Connected `get_library` to `recommend_videos` for [issue #14](https://github.com/AadyantNeog/SEproject/issues/14). The fixture stdio check used the saved snapshot and shared quota ledger, returned an English recommendation and rejected unusable references before search. All 292 offline tests passed. See [[2026-11-27-a2-03-library-recommendations]].

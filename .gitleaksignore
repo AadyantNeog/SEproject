@@ -1,0 +1,5 @@
+# P2-06: reviewed fixed values in historical OAuth mock and redaction tests.
+# These fingerprints apply only to the exact historical matches.
+61ea08972f44d1711f88474abdb2bd65f639f7b6:tests/integration/test_oauth_lifecycle.py:generic-api-key:429
+b9eda0272ec450e327c72095554332e48e3c349f:tests/integration/test_oauth_lifecycle.py:generic-api-key:172
+44d29e535a8ae6afc408b719947736425a3175ef:tests/security/test_network_allowlist.py:generic-api-key:128

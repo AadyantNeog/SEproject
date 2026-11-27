@@ -125,7 +125,7 @@ def test_allowlist_rejects_disallowed_destinations(url: str, method: str) -> Non
 def test_redaction_strips_tokens_headers_and_query_secrets() -> None:
     secret_access = "ya29.a0AfH6SM_secret_token_value"
     secret_refresh = "1//0g_refresh_secret_value"
-    secret_key = "AIzaSyD-1234567890abcdef1234567890"
+    secret_key = "demo-k"
     secret_client = "GOCSPX-supersecretclient"
 
     raw = (

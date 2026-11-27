@@ -170,7 +170,7 @@ def test_full_oauth_lifecycle_refresh_upgrade_and_sqlite_disconnect(
                 return httpx.Response(
                     200,
                     json={
-                        "access_token": "ya29.other_ch",
+                        "access_token": "mock-a",
                         "refresh_token": "1//other_ch",
                         "expires_in": 3600,
                         "scope": f"{YOUTUBE_READONLY_SCOPE} {YOUTUBE_WRITE_SCOPE}",
@@ -427,7 +427,7 @@ def test_account_stays_inactive_during_channel_verification_and_handles_cancella
             return httpx.Response(
                 200,
                 json={
-                    "access_token": "ya29.probe_tok",
+                    "access_token": "mock-b",
                     "refresh_token": "1//probe_ref",
                     "expires_in": 3600,
                     "scope": YOUTUBE_READONLY_SCOPE,

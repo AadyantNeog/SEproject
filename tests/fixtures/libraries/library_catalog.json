@@ -1,0 +1,267 @@
+{
+  "videos": {
+    "libVid00001": {
+      "id": "libVid00001",
+      "snippet": {
+        "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+        "title": "Database Indexing Fundamentals",
+        "channelTitle": "Systems Study Lab",
+        "description": "B-tree and hash database indexing fundamentals for query tuning.",
+        "tags": ["database", "indexing", "btree"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-01T10:00:00Z",
+        "defaultAudioLanguage": "en-US",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": { "duration": "PT10M" },
+      "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+    },
+    "libVid00002": {
+      "id": "libVid00002",
+      "snippet": {
+        "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb",
+        "title": "Query Planner Cost Estimation",
+        "channelTitle": "Query Craft",
+        "description": "PostgreSQL query planner statistics and index scan cost estimation.",
+        "tags": ["postgres", "query-planner", "indexing"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-05T12:00:00Z",
+        "defaultAudioLanguage": "en-GB",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": { "duration": "PT15M" },
+      "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+    },
+    "libVid00003": {
+      "id": "libVid00003",
+      "snippet": {
+        "channelId": "UCcccccccccccccccccccccc",
+        "title": "LSM Trees and Compaction",
+        "channelTitle": "Storage Internals",
+        "description": "Log-structured merge trees, memtables, and SSTable compaction.",
+        "tags": ["lsm", "storage", "database"],
+        "categoryId": "28",
+        "publishedAt": "2026-10-10T09:00:00Z",
+        "defaultAudioLanguage": "en",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": { "duration": "PT20M" },
+      "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+    },
+    "libVid00004": {
+      "id": "libVid00004",
+      "snippet": {
+        "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb",
+        "title": "VACUUM and MVCC Internals",
+        "channelTitle": "Query Craft",
+        "description": "Multiversion concurrency control and vacuum visibility maps.",
+        "tags": ["postgres", "mvcc"],
+        "categoryId": "27",
+        "publishedAt": "2026-10-12T14:00:00Z",
+        "defaultAudioLanguage": "en-US",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": { "duration": "PT12M" },
+      "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+    }
+  },
+  "channels": {
+    "UCaaaaaaaaaaaaaaaaaaaaaa": {
+      "id": "UCaaaaaaaaaaaaaaaaaaaaaa",
+      "snippet": {
+        "title": "Systems Study Lab",
+        "description": "Database systems and indexing lectures.",
+        "customUrl": "@SystemsStudyLab"
+      },
+      "contentDetails": {
+        "relatedPlaylists": { "uploads": "UUaaaaaaaaaaaaaaaaaaaaaa" }
+      }
+    },
+    "UCbbbbbbbbbbbbbbbbbbbbbb": {
+      "id": "UCbbbbbbbbbbbbbbbbbbbbbb",
+      "snippet": {
+        "title": "Query Craft",
+        "description": "PostgreSQL internals and query execution.",
+        "customUrl": "@QueryCraft"
+      },
+      "contentDetails": {
+        "relatedPlaylists": { "uploads": "UUbbbbbbbbbbbbbbbbbbbbbb" }
+      }
+    }
+  },
+  "likes_pages": {
+    "": {
+      "nextPageToken": "raw-google-likes-page-2",
+      "pageInfo": { "totalResults": 2 },
+      "items": [
+        {
+          "id": "libVid00001",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Database Indexing Fundamentals",
+            "channelTitle": "Systems Study Lab",
+            "description": "B-tree and hash database indexing fundamentals for query tuning.",
+            "tags": ["database", "indexing", "btree"],
+            "categoryId": "27",
+            "publishedAt": "2026-10-01T10:00:00Z",
+            "defaultAudioLanguage": "en-US",
+            "liveBroadcastContent": "none"
+          },
+          "contentDetails": { "duration": "PT10M" },
+          "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+        }
+      ]
+    },
+    "raw-google-likes-page-2": {
+      "pageInfo": { "totalResults": 2 },
+      "items": [
+        {
+          "id": "libVid00003",
+          "snippet": {
+            "channelId": "UCcccccccccccccccccccccc",
+            "title": "LSM Trees and Compaction",
+            "channelTitle": "Storage Internals",
+            "description": "Log-structured merge trees, memtables, and SSTable compaction.",
+            "tags": ["lsm", "storage", "database"],
+            "categoryId": "28",
+            "publishedAt": "2026-10-10T09:00:00Z",
+            "defaultAudioLanguage": "en",
+            "liveBroadcastContent": "none"
+          },
+          "contentDetails": { "duration": "PT20M" },
+          "status": { "privacyStatus": "public", "uploadStatus": "processed" }
+        }
+      ]
+    }
+  },
+  "subscriptions_pages": {
+    "": {
+      "pageInfo": { "totalResults": 1 },
+      "items": [
+        {
+          "id": "sub-lib-1",
+          "snippet": {
+            "publishedAt": "2026-09-20T10:00:00Z",
+            "resourceId": { "channelId": "UCbbbbbbbbbbbbbbbbbbbbbb" }
+          }
+        }
+      ]
+    }
+  },
+  "playlists_pages": {
+    "": {
+      "pageInfo": { "totalResults": 4 },
+      "items": [
+        {
+          "id": "PLowned0001",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Indexing Essentials"
+          }
+        },
+        {
+          "id": "PLowned0002",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Storage Engines"
+          }
+        },
+        {
+          "id": "PLowned0003",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Query Tuning"
+          }
+        },
+        {
+          "id": "PLowned0004",
+          "snippet": {
+            "channelId": "UCaaaaaaaaaaaaaaaaaaaaaa",
+            "title": "Fourth Playlist Beyond Default Cap"
+          }
+        }
+      ]
+    }
+  },
+  "playlist_items_pages": {
+    "PLowned0001": {
+      "": {
+        "items": [
+          {
+            "id": "pli-101",
+            "snippet": {
+              "playlistId": "PLowned0001",
+              "position": 0,
+              "publishedAt": "2026-11-01T10:00:00Z",
+              "title": "Database Indexing Fundamentals",
+              "resourceId": { "videoId": "libVid00001" }
+            },
+            "status": { "privacyStatus": "public" }
+          },
+          {
+            "id": "pli-102",
+            "snippet": {
+              "playlistId": "PLowned0001",
+              "position": 1,
+              "publishedAt": "2026-11-02T10:00:00Z",
+              "title": "Deleted video",
+              "resourceId": { "videoId": "libGone0009" }
+            },
+            "status": { "privacyStatus": "privacyStatusUnspecified" }
+          }
+        ]
+      }
+    },
+    "PLowned0002": {
+      "": {
+        "items": [
+          {
+            "id": "pli-201",
+            "snippet": {
+              "playlistId": "PLowned0002",
+              "position": 0,
+              "publishedAt": "2026-11-03T10:00:00Z",
+              "title": "LSM Trees and Compaction",
+              "resourceId": { "videoId": "libVid00003" }
+            },
+            "status": { "privacyStatus": "public" }
+          }
+        ]
+      }
+    },
+    "PLowned0003": {
+      "": {
+        "items": [
+          {
+            "id": "pli-301",
+            "snippet": {
+              "playlistId": "PLowned0003",
+              "position": 0,
+              "publishedAt": "2026-11-04T10:00:00Z",
+              "title": "Query Planner Cost Estimation",
+              "resourceId": { "videoId": "libVid00002" }
+            },
+            "status": { "privacyStatus": "public" }
+          }
+        ]
+      }
+    },
+    "UUbbbbbbbbbbbbbbbbbbbbbb": {
+      "": {
+        "items": [
+          {
+            "id": "upl-b-01",
+            "snippet": {
+              "playlistId": "UUbbbbbbbbbbbbbbbbbbbbbb",
+              "position": 0,
+              "publishedAt": "2026-10-12T14:00:00Z",
+              "title": "VACUUM and MVCC Internals",
+              "resourceId": { "videoId": "libVid00004" }
+            },
+            "status": { "privacyStatus": "public" }
+          }
+        ]
+      }
+    }
+  }
+}

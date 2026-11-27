@@ -1,0 +1,67 @@
+name: Offline CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  product:
+    name: Product checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.13'
+      - name: Install locked environment
+        run: |
+          python -m pip install --require-hashes -r requirements-dev.lock
+          python -m pip install --no-deps --no-build-isolation -e .
+      - name: Lint and format product code
+        run: |
+          python -m ruff check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py
+          python -m ruff format --check src tests scripts/check_codex_fixture.py scripts/show_fixture_approval.py
+      - name: Type check
+        run: python -m mypy src
+      - name: Offline tests
+        run: python -m pytest -m "not live"
+      - name: Build wheel
+        run: python -m build --wheel --no-isolation
+      - name: Validate implementation plan
+        run: python scripts/validate_implementation_plan.py
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Scan checkout and history with pinned Gitleaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          scan_dir="$(mktemp -d)"
+          trap 'rm -rf -- "$scan_dir"' EXIT
+          archive="$scan_dir/gitleaks.tar.gz"
+          curl --fail --silent --show-error --location \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
+            --output "$archive"
+          printf '%s  %s\n' 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c "$archive" | sha256sum --check
+          tar -xzf "$archive" -C "$scan_dir" gitleaks
+          "$scan_dir/gitleaks" git --gitleaks-ignore-path .gitleaksignore --redact=100 --no-banner .
+          "$scan_dir/gitleaks" dir --gitleaks-ignore-path .gitleaksignore --redact=100 --no-banner .
