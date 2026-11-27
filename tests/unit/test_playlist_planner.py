@@ -235,6 +235,95 @@ def test_proposal_digest_binds_material_fields_and_preserves_approved_input_on_r
     )
 
 
+@pytest.mark.parametrize("include_seed", [False, True])
+def test_partial_revision_preserves_saved_fields_and_seed_choice(include_seed):
+    seed = candidate(1, 1200)
+    companion = candidate(2, 400)
+    candidates = pool(seed, companion, seed_video_id=seed.video_id)
+    previous = plan(
+        candidates,
+        max_video_seconds=600,
+        description="Keep this description",
+        privacy="unlisted",
+        include_seed=include_seed,
+    )
+    assert [item.video_id for item in previous.items] == [companion.video_id]
+    approved = previous.model_copy(update={"state": "approved"})
+    now = NOW + timedelta(seconds=10)
+
+    updated = PLANNER.revise(
+        approved,
+        {"title": "Indexing with longer videos", "max_video_seconds": 1200},
+        candidates,
+        binding=BINDING,
+        destination_channel_title=previous.destination_channel_title,
+        now=now,
+    )
+
+    replacement = updated.replacement
+    assert replacement.body.title == "Indexing with longer videos"
+    assert replacement.body.description == previous.body.description
+    assert replacement.body.privacy == "unlisted"
+    assert replacement.constraints == previous.constraints.model_copy(
+        update={"max_video_seconds": 1200}
+    )
+    assert replacement.candidate_set_id == previous.candidate_set_id
+    assert replacement.binding == BINDING
+    expected_ids = (
+        [seed.video_id, companion.video_id] if include_seed else [companion.video_id]
+    )
+    assert [item.video_id for item in replacement.items] == expected_ids
+    assert replacement.total_seconds == (1600 if include_seed else 400)
+    assert replacement.ref.version == 2
+    assert replacement.expires_at == now + timedelta(minutes=10)
+    assert replacement.state == "proposed"
+    assert replacement.digest == proposal_digest(replacement) != previous.digest
+    assert approved.state == "approved"
+    assert updated.superseded.state == "superseded"
+
+
+@pytest.mark.parametrize(
+    ("changes", "error_code"),
+    [
+        ({}, "CLARIFICATION_REQUIRED"),
+        ({"duration_mode": "exact"}, "CLARIFICATION_REQUIRED"),
+        ({"max_video_seconds": "1200"}, "INVALID_INPUT"),
+        ({"confirmed": True}, "INVALID_INPUT"),
+        ({"max_video_seconds": 399}, "NO_FEASIBLE_PLAYLIST"),
+    ],
+)
+def test_partial_revision_uses_strict_planner_validation(changes, error_code):
+    candidates = pool(candidate(1, 400))
+    previous = plan(candidates)
+    with pytest.raises(ContractError) as error:
+        PLANNER.revise(
+            previous,
+            changes,
+            candidates,
+            binding=BINDING,
+            destination_channel_title=previous.destination_channel_title,
+            now=NOW + timedelta(seconds=1),
+        )
+    assert error.value.detail.code == error_code
+    assert previous.state == "proposed" and previous.ref.version == 1
+
+
+def test_partial_revision_rejects_a_different_candidate_set():
+    candidates = pool(candidate(1, 400))
+    previous = plan(candidates)
+    other = candidates.model_copy(update={"candidate_set_id": "another-set"})
+    with pytest.raises(ContractError) as error:
+        PLANNER.revise(
+            previous,
+            {"title": "Different set"},
+            other,
+            binding=BINDING,
+            destination_channel_title=previous.destination_channel_title,
+            now=NOW + timedelta(seconds=1),
+        )
+    assert error.value.detail.code == "PROPOSAL_CHANGED"
+
+
 def test_packing_caps_at_fifty_and_keeps_stable_id_order():
     videos = [candidate(index, 1) for index in range(1, 56)]
     result = plan(pool(*reversed(videos)))

@@ -13,6 +13,21 @@
 
 `DiscoveryService` takes the existing `YouTubeReadProvider` and a server-issued `RequestContext`. The default discovery limits are four search pages of up to 50 hits, 200 unique video candidates, 10 unique channel candidates, and one uploads page of up to five entries per sampled channel. Queries use up to eight distinct normalized terms. Duplicate candidates and the seed are filtered before hydration. An uploads sample uses accessible entries in returned order, with omitted and unknown evidence tracked in coverage. Search coverage describes the bounded discovery loop. Raw continuation tokens stay inside the service.
 
-The fixture slice accepts normalized IDs and channel references. Jeswin's shared parser will supply those values at the tool boundary. J2-02 will supply the real fixture/read adapter and P2-02 will supply the composed reservation before the first read. Tool registration and the account-bound candidate-set handoff remain open for that integrated route. The service currently rejects live mode before calling the provider because D-02 remains unresolved.
+With a checkout supplied as `--project-root`, the [Codex fixture server](codex-fixture.md) registers `find_similar_videos` and `find_similar_channels`. Both use Jeswin's identifier parser and API-shaped fixture provider. The SDK exposes an output schema for the structured ranking and coverage, and the server also returns rendered text.
 
-The tests use synthetic protocol dependencies. [Ranking tests](../../tests/unit/test_metadata_ranking.py) check topical mismatches, ties, exact term weights, missing evidence, and a hand-calculated cosine. [Discovery tests](../../tests/integration/test_ranking_discovery.py) check caps, provider call order, one-page channel sampling, and typed preflight refusals. These tests provide fixture evidence for part of AT-02, AT-03, and AT-10.
+| Tool | Example arguments | Expected first result |
+| --- | --- | --- |
+| `find_similar_videos` | `{"video": "https://youtu.be/vidIndex001", "limit": 1}` | PostgreSQL B-Tree Index Scan Tuning, 1,201 seconds, audio language unknown |
+| `find_similar_channels` | `{"channel": "@SystemsStudyLab", "limit": 1}` | Query Craft, with one usable video from its returned uploads page |
+
+`find_similar_videos` also returns `candidate_set_id` beside the ranked results. The fixture SQLite cache keeps the full usable discovery pool for 24 hours under the synthetic account. The display limit still controls how many ranked results are shown. The stored pool keeps the seed when there is room under the candidate cap, so planning can consider it on explicit request. The ranking still excludes the seed.
+
+These standalone fixture calls use a request-local attempt budget and mock transport. The [playlist planning walkthrough](playlist-planning.md#preview-from-discovery) shows how to pass the saved reference. The shared P2-02 reservations remain integration work for [video-to-playlist](../../.agents/skills/video-to-playlist/SKILL.md). Live ranking stays blocked pending D-02.
+
+### Progress and cancellation
+
+Clients that request MCP progress receive three updates as discovery loads the seed, collects candidate metadata and completes ranking. Video discovery reports completion after the candidate reference is saved. For a request cancelled before that save, the server stops the in-flight read and closes the fixture provider. The same MCP session remains available for another request. [Stdio checks](../../tests/system/test_discovery_stdio.py)
+
+[Ranking tests](../../tests/unit/test_metadata_ranking.py) check topical mismatches, ties, exact term weights, missing evidence, and a hand-calculated cosine. [Discovery tests](../../tests/integration/test_ranking_discovery.py) check caps, provider call order, one-page channel sampling, and typed preflight refusals. [Stdio tests](../../tests/system/test_discovery_stdio.py) exercise both published tools and check coverage, sampling, and typed errors. These tests provide fixture evidence for part of AT-02, AT-03, and AT-10.
+
+The [fixture MCP session note](../../brain/projects/youtube-mcp/2026-11-27-a2-02-discovery-stdio.md) records the Windows Codex probe and links to the distilled ranking and client references.

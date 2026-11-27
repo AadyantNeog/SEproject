@@ -108,6 +108,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument(
         "--project-root", type=Path, help="Checkout for fixture previews and skills"
     )
+    serve.add_argument(
+        "--fixture-db", type=Path, help="Override the local fixture database path"
+    )
     skills = commands.add_parser(
         "sync-claude-skills", help="Copy canonical skills to Claude Code"
     )
@@ -195,7 +198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             for name, digest in sync_claude_skills(root, check=args.check).items():
                 print(f"{name} {digest}")
             return 0
-        server = create_fixture_server(root)
+        server = create_fixture_server(root, fixture_db=args.fixture_db)
     except (OSError, ValueError) as error:
         parser.error(str(error))
 
