@@ -256,6 +256,33 @@ def test_compare_periods_respects_selected_sources() -> None:
     assert like_comp.likes_trend.available is False
 
 
+def test_unretrieved_sources_are_not_compared_as_zero_activity() -> None:
+    snap = _snapshot()
+    period_a = TimePeriod(
+        start=datetime(2026, 10, 1, 0, 0, tzinfo=UTC),
+        end=datetime(2026, 11, 1, 0, 0, tzinfo=UTC),
+    )
+    period_b = TimePeriod(
+        start=datetime(2026, 11, 1, 0, 0, tzinfo=UTC),
+        end=datetime(2026, 12, 1, 0, 0, tzinfo=UTC),
+    )
+    for state in ("denied", "unavailable", "not_requested"):
+        partial = snap.model_copy(
+            update={
+                "sources": {
+                    **snap.sources,
+                    "subscriptions": SourceCoverage(state=state, coverage=None),
+                }
+            }
+        )
+        comparison = compare_periods(partial, period_a, period_b)
+        assert comparison.sources == ("likes", "playlists")
+        assert comparison.subscription_creations is None
+        assert comparison.playlist_additions is not None
+        report = summarise_library(partial, period_a=period_a, period_b=period_b)
+        assert any("subscriptions" in warning for warning in report.warnings)
+
+
 def test_rejects_naive_inverted_incomplete_and_overlapping_periods() -> None:
     with pytest.raises(ValidationError):
         TimePeriod(
