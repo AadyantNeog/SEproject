@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,8 @@ from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
+from yt_intel.analytics.periods import TimePeriod, validate_period_pair
+from yt_intel.analytics.summaries import AnalysisReport
 from yt_intel.client_skills import project_file
 from yt_intel.contracts.account import (
     AccountService,
@@ -40,6 +43,7 @@ from yt_intel.infrastructure.repositories import (
 )
 from yt_intel.presentation.results import render_error
 from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
+from yt_intel.services.analysis import AnalysisService
 from yt_intel.services.library import LibraryBounds, LibraryService, LibrarySummary
 
 _FIXTURE_ACCOUNT = AccountBinding(
@@ -59,6 +63,13 @@ class _GetVideoInput(Contract):
 class _GetLibraryInput(Contract):
     sources: tuple[LibrarySource, ...] | None = None
     continuation_ref: OpaqueId | None = None
+
+
+class _AnalyseLibraryInput(Contract):
+    snapshot_id: OpaqueId | None = None
+    sources: tuple[LibrarySource, ...] | None = None
+    period_a: TimePeriod | None = None
+    period_b: TimePeriod | None = None
 
 
 class _FixtureCancellation:
@@ -141,6 +152,7 @@ class FixtureLibraryRuntime:
     project_id: OpaqueId
     provider: FixtureYouTubeProvider
     library: LibraryService
+    analysis: AnalysisService
 
 
 def _error_result(
@@ -202,6 +214,7 @@ def register_fixture_library(
                 bounds=LibraryBounds(),
                 project_id=_PROJECT_ID,
             )
+            analysis = AnalysisService(snapshot_repo=snapshot_repo)
             runtime = FixtureLibraryRuntime(
                 accounts=accounts,
                 snapshots=snapshot_repo,
@@ -210,6 +223,7 @@ def register_fixture_library(
                 project_id=_PROJECT_ID,
                 provider=provider,
                 library=service,
+                analysis=analysis,
             )
         return runtime
 
@@ -448,6 +462,68 @@ def register_fixture_library(
                     ),
                 )
             ],
+        )
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
+    )
+    async def analyse_library(
+        ctx: Context[None, object],
+        snapshot_id: str | None = None,
+        sources: list[LibrarySource] | None = None,
+        period_a: dict[str, object] | None = None,
+        period_b: dict[str, object] | None = None,
+    ) -> Annotated[CallToolResult, ResultEnvelope[AnalysisReport]]:
+        """Analyse an authorised library snapshot with optional valid-timestamp period comparison."""
+        request_id = uuid4().hex
+        try:
+            raw_args = (ctx.request_context.params or {}).get("arguments") or {}
+            parsed = _AnalyseLibraryInput.model_validate_json(json.dumps(raw_args))
+            # Validate both periods before initializing runtime or fetching library data.
+            validate_period_pair(parsed.period_a, parsed.period_b)
+            active = _runtime()
+            binding = await active.accounts.require_binding()
+            target_snapshot_id = parsed.snapshot_id
+            if target_snapshot_id is None:
+                collected = await active.library.collect(
+                    cancellation=_FixtureCancellation(),
+                    sources=parsed.sources,
+                )
+                target_snapshot_id = collected.snapshot.snapshot_id
+            outcome = await active.analysis.analyse_stored_snapshot(
+                binding=binding,
+                snapshot_id=target_snapshot_id,
+                sources=parsed.sources,
+                period_a=parsed.period_a,
+                period_b=parsed.period_b,
+            )
+        except ValidationError:
+            return _error_result(
+                ErrorDetail(
+                    code="INVALID_INPUT",
+                    message="Invalid analyse_library parameters.",
+                    retryable=False,
+                    safe_next_action=(
+                        "Provide an optional snapshot_id, optional sources, and optional "
+                        "non-overlapping UTC ISO-8601 period_a and period_b objects."
+                    ),
+                ),
+                request_id=request_id,
+            )
+        except ContractError as exc:
+            return _error_result(exc.detail, request_id=request_id)
+
+        envelope = ResultEnvelope[AnalysisReport](
+            mode="fixture",
+            request_id=request_id,
+            status="ok",
+            data=outcome.report,
+            warnings=outcome.report.warnings,
+            quota=QuotaEstimate(profile_id=profile.profile_id),
+        )
+        return CallToolResult(
+            structured_content=envelope.model_dump(),
+            content=[TextContent(type="text", text=outcome.rendered_text)],
         )
 
     return _runtime
