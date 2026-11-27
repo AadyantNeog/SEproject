@@ -44,6 +44,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-27-j2-04-library-review-fixes]]
 - [[2026-11-27-j2-05-analytics]]
 - [[2026-11-27-j2-05-review-sync]]
+- [[2026-11-27-j2-06-knowledge-skills]]
 - [[requirements-preparation-review]]
 
 ## Distilled research
