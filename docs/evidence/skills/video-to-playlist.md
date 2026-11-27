@@ -67,8 +67,9 @@ the real client. AT-06 and AT-08 have human-observed fixture evidence.
 
 ### Still needed
 
-- **Native resume dialog.** Observe the resume dialog after a partial
-  result. This needs a seeded interrupted fixture operation.
+- **Native resume dialog (done 28 November 2026).** Observed approve and
+  reject. See the
+  [native approval record](../native-approval/README.md#native-resume-dialog-in-codex-desktop-28-november-2026).
 - **Live runs.** Live creation stays blocked on D-02 and the live
   prerequisites.
 

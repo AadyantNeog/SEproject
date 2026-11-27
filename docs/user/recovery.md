@@ -64,7 +64,13 @@ Expected results:
 - **Reject or close.** The result is `APPROVAL_REJECTED`, nothing is
   written, and the preview is cleared.
 
-Run the script again to get a fresh operation for the other decision. The
+Run the script again to get a fresh operation for the other decision.
+Before seeding, restart the MCP server in your client so it loads the
+current fixture catalogue.
+
+Observed on 28 November 2026 in Codex Desktop, approving and rejecting
+once each. See the
+[native approval record](../evidence/native-approval/README.md#native-resume-dialog-in-codex-desktop-28-november-2026). The
 automated version of this check is
 [`test_resume_dialog_setup.py`](../../tests/system/test_resume_dialog_setup.py).
 

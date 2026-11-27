@@ -50,12 +50,10 @@ All of these made **zero writes**
 
 ## Still needed
 
-- **Native dialog.** One supervised run of approve and of reject or close
-  with the real native dialog and synthetic data. A human must operate the
-  dialog. Record the actual decision and outcome in the
+- **Native dialogs (done 28 November 2026).** Create approve and reject,
+  and resume approve and reject, were all observed in Codex Desktop with
+  the real native dialog. See the
   [native approval record](../native-approval/README.md).
-- **Native resume dialog.** One supervised run of the resume dialog after a
-  partial result, following the [recovery runbook](../../user/recovery.md).
 - **Live writes.** Live creation and recovery are blocked on D-02 and the
   live prerequisites. The `serve` entry point accepts only the fixture
   provider. Live creation needs a supervised approval and a separately
