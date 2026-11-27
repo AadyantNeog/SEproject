@@ -1,0 +1,12 @@
+# Preserve the byte layout recorded in the frozen SRS SHA-256 manifest.
+/docs/requirements/ieee-compact-preservation.json text eol=crlf
+/docs/requirements/ieee-requirements-map.csv text eol=crlf
+/docs/requirements/ieee-template-provenance.json text eol=crlf
+/docs/requirements/requirements.json text eol=crlf
+/docs/requirements/SRS.md text eol=crlf
+/docs/requirements/SRS_IEEE.md text eol=crlf
+/docs/requirements/traceability.csv text eol=crlf
+/docs/requirements/SRS_IEEE_Compact_QA.md text eol=lf
+/docs/requirements/SRS_IEEE_QA.md text eol=lf
+/docs/requirements/SRS_IEEE_submission_review.md text eol=lf
+/docs/requirements/SRS_QA.md text eol=lf
