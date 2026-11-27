@@ -30,7 +30,7 @@ The tool stores one private proposal in the fixture SQLite database and returns 
 
 Call `find_similar_videos` with `{"video": "vidIndex002", "limit": 1}`. Pass its returned `candidate_set_id` to `propose_playlist` with topic `database indexing`, `total_seconds` 1800, `max_video_seconds` 1200, and language `en`. The expected video is **B-Tree Database Indexing Deep Dive**, with 1,200 seconds selected and 600 seconds unused. Both calls must use the same fixture database. An unknown or expired explicit reference returns `CONTENT_UNAVAILABLE`. Omitting the reference still selects the bundled fixture set.
 
-The atomic revision and approval-invalidation transaction and the shared workflow reservation still need integration. This tool only saves a local preview. Playlist creation belongs to P2-04.
+`propose_playlist` accepts a `workflow_id` with the candidate ID returned by discovery for that session. The server checks stage order and candidate ownership before saving the local preview. The composed walkthrough still needs the seed handler. The atomic revision and approval-invalidation transaction is pending, and playlist creation belongs to P2-04.
 
 ## Revising a saved proposal
 

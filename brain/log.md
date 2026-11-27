@@ -232,3 +232,11 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-05 review sync
 
 - At Aadyant's request, Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) with `main` after [PR #47](https://github.com/AadyantNeog/SEproject/pull/47) and preserved both log entries. All 301 offline tests passed on the combined tree. See [[2026-11-27-j2-05-review-sync]].
+
+## 2026-11-27 A2-05 discovery and preview under a shared reservation
+
+- Wired the discovery and preview handlers to one workflow reservation for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). The stdio test uses a test-only seed adapter, then verifies the original reservation and candidate handoff through the real discovery and preview tools. All 294 offline tests passed. See [[2026-11-27-a2-05-composed-preview]].
+
+## 2026-11-27 J2-05 sync with composed preview
+
+- Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) again after PR #48 landed. All 302 offline tests passed on the latest combined tree. See [[2026-11-27-j2-05-review-sync]].
