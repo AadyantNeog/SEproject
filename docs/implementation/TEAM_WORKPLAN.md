@@ -1,12 +1,26 @@
 # Team implementation and delivery plan
 
-Version 2.2 · 21 November 2026 · Team Random Stuff · Author: Codex
+Version 2.2 · 21 November 2026, revised as v2.3 on 28 November 2026 · Team Random Stuff · Author: Codex (v2.3 transfer note: Claude Code)
 
 Current allocation: equal implementation ownership across Aadyant, Jeswin and Paul, with Aadyant as team lead and required reviewer for all teammate work. This user-directed revision supersedes the 16 November allocation and earlier chat prompts. It does not change the submitted SRS, product scope, technical safety rules or actual contribution history. Local preparation is not human review or completed implementation.
 
 Read [MASTER_PLAN.md](MASTER_PLAN.md), [CONTRACTS.md](CONTRACTS.md), [AGENTS.md](../../AGENTS.md), your role brief, [TASK_MIGRATION.md](TASK_MIGRATION.md) and [REVIEW_POLICY.md](REVIEW_POLICY.md). Use **A2-01–A2-08, J2-01–J2-08 and P2-01–P2-08**. Earlier task IDs are retired. [tasks.json](tasks.json) is the machine-readable task/effort/dependency register; [coverage.csv](coverage.csv) maps the unchanged requirements. Real GitHub Issue/PR links remain pending until created.
 
 Distilled basis: [lead-review governance](../../brain/resources/18-team-lead-review-governance.md), [equal team allocation](../../brain/resources/17-equal-team-allocation.md), [engineering workflow](../../brain/resources/12-engineering-and-knowledge-workflow.md), [implementation boundaries](../../brain/resources/15-implementation-boundaries-and-contracts.md).
+
+## Solo completion transfer (v2.3, 28 November 2026)
+
+**The remaining work now belongs to Aadyant.** On 28 November 2026,
+Aadyant reported a team decision. J2-07, J2-08 and P2-08 move to him, along
+with the release checklist and open exit criteria on merged slices. The
+tables below keep the v2.2 allocation as history. `tasks.json` records
+each transferred task's `implementer`. Transferred work uses the own-work
+review mode: chosen AI review plus Aadyant's recorded human owner review.
+Jeswin and Paul keep credit for their 20 merged tasks and write their own
+reflections. Aadyant's planned implementation range grows to 70–100 h.
+Written teammate acknowledgement is pending.
+[ADR-0010](../adr/0010-solo-completion-ownership-transfer.md) ·
+[decision note](../../brain/resources/20-solo-completion-ownership-transfer.md)
 
 ## 1. Equal workload and responsibility
 

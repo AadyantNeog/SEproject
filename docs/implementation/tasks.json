@@ -1,9 +1,22 @@
 {
-  "plan_version": "2.2",
+  "plan_version": "2.3",
   "allocation_date": "2026-11-19",
-  "status": "planned; implementation, actual issue/PR links and human review pending",
+  "status": "20 of 24 tasks merged; remaining work transferred to Aadyant on 2026-11-28; actual issue/PR links and human review pending",
   "effort_unit": "implementation hours including tests/docs/integration, AI-assisted author verification, handoff and feedback fixes; excludes centralized lead review/coordination",
   "governance_date": "2026-11-21",
+  "ownership_transfer": {
+    "decided_on": "2026-11-28",
+    "decision": "team decision reported by Aadyant in the Claude Code session",
+    "transferred_tasks": ["J2-07", "J2-08", "P2-08"],
+    "implementer": "Aadyant",
+    "also_transferred": "release checklist items and open exit criteria on merged slices",
+    "original_owner_preserved": true,
+    "merged_work_credit_unchanged": true,
+    "review_mode": "chosen_ai_review_plus_recorded_human_owner_review",
+    "teammate_acknowledgement": "pending",
+    "decision_record": "docs/adr/0010-solo-completion-ownership-transfer.md",
+    "distilled_note": "brain/resources/20-solo-completion-ownership-transfer.md"
+  },
   "review_policy": {
     "team_lead": "Aadyant",
     "teammate_work_requires_lead_review": true,
@@ -149,13 +162,13 @@
       "id": "J2-07", "owner": "Jeswin", "title": "Privacy operations and scheduled read-only live checks", "hours": [4, 6], "depends_on": ["J2-02", "J2-03", "P2-06"], "integration_requires": ["P2-02"],
       "deliverable": "Document clean-checkout consent/disconnect, retention/AI-client disclosure, token recovery and D-02 status. Prepare a separately scheduled protected-runner read-only workflow with fixed budget and honest blocked prerequisites. Operator provisions credentials; no live writes or unattended approval.",
       "paths": ["docs/user/setup-and-consent.md", "docs/user/privacy.md", ".github/workflows/live-read-only.yml", "docs/evidence/policy-and-consent/"],
-      "eligible_reviewers": ["Aadyant"], "review_requirement": "actual current-version human lead review by Aadyant", "review_status": "pending_lead_human_review", "human_review_responsible": "Aadyant"
+      "implementer": "Aadyant", "eligible_reviewers": [], "review_requirement": "chosen AI review plus actual recorded human owner review; transferred to Aadyant 2026-11-28; no Jeswin/Paul assignment", "review_status": "pending_ai_and_human_owner_review", "human_review_responsible": "Aadyant"
     },
     {
       "id": "J2-08", "owner": "Jeswin", "title": "Read-path integration, analytics demo and reviews", "hours": [4, 6], "depends_on": ["J2-04", "J2-05", "J2-06", "J2-07", "A2-05", "P2-01", "P2-02"], "integration_requires": [],
       "deliverable": "Prove HTTP/account/library/analytics integration with real SQLite/quota and stdio, verify disconnect/retention, show FR-4 and read failures, update own traceability and submit all read/privacy deliverables to Aadyant, resolving his findings; do not review Aadyant's PRs; he uses chosen-AI review plus his recorded human owner review. Supply read/privacy release evidence and own human reflection; no fabricated live result.",
       "paths": ["tests/system/test_analysis.py", "tests/system/test_sparse_and_denied_sources.py", "docs/evidence/read-and-privacy/"],
-      "eligible_reviewers": ["Aadyant"], "review_requirement": "actual current-version human lead review by Aadyant", "review_status": "pending_lead_human_review", "human_review_responsible": "Aadyant"
+      "implementer": "Aadyant", "eligible_reviewers": [], "review_requirement": "chosen AI review plus actual recorded human owner review; transferred to Aadyant 2026-11-28; no Jeswin/Paul assignment", "review_status": "pending_ai_and_human_owner_review", "human_review_responsible": "Aadyant"
     },
     {
       "id": "P2-01", "owner": "Paul", "title": "SQLite repositories, cache and retention", "hours": [8, 12], "depends_on": ["A2-01"], "integration_requires": ["J2-03"],
@@ -203,7 +216,7 @@
       "id": "P2-08", "owner": "Paul", "title": "Write/quota acceptance and shared release assembly", "hours": [6, 8], "depends_on": ["P2-02", "P2-05", "P2-06", "P2-07", "A2-08", "J2-08"], "integration_requires": [],
       "deliverable": "Demonstrate approved/rejected/replayed/partial/unknown write and quota scenarios through stdio, resolve own defects, update own traceability and submit write/quota/recovery deliverables to Aadyant for review. Assemble owners' release evidence for his lead acceptance; do not review Aadyant's PRs; his workflow uses chosen-AI review plus his recorded human owner review. Actual reviews/tag remain human actions. Provide own human reflection.",
       "paths": ["tests/system/test_playlist_creation.py", "tests/system/test_playlist_authority.py", "docs/evidence/write-and-quota/", "docs/evidence/release/"],
-      "eligible_reviewers": ["Aadyant"], "review_requirement": "actual current-version human lead review by Aadyant", "review_status": "pending_lead_human_review", "human_review_responsible": "Aadyant"
+      "implementer": "Aadyant", "eligible_reviewers": [], "review_requirement": "chosen AI review plus actual recorded human owner review; transferred to Aadyant 2026-11-28; no Jeswin/Paul assignment", "review_status": "pending_ai_and_human_owner_review", "human_review_responsible": "Aadyant"
     }
   ]
 }

@@ -2,6 +2,8 @@
 
 Version 2.2 · 21 November 2026 · Owner: Jeswin Jose (BT2024142)
 
+**v2.3 transfer, 28 November 2026:** J2-07 and J2-08 moved to Aadyant by team decision ([ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)). This brief remains the historical v2.2 allocation and the record of your merged work and credit. You still author your own reflection and contribution record.
+
 This equal-workload brief replaces the earlier J01–J04 assignment. Read root AGENTS.md, SRS/brain index, master plan, contracts, team workplan, tasks.json and TASK_MIGRATION.md. Own J2-01–J2-08: eight tasks, 56–80 planned hours and one third of implementation responsibility, including substantial security-sensitive production code.
 
 Review A2-01 provider/account/normalised-data contracts and prepare API-shaped fixtures/oracles. After that PR merges, start J2-01: exact ID/URL/duration/language parsing plus the one allowlisted, deadline-bound, quota-accounted HTTP executor. Use fake QuotaLedger contracts only in offline tests until Paul's real ledger integrates. Debit before dispatch; at most three total safe read attempts, no write retries or silent redirects. Do not fetch arbitrary user URLs.

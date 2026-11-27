@@ -6,6 +6,14 @@ Aadyant reviews every Jeswin/Paul PR and deliverable. Jeswin and Paul are not as
 
 ## Review responsibilities
 
+**Transferred work (v2.3).** Since 28 November 2026, Aadyant authors
+J2-07, J2-08, P2-08 and the remaining release work. Those changes follow
+the own-work rule below: chosen AI review, then his dated human owner
+review of the exact commit. No Jeswin or Paul review is assigned. An owner
+review is never described as independent GitHub approval.
+[ADR-0010](../adr/0010-solo-completion-ownership-transfer.md)
+
+
 | Work | Review workflow |
 | --- | --- |
 | Jeswin's or Paul's PRs/deliverables | Aadyant personally reviews the exact version; authors fix findings and return material changes for re-review |
