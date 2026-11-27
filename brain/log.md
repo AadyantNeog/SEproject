@@ -205,3 +205,8 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-03 sync with merged quota ledger
 
 - Synced [PR #29](https://github.com/AadyantNeog/SEproject/pull/29) with `main` after PR #27 and kept both knowledge log entries. All 286 offline tests passed. A synthetic sign-in check verified reservations, charges, and release with the merged ledger and confirmed that insufficient quota blocks channel dispatch. See [[2026-11-27-j2-03-auth-follow-up]].
+
+## 2026-11-27 J2-04 authorised library collection and MCP handlers
+
+- Implemented `LibraryService` (`src/yt_intel/services/library.py`), Jeswin's owned MCP handlers `get_video`, `get_library`, `get_account_status`, and `disconnect_account` (`src/yt_intel/mcp/library.py`, wired in `src/yt_intel/mcp/server.py`), synthetic library fixtures (`tests/fixtures/libraries/library_catalog.json`), and integration/stdio tests (`tests/integration/test_library_sources.py`) on `codex/j2-04-library-collection` from `origin/main` (`b606932`). See [[2026-11-27-j2-04-library-collection]].
+- Verified 3 J2-04 integration/stdio tests (real P2-01 `SqliteSnapshotRepository` persistence, real P2-02 `SqliteQuotaLedger` preflight/debit/release, source fairness, private opaque continuation, denied/subset degradation, direct `RecommendationService` interoperability, and fixture stdio MCP execution), 289 total offline tests, strict `mypy src` (62 source files), and scoped Ruff checks. Committed locally without pushing so Jeswin can review and choose the PR wording; GitHub Issue/PR and Aadyant's lead review remain pending.
