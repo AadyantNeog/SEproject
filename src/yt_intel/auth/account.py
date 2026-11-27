@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import json
+import os
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, timedelta
+from pathlib import Path
+from typing import Protocol
 
 import anyio
 
@@ -17,7 +21,14 @@ from yt_intel.contracts.common import AccountBinding, ChannelId, Label, Mode, Op
 from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.provider import YouTubeReadProvider
 from yt_intel.contracts.repositories import AccountDataRepository
-from yt_intel.contracts.workflow import CancellationToken, Clock, RequestContext
+from yt_intel.contracts.workflow import (
+    CallCeiling,
+    CancellationToken,
+    Clock,
+    QuotaLedger,
+    RequestContext,
+    WorkflowPlan,
+)
 from yt_intel.infrastructure.clock import SystemClock
 from yt_intel.infrastructure.http import AuthHeaderProvider
 
@@ -54,6 +65,66 @@ class AccountRecord:
     granted_scopes: tuple[Label, ...]
 
 
+class AccountStateStore(Protocol):
+    """Persistent store for non-secret active AccountRecord metadata."""
+
+    def load(self) -> AccountRecord | None: ...
+    def save(self, record: AccountRecord) -> None: ...
+    def clear(self) -> None: ...
+
+
+class JsonAccountStateStore:
+    """File-backed non-secret AccountRecord store (never stores OAuth tokens)."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def load(self) -> AccountRecord | None:
+        if not self._path.exists():
+            return None
+        try:
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+            if not isinstance(raw, Mapping):
+                return None
+            binding = AccountBinding.model_validate(raw["binding"])
+            channel_title = str(raw["channel_title"])
+            vault_reference = str(raw["vault_reference"])
+            scopes_raw = raw["granted_scopes"]
+            if not isinstance(scopes_raw, list) or not all(
+                isinstance(s, str) and s for s in scopes_raw
+            ):
+                return None
+            return AccountRecord(
+                binding=binding,
+                channel_title=channel_title,
+                vault_reference=vault_reference,
+                granted_scopes=tuple(scopes_raw),
+            )
+        except Exception:
+            return None
+
+    def save(self, record: AccountRecord) -> None:
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "schema_version": "1",
+            "binding": record.binding.model_dump(mode="json"),
+            "channel_title": record.channel_title,
+            "vault_reference": record.vault_reference,
+            "granted_scopes": list(record.granted_scopes),
+        }
+        tmp = self._path.with_name(f"{self._path.name}.{uuid.uuid4().hex[:8]}.tmp")
+        tmp.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
+        os.replace(tmp, self._path)
+
+    def clear(self) -> None:
+        if self._path.exists():
+            self._path.unlink()
+
+
 def _account_error(
     code: ErrorCode,
     message: str,
@@ -88,6 +159,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         account_data: AccountDataRepository,
         clock: Clock | None = None,
         initial_record: AccountRecord | None = None,
+        state_store: AccountStateStore | None = None,
     ) -> None:
         self._installation_id = installation_id
         self._mode: Mode = mode
@@ -95,7 +167,13 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         self._oauth = oauth_client
         self._account_data = account_data
         self._clock: Clock = clock if clock is not None else SystemClock()
-        self._record: AccountRecord | None = initial_record
+        self._state_store = state_store
+        loaded_record = (
+            initial_record
+            if initial_record is not None
+            else (state_store.load() if state_store is not None else None)
+        )
+        self._record: AccountRecord | None = loaded_record
         self._probe_tokens: dict[AccountBinding, OAuthTokenSet] = {}
         self._refresh_lock = anyio.Lock()
         self._lifecycle_lock = anyio.Lock()
@@ -151,7 +229,10 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         *,
         enable_writes: bool,
         read_provider: YouTubeReadProvider,
-        reservation_id: OpaqueId,
+        reservation_id: OpaqueId | None = None,
+        quota_ledger: QuotaLedger | None = None,
+        project_id: OpaqueId = "default-project",
+        quota_profile_id: OpaqueId = "youtube-2026-11-16",
         selected_channel_id: ChannelId | None = None,
         timeout_seconds: float = 120.0,
         open_browser: Callable[[str], bool] = open_system_browser,
@@ -186,6 +267,9 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             callback_params,
             read_provider=read_provider,
             reservation_id=reservation_id,
+            quota_ledger=quota_ledger,
+            project_id=project_id,
+            quota_profile_id=quota_profile_id,
             required_scopes=scopes,
             selected_channel_id=selected_channel_id,
             require_same_channel=enable_writes and self.active_record is not None,
@@ -198,7 +282,10 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         callback_params: Mapping[str, str],
         *,
         read_provider: YouTubeReadProvider,
-        reservation_id: OpaqueId,
+        reservation_id: OpaqueId | None = None,
+        quota_ledger: QuotaLedger | None = None,
+        project_id: OpaqueId = "default-project",
+        quota_profile_id: OpaqueId = "youtube-2026-11-16",
         required_scopes: Sequence[str] = (YOUTUBE_READONLY_SCOPE,),
         selected_channel_id: ChannelId | None = None,
         require_same_channel: bool = False,
@@ -263,6 +350,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             )
             # Keep self._record inactive/unchanged until channel verification succeeds.
             self._probe_tokens[probe_binding] = tokens
+            reserved_id: OpaqueId | None = None
             try:
                 if cancel.is_cancelled():
                     raise _account_error(
@@ -270,11 +358,43 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                         "Authorisation was cancelled before channel verification.",
                         safe_next_action="Re-run the local CLI auth command when ready.",
                     )
+                probe_deadline = (
+                    self._clock.now().astimezone(UTC) + _DEFAULT_AUTH_TIMEOUT
+                )
+                if quota_ledger is not None:
+                    probe_plan = WorkflowPlan(
+                        plan_id=f"auth-channel-probe-{uuid.uuid4().hex[:12]}",
+                        binding=probe_binding,
+                        project_id=project_id,
+                        quota_profile_id=quota_profile_id,
+                        endpoint_ceilings={
+                            "channels.list": CallCeiling(calls=1, attempts_per_call=3)
+                        },
+                        buckets={"general": 3},
+                        candidate_cap=0,
+                        page_cap=1,
+                        sample_cap=0,
+                        deadline=probe_deadline,
+                        cancellation_policy="cooperative",
+                        reconciliation_allowance={},
+                    )
+                    reservation = await quota_ledger.reserve(probe_plan)
+                    reserved_id = reservation.reservation_id
+                    active_reservation_id = reserved_id
+                elif reservation_id is not None:
+                    active_reservation_id = reservation_id
+                else:
+                    raise _account_error(
+                        "QUOTA_INSUFFICIENT",
+                        "A quota ledger or reservation ID is required for channel verification.",
+                        safe_next_action="Configure the quota ledger before running live sign-in.",
+                    )
+
                 probe_ctx = RequestContext(
                     request_id=f"auth-channel-{uuid.uuid4().hex[:12]}",
                     binding=probe_binding,
-                    reservation_id=reservation_id,
-                    deadline=self._clock.now().astimezone(UTC) + _DEFAULT_AUTH_TIMEOUT,
+                    reservation_id=active_reservation_id,
+                    deadline=probe_deadline,
                     cancellation=cancel,
                 )
                 channels = await read_provider.get_my_channels(probe_ctx)
@@ -345,6 +465,8 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                     vault_reference=final_vault_ref,
                     granted_scopes=tokens.granted_scopes,
                 )
+                if self._state_store is not None:
+                    self._state_store.save(final_record)
                 self._record = final_record
                 self._disabled_for_disconnect = False
                 self._generation += 1
@@ -355,6 +477,8 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 )
             finally:
                 self._probe_tokens.pop(probe_binding, None)
+                if quota_ledger is not None and reserved_id is not None:
+                    await quota_ledger.release(reserved_id)
 
     async def get_headers(self, binding: AccountBinding) -> Mapping[str, str]:
         """AuthHeaderProvider implementation: returns Bearer header, refreshing if needed."""
@@ -443,12 +567,15 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 current_record.vault_reference, refreshed.to_vault_bytes()
             )
             if refreshed.granted_scopes != current_record.granted_scopes:
-                self._record = AccountRecord(
+                updated_record = AccountRecord(
                     binding=current_record.binding,
                     channel_title=current_record.channel_title,
                     vault_reference=current_record.vault_reference,
                     granted_scopes=refreshed.granted_scopes,
                 )
+                if self._state_store is not None:
+                    self._state_store.save(updated_record)
+                self._record = updated_record
             return {"Authorization": f"{refreshed.token_type} {refreshed.access_token}"}
 
     async def _load_tokens(self, record: AccountRecord) -> OAuthTokenSet:
@@ -560,6 +687,8 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                         )
 
                     if tokens_removed and local_data_removed:
+                        if self._state_store is not None:
+                            self._state_store.clear()
                         self._record = None
                         self._disabled_for_disconnect = False
             finally:

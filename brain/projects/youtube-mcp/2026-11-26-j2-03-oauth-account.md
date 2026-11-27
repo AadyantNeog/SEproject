@@ -92,8 +92,17 @@ channel verification finishes; (3) make `disconnect(binding)` immediately block
 further access, drain any in-flight refresh without token writeback, and keep
 access blocked even on partial cleanup failure; (4) use explicit desktop scopes
 (`include_granted_scopes=false`); and (5) add tests for cancellation, concurrent
-refresh during disconnect, and the browser/CLI auth flow. Committed locally
-without pushing so Jeswin can approve the PR comment wording first.
+refresh during disconnect, and the browser/CLI auth flow. Following Aadyant's second review on PR #29, merged latest `origin/main`
+(`6025d88`), added `JsonAccountStateStore` (non-secret active account metadata
+only, zero tokens) so `run_cli_auth` reloads the active account across separate
+CLI invocations and enforces same-channel verification on `--enable-writes`,
+replaced `_AuthBootstrapLedger` with real `WorkflowPlan` reserve/debit/release
+through `QuotaLedger` (wiring Paul's P2-02 `SqliteQuotaLedger` dynamically and
+failing closed if P2-02 is not yet merged on `main`), and added a
+separate-invocation sign-in → wrong-channel rejection → same-channel write
+upgrade test. Verified **17 passed** in J2-03 tests, **275 passed** in the full
+offline suite, `mypy src` across **57 source files**, and scoped Ruff checks.
+Committed locally without pushing so Jeswin can approve the PR comment wording.
 
 ## Links
 

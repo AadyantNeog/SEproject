@@ -678,3 +678,189 @@ def test_browser_loopback_flow_and_cli_auth_subcommand(tmp_path: Path) -> None:
             assert "127.0.0.1" in opened_urls[0]
 
     anyio.run(_run)
+
+
+def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_quota_ledger(
+    tmp_path: Path,
+) -> None:
+    import json
+    import threading
+    from urllib.parse import parse_qs, urlsplit
+    from urllib.request import urlopen
+
+    from yt_intel.cli import run_cli_auth
+
+    secrets_file = tmp_path / "client_secret.json"
+    secrets_file.write_text(
+        json.dumps({"installed": {"client_id": "cid-desktop-cli"}}),
+        encoding="utf-8",
+    )
+    db_path = tmp_path / "live.sqlite3"
+    state_path = tmp_path / "account-live.json"
+    clock = _MutableClock(NOW)
+    vault = _InMemoryVault()
+
+    class _TrackingQuotaLedger:
+        def __init__(self) -> None:
+            self.reservations: dict[str, WorkflowPlan] = {}
+            self.debits: list[tuple[str, Endpoint, str]] = []
+            self.released: list[str] = []
+
+        async def reserve(self, plan: WorkflowPlan) -> QuotaReservation:
+            res_id = f"res-{len(self.reservations) + 1}"
+            self.reservations[res_id] = plan
+            return QuotaReservation(
+                reservation_id=res_id,
+                plan_id=plan.plan_id,
+                project_id=plan.project_id,
+                quota_profile_id=plan.quota_profile_id,
+                reset_at=NOW + timedelta(days=1),
+                reserved=plan.buckets,
+            )
+
+        async def debit_attempt(
+            self, ctx: RequestContext, endpoint: Endpoint, attempt_id: str
+        ) -> None:
+            plan = self.reservations.get(ctx.reservation_id)
+            assert plan is not None
+            assert plan.binding == ctx.binding
+            assert endpoint in plan.endpoint_ceilings
+            self.debits.append((ctx.reservation_id, endpoint, attempt_id))
+
+        async def release(self, reservation_id: str) -> None:
+            self.released.append(reservation_id)
+
+    ledger = _TrackingQuotaLedger()
+
+    def make_browser(auth_code: str):
+        def _open(url: str) -> bool:
+            parsed = urlsplit(url)
+            qs = parse_qs(parsed.query)
+            callback_url = (
+                f"{qs['redirect_uri'][0]}?state={qs['state'][0]}&code={auth_code}"
+            )
+
+            def _hit() -> None:
+                with urlopen(callback_url, timeout=5) as resp:
+                    assert resp.status == 200
+
+            threading.Thread(target=_hit, daemon=True).start()
+            return True
+
+        return _open
+
+    def oauth_handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/revoke":
+            return httpx.Response(200, json={})
+        body = request.content.decode("utf-8")
+        if "code=code-read" in body:
+            return httpx.Response(
+                200,
+                json={
+                    "access_token": "ya29.cli_read",
+                    "refresh_token": "1//cli_read_ref",
+                    "expires_in": 3600,
+                    "scope": YOUTUBE_READONLY_SCOPE,
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "access_token": "ya29.cli_write",
+                "refresh_token": "1//cli_write_ref",
+                "expires_in": 3600,
+                "scope": f"{YOUTUBE_READONLY_SCOPE} {YOUTUBE_WRITE_SCOPE}",
+            },
+        )
+
+    def make_api_transport(channel_id: str, title: str) -> httpx.MockTransport:
+        def _handler(request: httpx.Request) -> httpx.Response:
+            assert request.url.path == "/youtube/v3/channels"
+            assert request.url.params.get("mine") == "true"
+            return httpx.Response(
+                200,
+                json={
+                    "items": [
+                        {
+                            "id": channel_id,
+                            "snippet": {"title": title, "customUrl": "@study"},
+                            "contentDetails": {
+                                "relatedPlaylists": {"uploads": "UU123"}
+                            },
+                        }
+                    ]
+                },
+            )
+
+        return httpx.MockTransport(_handler)
+
+    async def _run() -> None:
+        # Invocation 1: `yt-intel auth --read`
+        read_status = await run_cli_auth(
+            client_secrets_path=secrets_file,
+            enable_writes=False,
+            vault=vault,
+            open_browser=make_browser("code-read"),
+            database_path=db_path,
+            account_state_path=state_path,
+            quota_ledger=ledger,
+            clock=clock,
+            oauth_transport=httpx.MockTransport(oauth_handler),
+            api_transport=make_api_transport(
+                "UCaaaaaaaaaaaaaaaaaaaaaa", "Primary Channel"
+            ),
+        )
+        assert read_status.binding.channel_id == "UCaaaaaaaaaaaaaaaaaaaaaa"
+        assert read_status.scopes == (YOUTUBE_READONLY_SCOPE,)
+        # State file exists and contains NO OAuth tokens
+        state_text = state_path.read_text(encoding="utf-8")
+        assert "ya29.cli_read" not in state_text
+        assert "1//cli_read_ref" not in state_text
+
+        # Invocation 2 (separate run): `yt-intel auth --enable-writes` with WRONG channel fails closed
+        with pytest.raises(ContractError) as mismatch:
+            await run_cli_auth(
+                client_secrets_path=secrets_file,
+                enable_writes=True,
+                vault=vault,
+                open_browser=make_browser("code-write-wrong"),
+                database_path=db_path,
+                account_state_path=state_path,
+                quota_ledger=ledger,
+                clock=clock,
+                oauth_transport=httpx.MockTransport(oauth_handler),
+                api_transport=make_api_transport(
+                    "UCbbbbbbbbbbbbbbbbbbbbbb", "Wrong Channel"
+                ),
+            )
+        assert mismatch.value.detail.code == "ACCOUNT_MISMATCH"
+
+        # Invocation 3 (separate run): `yt-intel auth --enable-writes` with SAME channel succeeds
+        # and keeps the exact same AccountBinding (credential_binding_id + channel_id).
+        write_status = await run_cli_auth(
+            client_secrets_path=secrets_file,
+            enable_writes=True,
+            vault=vault,
+            open_browser=make_browser("code-write-same"),
+            database_path=db_path,
+            account_state_path=state_path,
+            quota_ledger=ledger,
+            clock=clock,
+            oauth_transport=httpx.MockTransport(oauth_handler),
+            api_transport=make_api_transport(
+                "UCaaaaaaaaaaaaaaaaaaaaaa", "Primary Channel"
+            ),
+        )
+        assert write_status.binding == read_status.binding
+        assert write_status.scopes == (YOUTUBE_READONLY_SCOPE, YOUTUBE_WRITE_SCOPE)
+
+        # Every channel lookup reserved, debited `channels.list`, and released through QuotaLedger
+        assert len(ledger.reservations) == 3
+        assert [ep for _, ep, _ in ledger.debits] == [
+            "channels.list",
+            "channels.list",
+            "channels.list",
+        ]
+        assert ledger.released == ["res-1", "res-2", "res-3"]
+
+    anyio.run(_run)

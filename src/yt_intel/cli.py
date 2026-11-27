@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import os
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import cast
 
 import anyio
+import httpx
 
-from .auth.account import LocalAccountService
+from .auth.account import JsonAccountStateStore, LocalAccountService
 from .auth.oauth import (
     OAuthClient,
     load_oauth_client_config,
@@ -18,35 +21,65 @@ from .auth.vault import KeyringTokenVault
 from .bootstrap import create_fixture_server
 from .client_skills import sync_claude_skills
 from .contracts.account import AccountStatus, TokenVault
-from .contracts.errors import ContractError
-from .contracts.workflow import (
-    Endpoint,
-    QuotaLedger,
-    QuotaReservation,
-    RequestContext,
-    WorkflowPlan,
-)
+from .contracts.common import OpaqueId
+from .contracts.errors import ContractError, ErrorDetail
+from .contracts.workflow import Clock, QuotaLedger
 from .infrastructure.database import Database, default_database_path
 from .infrastructure.http import AccountedHttpExecutor
 from .infrastructure.repositories import SqliteAccountDataRepository
 from .providers.youtube import LiveYouTubeReadProvider
 
 _OAUTH_SECRETS_ENV = "YT_INTEL_OAUTH_CLIENT_SECRETS"
+_DEFAULT_QUOTA_PROFILE_ID = "youtube-2026-11-16"
 
 
-class _AuthBootstrapLedger(QuotaLedger):
-    """Minimal single-channel-probe ledger used by CLI auth until P2-02 integrates."""
+def _default_quota_profile_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[2]
+        / "config"
+        / "quota-profiles"
+        / f"{_DEFAULT_QUOTA_PROFILE_ID}.json"
+    )
 
-    async def reserve(self, plan: WorkflowPlan) -> QuotaReservation:
-        raise NotImplementedError
 
-    async def debit_attempt(
-        self, ctx: RequestContext, endpoint: Endpoint, attempt_id: str
-    ) -> None:
-        return None
+def _load_sqlite_quota_ledger(
+    database: Database,
+    *,
+    quota_profile_path: Path | None = None,
+    clock: Clock | None = None,
+) -> tuple[QuotaLedger, OpaqueId]:
+    """Load Paul's P2-02 SqliteQuotaLedger; fail closed if P2-02 is not yet installed."""
+    try:
+        quota_module = importlib.import_module("yt_intel.infrastructure.quota")
+        profile_cls = getattr(quota_module, "QuotaProfile")
+        ledger_cls = getattr(quota_module, "SqliteQuotaLedger")
+    except (ImportError, AttributeError):
+        raise ContractError(
+            ErrorDetail(
+                code="PROVIDER_UNAVAILABLE",
+                message="SQLite quota ledger (P2-02) is not available in this build.",
+                retryable=False,
+                safe_next_action="Install or merge P2-02 quota accounting before running live CLI sign-in.",
+            )
+        ) from None
 
-    async def release(self, reservation_id: str) -> None:
-        raise NotImplementedError
+    profile_path = (
+        quota_profile_path
+        if quota_profile_path is not None
+        else _default_quota_profile_path()
+    )
+    if not profile_path.is_file():
+        raise ContractError(
+            ErrorDetail(
+                code="PROVIDER_UNAVAILABLE",
+                message="Quota profile configuration file is missing.",
+                retryable=False,
+                safe_next_action="Supply a valid --quota-profile JSON path.",
+            )
+        )
+    profile = profile_cls.load(profile_path)
+    ledger = cast(QuotaLedger, ledger_cls(database, profile, clock=clock))
+    return ledger, str(profile.profile_id)
 
 
 async def run_cli_auth(
@@ -58,9 +91,20 @@ async def run_cli_auth(
     vault: TokenVault | None = None,
     open_browser: Callable[[str], bool] = open_system_browser,
     database_path: Path | None = None,
+    account_state_path: Path | None = None,
     quota_ledger: QuotaLedger | None = None,
+    quota_profile_path: Path | None = None,
+    quota_profile_id: OpaqueId = _DEFAULT_QUOTA_PROFILE_ID,
+    clock: Clock | None = None,
+    oauth_transport: httpx.AsyncBaseTransport | None = None,
+    api_transport: httpx.AsyncBaseTransport | None = None,
 ) -> AccountStatus:
-    """Execute the operator CLI browser OAuth sign-in flow for read or write scopes."""
+    """Execute the operator CLI browser OAuth sign-in flow for read or write scopes.
+
+    Reloads any previously saved non-secret active account record so enabling writes
+    in a separate CLI invocation enforces same-channel verification, and routes the
+    channel lookup through the persistent QuotaLedger (Paul's P2-02).
+    """
     config = load_oauth_client_config(client_secrets_path)
     resolved_vault = vault if vault is not None else KeyringTokenVault()
     db_path = (
@@ -68,29 +112,50 @@ async def run_cli_auth(
     )
     db = Database(db_path)
     db.migrate()
-    account_data = SqliteAccountDataRepository(db)
-    ledger = quota_ledger if quota_ledger is not None else _AuthBootstrapLedger()
+    account_data = SqliteAccountDataRepository(db, clock=clock)
+    state_path = (
+        account_state_path
+        if account_state_path is not None
+        else db_path.with_name("account-live.json")
+    )
+    state_store = JsonAccountStateStore(state_path)
 
-    # Create executor first for OAuth endpoints, then bind service as its auth header provider.
-    oauth_executor = AccountedHttpExecutor(quota_ledger=ledger)
-    oauth_client = OAuthClient(config, oauth_executor)
+    if quota_ledger is None:
+        ledger, resolved_profile_id = _load_sqlite_quota_ledger(
+            db, quota_profile_path=quota_profile_path, clock=clock
+        )
+    else:
+        ledger = quota_ledger
+        resolved_profile_id = quota_profile_id
+
+    oauth_executor = AccountedHttpExecutor(
+        quota_ledger=ledger,
+        transport=oauth_transport,
+        clock=clock,
+    )
+    oauth_client = OAuthClient(config, oauth_executor, clock=clock)
     service = LocalAccountService(
         installation_id="local-cli",
         mode="live",
         vault=resolved_vault,
         oauth_client=oauth_client,
         account_data=account_data,
+        clock=clock,
+        state_store=state_store,
     )
     read_executor = AccountedHttpExecutor(
         quota_ledger=ledger,
         auth_headers=service,
+        transport=api_transport,
+        clock=clock,
     )
-    read_provider = LiveYouTubeReadProvider(read_executor)
+    read_provider = LiveYouTubeReadProvider(read_executor, clock=clock)
     try:
         return await service.authorize_via_browser(
             enable_writes=enable_writes,
             read_provider=read_provider,
-            reservation_id="cli-auth-channel-probe",
+            quota_ledger=ledger,
+            quota_profile_id=resolved_profile_id,
             selected_channel_id=channel_id,
             timeout_seconds=timeout_seconds,
             open_browser=open_browser,
@@ -145,6 +210,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Optional UC... channel ID when the Google account owns multiple channels",
     )
     auth.add_argument(
+        "--quota-profile",
+        type=Path,
+        default=None,
+        help="Optional path to a dated YouTube quota profile JSON file",
+    )
+    auth.add_argument(
         "--timeout",
         type=float,
         default=120.0,
@@ -171,6 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     enable_writes=bool(args.enable_writes),
                     channel_id=args.channel_id,
                     timeout_seconds=args.timeout,
+                    quota_profile_path=args.quota_profile,
                 )
             )
         except ContractError as exc:

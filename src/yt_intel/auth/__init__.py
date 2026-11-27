@@ -1,6 +1,11 @@
 """Installed-app OAuth 2.0 PKCE flow, protected OS token vault, and account lifecycle."""
 
-from .account import AccountRecord, LocalAccountService
+from .account import (
+    AccountRecord,
+    AccountStateStore,
+    JsonAccountStateStore,
+    LocalAccountService,
+)
 from .oauth import (
     GOOGLE_AUTH_URI,
     GOOGLE_REVOKE_URI,
@@ -29,10 +34,12 @@ from .vault import (
 
 __all__ = [
     "AccountRecord",
+    "AccountStateStore",
     "DEFAULT_SERVICE_NAME",
     "GOOGLE_AUTH_URI",
     "GOOGLE_REVOKE_URI",
     "GOOGLE_TOKEN_URI",
+    "JsonAccountStateStore",
     "KeyringTokenVault",
     "LocalAccountService",
     "LoopbackCallbackServer",
