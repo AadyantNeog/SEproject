@@ -1,20 +1,22 @@
 # Release candidate record
 
-28 November 2026 · P2-08 release assembly · Assembled by Aadyant (transferred, [ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)) · **Candidate, not a release.** No tag, no human acceptance.
+28 November 2026 · P2-08 release assembly · Assembled by Aadyant (transferred, [ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)) · **Merged to `main`, not released.** There is no tag and no final human acceptance yet.
 
 ## Candidate
 
 | Item | Value |
 | --- | --- |
-| Candidate commit | `283a330148618e31280f016e8598b59ac52f4a81` on `codex/release-candidate-evidence`, plus this documentation commit |
-| Base | `main` at `05d929a` (merge of PR #52) |
-| Pushed to GitHub | **No.** Each branch below needs its own PR and Aadyant's owner review. |
-| Release tag | None. Only a human creates the tag, after review. |
+| Merged `main` | `061932d` (merge of PR #63). Its tree is identical to the reviewed `0a960af`. |
+| Code-checked commit | `283a330`. The later commits change only documentation. |
+| PRs | [#57](https://github.com/AadyantNeog/SEproject/pull/57) to [#62](https://github.com/AadyantNeog/SEproject/pull/62), each with Aadyant's owner review. [#63](https://github.com/AadyantNeog/SEproject/pull/63) brought the stacked commits into `main` unchanged, and #59 was closed as superseded by it. |
+| Hosted CI | #57 and #63 passed on Linux and Windows, and the secret scan passed |
+| Release tag | None. Only a human creates the tag, after the remaining items below. |
 
-### Branches, in merge order
+### Branches (all merged)
 
-Each branch is stacked on the one before it. Merge them in this order,
-each through its own PR:
+#57 merged into `main`. #58, #60, #61 and #62 merged into their stacked
+bases, so #63 then merged the complete stack into `main`. The branches
+were:
 
 1. `codex/a2-08-feature-evidence`: A2-08 NFR-08 benchmark and the
    feature and skill evidence
@@ -27,6 +29,19 @@ each through its own PR:
    tests
 6. `codex/release-candidate-evidence`: CI knowledge validation, register
    backfill, architecture page and this record
+
+## Checks on merged `main`
+
+All of these ran at `061932d`, or on a byte-identical local merge result
+before the GitHub merge:
+- **Tests and lint.** 349 offline tests, Ruff, and mypy for Windows and
+  Linux passed.
+- **Local check.** All five stages of `check_local.py` passed.
+- **Validators.** The planning validator passed 35 of 35, and the knowledge
+  validator passed.
+- **Performance.** All 12 NFR-08 targets passed again
+  ([re-run](../performance/report.md#re-run-on-merged-main)).
+- **Hosted CI.** Passed on #63.
 
 ## Checks run on `283a330`
 
@@ -74,8 +89,8 @@ acceptance. The per-requirement links are in
 | AT-14 Secrets, isolation, deletion, cache expiry | Fixture pass. Vault backend detected on the workstation. | Runner vault check. Inspection of the logs. |
 | AT-15 Caps, accounting, reset, external exhaustion | Fixture pass | None for fixtures |
 | AT-16 Rate limits, timeouts, 5xx, bounded retries | Fixture pass | None for fixtures |
-| AT-17 Offline performance | **Pass**, all 12 targets at `283a330` | Repeat on the final merged commit |
-| AT-18 Skills, notes, validation, offline CI | Skill tests and validators pass locally. CI now runs knowledge validation. | Hosted CI run on the PRs |
+| AT-17 Offline performance | **Pass**, all 12 targets at `283a330` and again on merged `main` `061932d` | Re-run if code changes before the tag |
+| AT-18 Skills, notes, validation, offline CI | Skill tests and validators pass. Hosted CI ran knowledge validation on #63. | Skill evaluation with the live client |
 | AT-19 Walkthroughs and live skill demo | Docs ready ([feature evidence](../features/README.md), [setup](../../user/setup-and-consent.md)) | **Codex walkthrough and live demo** (live is blocked) |
 | AT-20 Design, ADR, plan, review, trace, release | ADRs 0001–0010, [architecture](../../developer/architecture.md), coverage register, this record | **Human owner reviews**, stage reviews and the release tag |
 
@@ -106,22 +121,22 @@ covers the expiry.
 
 ## Human and external actions remaining
 
-1. **Issues and PRs.** Create issues for A2-08, J2-07, J2-08 and P2-08,
-   open one PR per branch in the merge order above, and let hosted CI run.
-2. **Owner reviews.** Record a dated human owner review for each PR,
-   against its exact commit, after AI-assisted review.
-3. **Manual runs.** Run the Codex walkthrough
+1. **Done.** Issues #53 to #56, PRs #57 to #63, owner reviews and hosted CI.
+   #54 and #55 are closed. The completed older issues (#1, #6, #8, #10,
+   #12, #14 and #26) were closed with evidence comments. #22, #53 and #56
+   stay open for the items below.
+2. **Manual runs.** Run the Codex walkthrough
    ([prompts](../features/README.md#codex-walkthrough-prompts)) and the
    native approve, reject and resume dialogs with synthetic data. Record
    the actual decisions.
-4. **D-02.** Record the instructor or provider direction in
+3. **D-02.** Record the instructor or provider direction in
    [d02-status.json](../policy-and-consent/d02-status.json) through a
    reviewed PR.
-5. **Live setup.** Provision the test account, OAuth client and protected
+4. **Live setup.** Provision the test account, OAuth client and protected
    runner, then run the supervised live demonstrations.
-6. **Reflections.** Each member writes their own reflection and
+5. **Reflections.** Each member writes their own reflection and
    contribution record.
-7. **Release.** Re-run the checks and benchmark on the final merged
-   commit, then create the release tag.
+6. **Release.** Re-run the checks if anything changes, then create the
+   release tag.
 
 Prepared with AI assistance. This is not a review or an acceptance record.
