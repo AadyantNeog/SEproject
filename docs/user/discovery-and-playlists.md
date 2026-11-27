@@ -6,7 +6,7 @@ In Windows Codex, open the project checkout and connect the local MCP server usi
 
 - Similarity uses available video metadata, such as titles, descriptions and tags. Seed summaries describe title and description evidence. Missing metadata and incomplete candidate coverage are reported. Recommended videos may use likes, subscriptions or playlist evidence from an authorised snapshot.
 - For a playlist, give a seed, topic, maximum total time, maximum time per video and spoken language. A request for exactly two hours needs clarification. An upper limit of two hours can produce a shorter playlist. Videos with unknown durations or unverified spoken language are excluded when those are hard constraints.
-- The preview shows the destination, privacy, expiry, ordered videos, exact time and unused time. Check the complete preview before choosing in the native dialog. Close or Reject ends the creation attempt with zero playlist writes. If a write is partial or uncertain, use the server's operation status and recovery instructions.
+- The preview shows the destination, privacy, expiry, ordered videos, exact time and unused time. Check the complete preview before choosing in the native dialog. Close or Reject ends the creation attempt with zero playlist writes. If a write is partial or uncertain, follow the [playlist recovery steps](recovery.md).
 
 ## Walk through the fixture today
 

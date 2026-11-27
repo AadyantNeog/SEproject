@@ -10,7 +10,7 @@ from platformdirs import user_data_path
 
 from yt_intel.contracts.common import Mode
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _MIGRATION_LOCK = Lock()
 _MIGRATIONS: tuple[str, ...] = (
     """
@@ -126,6 +126,19 @@ _MIGRATIONS: tuple[str, ...] = (
         quota_day TEXT NOT NULL,
         bucket TEXT NOT NULL,
         PRIMARY KEY (project_id, quota_day, bucket)
+    );
+    """,
+    """
+    CREATE TABLE fixture_remote_playlists (
+        playlist_id TEXT PRIMARY KEY,
+        channel_id TEXT NOT NULL,
+        body TEXT NOT NULL
+    );
+    CREATE TABLE fixture_remote_items (
+        playlist_id TEXT NOT NULL REFERENCES fixture_remote_playlists(playlist_id),
+        position INTEGER NOT NULL CHECK (position >= 0),
+        payload TEXT NOT NULL,
+        PRIMARY KEY (playlist_id, position)
     );
     """,
 )

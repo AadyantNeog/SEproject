@@ -20,7 +20,7 @@ from yt_intel.contracts.common import (
     VideoId,
 )
 from yt_intel.contracts.models import LibrarySnapshot
-from yt_intel.contracts.proposals import PlaylistProposal, ProposalRef
+from yt_intel.contracts.proposals import PlaylistProposal, ProposalRef, ResumeProposal
 from yt_intel.contracts.repositories import (
     AccountDataRepository,
     CacheRepository,
@@ -93,6 +93,8 @@ class OperationIntent(Contract):
     retained_until: UtcDateTime
     proposal_ref: ProposalRef | None = None
     workflow_id: OpaqueId | None = None
+    resume_ref: ProposalRef | None = None
+    last_resume_ref: ProposalRef | None = None
     playlist_id: PlaylistId | None = None
     planned_items: tuple[OperationItem, ...] = ()
     write_steps: tuple[WriteStep, ...] = ()
@@ -112,6 +114,12 @@ class OperationIntent(Contract):
                 if self.proposal_ref
                 else None,
                 "workflow_id": self.workflow_id,
+                "resume_ref": self.resume_ref.model_dump(mode="json")
+                if self.resume_ref
+                else None,
+                "last_resume_ref": self.last_resume_ref.model_dump(mode="json")
+                if self.last_resume_ref
+                else None,
                 "playlist_id": self.playlist_id,
                 "planned_items": [
                     item.model_dump(mode="json") for item in self.planned_items
@@ -362,6 +370,30 @@ class SqliteProposalRepository(ProposalRepository):
             ).fetchone()
         return _PROPOSAL_ADAPTER.validate_json(row["payload"]) if row else None
 
+    async def get_retained_creation(
+        self,
+        binding: AccountBinding,
+        ref: ProposalRef,
+        digest: Digest,
+        *,
+        now: UtcDateTime,
+    ) -> PlaylistProposal | None:
+        """Read exact historical evidence for recovery, independent of approval expiry."""
+        with self.database.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT payload FROM proposals WHERE binding_key = ? AND proposal_id = ? "
+                "AND version = ? AND digest = ? AND retained_until > ?",
+                (
+                    _binding_key(binding),
+                    ref.proposal_id,
+                    ref.version,
+                    digest,
+                    _timestamp(now),
+                ),
+            ).fetchone()
+        proposal = _PROPOSAL_ADAPTER.validate_json(row["payload"]) if row else None
+        return proposal if isinstance(proposal, PlaylistProposal) else None
+
 
 class SqliteCacheRepository(CacheRepository):
     def __init__(self, database: Database, clock: Clock | None = None) -> None:
@@ -485,6 +517,68 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
             consume()
             return claimed
 
+    def claim_approved_resume(
+        self,
+        intent: OperationIntent,
+        proposal: ResumeProposal,
+        consume: Callable[[], ApprovalGrant],
+    ) -> OperationIntent:
+        now = self.clock.now()
+        stamp = _timestamp(now)
+        if (
+            intent.binding != proposal.binding
+            or intent.operation_id != proposal.original_operation_id
+            or intent.digest != proposal.original_digest
+            or intent.proposal_ref != proposal.original_proposal
+            or intent.resume_ref != proposal.ref
+            or intent.playlist_id != proposal.remote_playlist_id
+        ):
+            raise OperationConflict(
+                "resume authority does not match the recorded operation"
+            )
+        with self.database.transaction() as connection:
+            current = connection.execute(
+                "SELECT payload, expires_at, retained_until FROM proposals "
+                "WHERE binding_key = ? AND proposal_id = ? ORDER BY version DESC LIMIT 1",
+                (_binding_key(intent.binding), proposal.ref.proposal_id),
+            ).fetchone()
+            if (
+                current is None
+                or min(current["expires_at"], current["retained_until"]) <= stamp
+                or proposal.state != "proposed"
+                or _PROPOSAL_ADAPTER.validate_json(current["payload"]) != proposal
+            ):
+                raise OperationConflict("resume preview is no longer current")
+            claimed = intent.model_copy(
+                update={
+                    "state": "creating",
+                    "revision": intent.revision + 1,
+                    "updated_at": now,
+                    "resume_ref": None,
+                    "last_resume_ref": proposal.ref,
+                }
+            )
+            changed = connection.execute(
+                "UPDATE operations SET state = ?, revision = ?, updated_at = ?, payload = ? "
+                "WHERE operation_id = ? AND binding_key = ? AND digest = ? AND revision = ? "
+                "AND state IN ('partial', 'unknown', 'verification_pending') AND retained_until > ?",
+                (
+                    claimed.state,
+                    claimed.revision,
+                    stamp,
+                    claimed.to_json(),
+                    intent.operation_id,
+                    _binding_key(intent.binding),
+                    intent.digest,
+                    intent.revision,
+                    stamp,
+                ),
+            )
+            if changed.rowcount != 1:
+                raise OperationConflict("operation changed before resume")
+            consume()
+            return claimed
+
     async def get_operation(
         self, binding: AccountBinding, operation_id: OpaqueId
     ) -> OperationIntent | None:
@@ -496,6 +590,25 @@ class SqliteOperationRepository(OperationRepository[OperationIntent]):
                 (_binding_key(binding), operation_id, now),
             ).fetchone()
         return OperationIntent.from_json(row["payload"]) if row else None
+
+    async def get_recovery_operation(
+        self, binding: AccountBinding, operation_id: OpaqueId
+    ) -> OperationIntent | None:
+        """Report expired detail only when the account can still be verified."""
+        now = _timestamp(self.clock.now())
+        with self.database.transaction(immediate=False) as connection:
+            row = connection.execute(
+                "SELECT payload, retained_until FROM operations "
+                "WHERE binding_key = ? AND operation_id = ?",
+                (_binding_key(binding), operation_id),
+            ).fetchone()
+        if row is None:
+            return None
+        if row["retained_until"] <= now:
+            raise OperationResultExpired(
+                "Operation details expired and cannot be recovered."
+            )
+        return OperationIntent.from_json(row["payload"])
 
     async def claim_operation(
         self, binding: AccountBinding, operation_id: OpaqueId, digest: Digest

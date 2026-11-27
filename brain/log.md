@@ -266,3 +266,11 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 J2-06 sync with playlist creation
 
 - Codex synced [PR #50](https://github.com/AadyantNeog/SEproject/pull/50) after [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) landed and preserved both log entries. Knowledge validation reported zero issues and all 318 offline tests passed. See [[2026-11-27-j2-06-review-sync]].
+
+## 2026-11-28 P2-05 playlist recovery
+
+- Added fixture MCP reconciliation and approved insert-only resume after restart for [issue #51](https://github.com/AadyantNeog/SEproject/issues/51) and [draft PR #52](https://github.com/AadyantNeog/SEproject/pull/52). The 324 offline tests passed. See [[2026-11-28-p2-05-playlist-recovery]] for verification and manual recovery limits.
+
+## 2026-11-28 P2-05 resume privacy review follow-up
+
+- At Aadyant's request, Codex added privacy verification to reconciliation and resume for [PR #52](https://github.com/AadyantNeog/SEproject/pull/52). All 327 offline tests passed, including three MCP cases that refused changed or unavailable privacy with zero writes. See [[2026-11-28-p2-05-resume-privacy]].
