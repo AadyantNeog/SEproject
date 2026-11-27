@@ -16,8 +16,8 @@ requirements:
   - FR-3.3
   - FR-6
   - NFR-04
-issue: pending-url
-pull_request: pending-url
+issue: https://github.com/AadyantNeog/SEproject/issues/40
+pull_request: https://github.com/AadyantNeog/SEproject/pull/41
 ---
 
 ## Goal
@@ -84,7 +84,7 @@ Under `.venv` Python 3.13.17 on Windows (locked `requirements-dev.lock`):
 
 ## Links
 
-- J2-04 Issue: pending URL.
-- Draft PR: pending URL.
+- J2-04 Issue: [issue #40](https://github.com/AadyantNeog/SEproject/issues/40).
+- Draft PR: [draft PR #41](https://github.com/AadyantNeog/SEproject/pull/41).
 - Aadyant lead review: pending.
 - Distilled basis: [[03-authorised-preference-signals]], [[09-quota-buckets-and-budgeting]], [[15-implementation-boundaries-and-contracts]].
