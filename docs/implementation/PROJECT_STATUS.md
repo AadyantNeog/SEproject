@@ -37,7 +37,7 @@ Open issue: [#56](https://github.com/AadyantNeog/SEproject/issues/56), which lis
 
 - **Protected traceability file.** `docs/requirements/traceability.csv` is part of the SHA-protected submitted-SRS baseline, so it was not backfilled. The live trace is in `coverage.csv` and the release trace. Changing the baseline needs instructor direction.
 - **Teammate acknowledgement.** Jeswin's and Paul's written acknowledgement of the transfer is not in the repository yet.
-- **Live gates.** The `serve` command accepts only the fixture provider, and live creation, recovery and analytics fail closed. That is intended until D-02 and the live prerequisites are met.
+- **Live gates.** `serve --provider live` now runs the account, metadata and library reads against the real API ([ADR-0011](../adr/0011-staged-live-serve-mode.md)). Derived FR-1 to FR-5 tools return `POLICY_BLOCKED` until D-02 is resolved, and their live handlers are a further step. Live writes are not exposed. That is intended until D-02 and the live prerequisites are met.
 
 ## Ownership and review
 

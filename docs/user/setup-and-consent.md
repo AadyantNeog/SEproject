@@ -138,7 +138,41 @@ record is refreshed or deleted within 30 days. Runtime data lives in your
 local application data folder, never in the checkout. See
 [privacy.md §5](privacy.md#5-retention-limits).
 
-## 8. Scheduled live read-only check
+## 8. Run the live MCP server
+
+After `yt-intel auth --read`, you can connect an MCP client to your real
+account. In Codex Desktop, add a second STDIO server, for example
+`yt-intel-live`. Use the same command and working directory as the fixture
+server, and these arguments:
+
+```text
+-m
+yt_intel
+serve
+--provider
+live
+--project-root
+C:\Users\<you>\Desktop\SEproject
+```
+
+Add one environment variable: `YT_INTEL_OAUTH_CLIENT_SECRETS`, set to the
+path of your client JSON outside the checkout. The server refuses to start
+without it.
+
+**Live mode tools.**
+- **Live now.** `live_status`, `get_account_status`, `disconnect_account`,
+  `get_video` and `get_library`. These are official API reads with bearer
+  auth and quota accounting.
+- **Blocked.** Similarity, recommendations, analysis and the playlist
+  workflow return `POLICY_BLOCKED` with zero API calls until D-02 has a
+  recorded resolution. After that they report that live handlers are not
+  yet built.
+- **No writes.** No live tool can create or change anything on YouTube.
+
+Ask the client to call `live_status` to see the current state. See
+[ADR-0011](../adr/0011-staged-live-serve-mode.md).
+
+## 9. Scheduled live read-only check
 
 An operator can schedule a fixed-budget read-only check on a protected
 runner. See the [readiness record](../evidence/policy-and-consent/README.md).
