@@ -254,6 +254,15 @@ Subsequent operations must append their actual outcome here.
 
 - Codex synced [PR #46](https://github.com/AadyantNeog/SEproject/pull/46) again after PR #48 landed. All 302 offline tests passed on the latest combined tree. See [[2026-11-27-j2-05-review-sync]].
 
+## 2026-11-27 J2-06 knowledge skills and integrity validation
+
+- Updated `.agents/skills/brain-ingest/SKILL.md` (`v0.2.0`), authored `.agents/skills/brain-refine/SKILL.md` (`v0.1.0`) and `.agents/skills/brain-query/SKILL.md` (`v0.1.0`), implemented `scripts/validate_knowledge.py`, added repeatable evaluation tests (`tests/skills/test_brain_workflows.py`) and the `SK-06` evaluation record (`docs/evidence/skills/brain-workflows.md`), and applied `brain-refine` to repair a real broken wikilink in `brain/projects/youtube-mcp/2026-11-26-p2-01-storage.md` (`[[05-operation-journal-retention-and-live-gates]]` -> ADR-0005) on `codex/j2-06-knowledge-skills` from `origin/main` (`d2ee1b8`). See [[2026-11-27-j2-06-knowledge-skills]].
+- Verified `python scripts/validate_knowledge.py` (0 issues across all notes, 19 research notes, 4 skills, 9 ADRs, wikilinks, and traceability registers), 5 J2-06 skill evaluation tests (including fixture stdio MCP discovery for all 3 brain skills), 307 total offline tests (`pytest -m "not live" -q`), strict `mypy src` (66 source files), and scoped Ruff lint/format checks. Published [issue #49](https://github.com/AadyantNeog/SEproject/issues/49) and [draft PR #50](https://github.com/AadyantNeog/SEproject/pull/50); Aadyant's lead review remains pending.
+
 ## 2026-11-27 P2-04 sync with the local-check harness
 
 - Codex synced [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) after [PR #43](https://github.com/AadyantNeog/SEproject/pull/43) landed. Both index and log records were preserved, and all 313 offline tests passed. See [[2026-11-27-p2-04-review-sync]].
+
+## 2026-11-27 J2-06 sync with playlist creation
+
+- Codex synced [PR #50](https://github.com/AadyantNeog/SEproject/pull/50) after [PR #39](https://github.com/AadyantNeog/SEproject/pull/39) landed and preserved both log entries. Knowledge validation reported zero issues and all 318 offline tests passed. See [[2026-11-27-j2-06-review-sync]].
