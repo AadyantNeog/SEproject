@@ -162,3 +162,27 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-26 J2-02 provider follow-up
 
 - At Aadyant's request, Codex restored the channel batch size and gave unimplemented fixture writes a definite failure in [PR #23](https://github.com/AadyantNeog/SEproject/pull/23). Verified on current main with 245 offline tests, scoped Ruff and mypy. See [[2026-11-26-j2-02-provider-follow-up]].
+
+## 2026-11-27 A2-02 fixture discovery through MCP
+
+- Added the similar-video and similar-channel fixture tools for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10). Codex Desktop returned the expected fixture ranks for both. All 246 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-stdio]].
+
+## 2026-11-27 A2-04 fixture playlist preview
+
+- Added `propose_playlist` over fixture MCP for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop returned a private preview of 600 seconds with 120 seconds unused. The stdio test verified the exact stored proposal and zero operation rows. All 247 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-04-playlist-preview-stdio]].
+
+## 2026-11-27 A2-02 discovery candidate handoff
+
+- Connected the discovery pool to the fixture planner using an account-scoped SQLite reference for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #12](https://github.com/AadyantNeog/SEproject/issues/12). Codex Desktop resolved the reference and returned 1,200 seconds selected and 600 seconds unused. All 248 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-02-discovery-candidates]].
+
+## 2026-11-27 A2-05 saved proposal preview resource
+
+- Added the versioned MCP preview link for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). Codex reopened the exact stored fixture preview. All 249 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-saved-proposal-resource]].
+
+## 2026-11-27 A2-04 partial proposal revision planning
+
+- Extended the planner for [issue #12](https://github.com/AadyantNeog/SEproject/issues/12) to apply explicit changes and keep the other saved fields. The atomic revision transaction remains pending. All 257 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-04-partial-proposal-revisions]].
+
+## 2026-11-27 A2-05 discovery progress and cancellation
+
+- Added progress for fixture discovery and verified that a cancelled stdio request closes its provider and leaves the candidate cache untouched for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). All 258 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-discovery-progress]].

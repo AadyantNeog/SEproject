@@ -1,4 +1,4 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from pydantic import TypeAdapter, ValidationError
@@ -12,6 +12,7 @@ from yt_intel.contracts.models import (
     PlaylistOccurrence,
     RankedChannel,
     RankedVideo,
+    Video,
 )
 from yt_intel.contracts.provider import ChannelRef, SearchHit, YouTubeReadProvider
 from yt_intel.contracts.workflow import RequestContext
@@ -21,6 +22,8 @@ _VIDEO_ID = TypeAdapter(VideoId)
 _CHANNEL_REF = TypeAdapter(ChannelRef)
 _LIMIT = TypeAdapter(Limit)
 _SAMPLE_RULE = "first-accessible-uploads-v1"
+
+type DiscoveryProgress = Callable[[int, str], Awaitable[None]]
 
 
 class DiscoveryBounds(Contract):
@@ -35,6 +38,12 @@ class DiscoveryBounds(Contract):
 class DiscoveryResult[T]:
     results: tuple[T, ...]
     coverage: Coverage
+
+
+@dataclass(frozen=True, slots=True)
+class VideoDiscoveryResult(DiscoveryResult[RankedVideo]):
+    seed: Video
+    candidates: tuple[Video, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,14 +94,23 @@ class DiscoveryService:
     """Read workflows using a server-issued context whose budget was reserved upstream."""
 
     def __init__(
-        self, provider: YouTubeReadProvider, bounds: DiscoveryBounds = DiscoveryBounds()
+        self,
+        provider: YouTubeReadProvider,
+        bounds: DiscoveryBounds = DiscoveryBounds(),
+        *,
+        progress: DiscoveryProgress | None = None,
     ) -> None:
         self._provider = provider
         self._bounds = bounds
+        self._progress = progress
+
+    async def _report_progress(self, completed: int, message: str) -> None:
+        if self._progress is not None:
+            await self._progress(completed, message)
 
     async def videos(
         self, ctx: RequestContext, seed_id: VideoId, *, limit: int = 10
-    ) -> DiscoveryResult[RankedVideo]:
+    ) -> VideoDiscoveryResult:
         try:
             seed_id = _VIDEO_ID.validate_python(seed_id, strict=True)
             limit = _LIMIT.validate_python(limit, strict=True)
@@ -111,6 +129,7 @@ class DiscoveryService:
                 "The seed video is unavailable in this context.",
                 "Choose an accessible seed video.",
             )
+        await self._report_progress(1, "Loaded the seed video.")
 
         pool = await self._search(
             ctx,
@@ -132,8 +151,9 @@ class DiscoveryService:
                     inaccessible += 1
                 else:
                     usable.append(video)
+        await self._report_progress(2, "Collected candidate video metadata.")
         results = rank_videos(seed, usable, limit=limit)
-        return DiscoveryResult(
+        return VideoDiscoveryResult(
             results,
             self._coverage(
                 pool,
@@ -145,6 +165,8 @@ class DiscoveryService:
                 if results
                 else ("No accessible candidate had overlapping video metadata.",),
             ),
+            seed,
+            tuple(usable),
         )
 
     async def channels(
@@ -168,6 +190,7 @@ class DiscoveryService:
                 "The seed channel has no comparable description or upload text.",
                 "Choose a channel with a description or accessible uploads.",
             )
+        await self._report_progress(1, "Loaded the seed channel and its upload sample.")
 
         query = _query(
             (
@@ -193,6 +216,9 @@ class DiscoveryService:
                     unknown += 1
                 else:
                     entries.append(await self._sample(ctx, candidate))
+        await self._report_progress(
+            2, "Collected candidate channels and upload samples."
+        )
         results = rank_channels(seed, entries, limit=limit)
         return DiscoveryResult(
             results,

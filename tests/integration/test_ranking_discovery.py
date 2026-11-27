@@ -90,10 +90,14 @@ async def test_video_discovery_bounds_duplicate_search_and_hydration(
     ctx = fixture_context(snapshot)
     seed = next(iter(snapshot.videos.values()))
     related = video_fixture(seed, "synthetic01")
+    another = video_fixture(seed, "synthetic03")
     omitted_id = "synthetic02"
     provider.get_videos.side_effect = [
         VideoBatch(videos={seed.video_id: seed}, omitted_ids=()),
-        VideoBatch(videos={related.video_id: related}, omitted_ids=(omitted_id,)),
+        VideoBatch(
+            videos={related.video_id: related, another.video_id: another},
+            omitted_ids=(omitted_id,),
+        ),
     ]
     seed_hit = SearchHit(video_id=seed.video_id, channel_id=seed.channel_id)
     related_hit = SearchHit(video_id=related.video_id, channel_id=related.channel_id)
@@ -102,19 +106,22 @@ async def test_video_discovery_bounds_duplicate_search_and_hydration(
         search_page(
             related_hit,
             SearchHit(video_id=omitted_id, channel_id=None),
+            SearchHit(video_id=another.video_id, channel_id=another.channel_id),
             next_token="fixture-page-three",
         ),
     ]
     service = DiscoveryService(
-        provider, DiscoveryBounds(video_candidates=2, search_pages=2)
+        provider, DiscoveryBounds(video_candidates=3, search_pages=2)
     )
     result = await service.videos(ctx, seed.video_id, limit=1)
     assert [entry.video.video_id for entry in result.results] == [related.video_id]
+    assert result.seed == seed
+    assert result.candidates == (related, another)
     assert (
         result.coverage.retrieved,
         result.coverage.usable,
         result.coverage.unknown,
-    ) == (2, 1, 1)
+    ) == (3, 2, 1)
     assert (
         result.coverage.truncated
         and result.coverage.paginated
@@ -123,7 +130,9 @@ async def test_video_discovery_bounds_duplicate_search_and_hydration(
     assert result.coverage.continuation_ref is None
     assert provider.search_videos.await_count == 2
     assert provider.search_videos.await_args_list[1].args[3] == "fixture-page-two"
-    provider.get_videos.assert_awaited_with(ctx, (related.video_id, omitted_id))
+    provider.get_videos.assert_awaited_with(
+        ctx, (related.video_id, omitted_id, another.video_id)
+    )
 
 
 @pytest.mark.anyio
