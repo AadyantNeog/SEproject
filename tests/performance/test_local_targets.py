@@ -35,7 +35,15 @@ async def test_feature_targets_meet_nfr_08_over_fixtures() -> None:
         "recommend_videos",
         "propose_playlist",
         "find_similar_videos_invalid_input",
+        "analyse_library_cached",
+        "read_saved_preview",
     }
+    assert (
+        report["stdio"]["analyse_library_cached"]["observed"][
+            "provider_attempts_during_samples"
+        ]
+        == 0
+    )
     for row in rows.values():
         assert row["warmups"] == 1 and row["runs"] == 30
         assert len(row["samples_ms"]) == 30

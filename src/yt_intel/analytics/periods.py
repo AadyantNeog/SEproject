@@ -161,9 +161,17 @@ def compare_periods(
     Strictly uses ``PlaylistOccurrence.added_at`` and ``SubscriptionSignal.subscribed_at``,
     respecting the selected ``sources``. Never substitutes ``Video.published_at`` or
     ``LibrarySnapshot.fetched_at``.
+
+    Only sources the snapshot actually retrieved are compared. A denied,
+    unavailable or unrequested source yields ``None`` rather than zero
+    counts, because missing evidence is not evidence of no activity.
     """
     validate_non_overlapping_periods(period_a, period_b)
-    selected = tuple(dict.fromkeys(sources))
+    selected = tuple(
+        source
+        for source in dict.fromkeys(sources)
+        if source in snapshot.sources and snapshot.sources[source].state == "retrieved"
+    )
 
     playlist_additions: PeriodMetricComparison | None = None
     if "playlists" in selected:
