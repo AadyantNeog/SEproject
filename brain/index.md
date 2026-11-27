@@ -19,6 +19,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-26-p2-03-approval]]
 - [[2026-11-27-p2-04-mcp-execution]]
 - [[2026-11-27-p2-04-review-sync]]
+- [[2026-11-28-p2-05-playlist-recovery]]
 - [[2026-11-27-p2-07-local-check]]
 - [[2026-11-26-a2-06-presentation]]
 - [[2026-11-26-a2-05-fixture-shell]]
