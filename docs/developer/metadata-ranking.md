@@ -22,7 +22,7 @@ With a checkout supplied as `--project-root`, the [Codex fixture server](codex-f
 
 `find_similar_videos` also returns `candidate_set_id` beside the ranked results. The fixture SQLite cache keeps the full usable discovery pool for 24 hours under the synthetic account. The display limit still controls how many ranked results are shown. The stored pool keeps the seed when there is room under the candidate cap, so planning can consider it on explicit request. The ranking still excludes the seed.
 
-These standalone fixture calls use a request-local attempt budget and mock transport. The [playlist planning walkthrough](playlist-planning.md#preview-from-discovery) shows how to pass the saved reference. The shared P2-02 reservations remain integration work for [video-to-playlist](../../.agents/skills/video-to-playlist/SKILL.md). Live ranking stays blocked pending D-02.
+Standalone fixture discovery reserves the full search, seed, hydration and applicable sampling costs through the SQLite quota ledger before its first provider call. Both tools price their endpoint ceilings from the configured profile. The fixture transport stays synthetic. Cancelling an in-flight provider read releases unused quota and skips candidate publication. The [playlist planning walkthrough](playlist-planning.md#preview-from-discovery) shows how to pass the saved reference. The composed playlist session is tracked in [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). Live ranking stays blocked pending D-02.
 
 ### Progress and cancellation
 

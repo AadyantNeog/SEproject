@@ -17,9 +17,10 @@ from yt_intel.infrastructure.repositories import SqliteCacheRepository
 from yt_intel.mcp.discovery import VideoDiscoveryEnvelope
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
 
+_ROOT = Path(__file__).resolve().parents[2]
 
-def fixture_server(database_path: Path) -> StdioServerParameters:
-    root = Path(__file__).resolve().parents[2]
+
+def fixture_server(database_path: Path, root: Path = _ROOT) -> StdioServerParameters:
     return StdioServerParameters(
         command=sys.executable,
         args=[
@@ -39,7 +40,8 @@ def fixture_server(database_path: Path) -> StdioServerParameters:
 @pytest.mark.anyio
 @pytest.mark.parametrize("anyio_backend", ["asyncio"])
 async def test_fixture_discovery_over_stdio(tmp_path: Path) -> None:
-    server = fixture_server(tmp_path / "state.sqlite3")
+    database_path = tmp_path / "state.sqlite3"
+    server = fixture_server(database_path)
     async with stdio_client(server) as (reader, writer):
         async with ClientSession(reader, writer, read_timeout_seconds=10) as client:
             await client.initialize()
@@ -78,6 +80,8 @@ async def test_fixture_discovery_over_stdio(tmp_path: Path) -> None:
             assert ranking.data[0].video.duration_seconds == 1201
             assert ranking.coverage is not None and ranking.coverage.paginated
             assert ranking.coverage.unknown == 2
+            assert ranking.quota is not None
+            assert ranking.quota.profile_id == "youtube-2026-11-16"
             assert ranking.candidate_set_id is not None
             assert isinstance(videos.content[0], TextContent)
             assert "Mode: fixture (synthetic data)" in videos.content[0].text
@@ -110,6 +114,16 @@ async def test_fixture_discovery_over_stdio(tmp_path: Path) -> None:
             assert isinstance(channels.content[0], TextContent)
             assert "Channel sample: 1 usable" in channels.content[0].text
 
+            with Database(database_path).transaction(immediate=False) as connection:
+                search_debits = connection.execute(
+                    "SELECT project_id, spent, remaining, released FROM quota_reservation_buckets "
+                    "JOIN quota_reservations USING (reservation_id) WHERE bucket = 'search'"
+                ).fetchall()
+            assert [tuple(row) for row in search_debits] == [
+                ("fixture-project", 2, 10, 1),
+                ("fixture-project", 2, 10, 1),
+            ]
+
             for args, code in (
                 (
                     {"video": "https://example.com/watch?v=vidIndex001"},
@@ -131,6 +145,45 @@ async def test_fixture_discovery_over_stdio(tmp_path: Path) -> None:
                 assert error.data is None
                 assert error.candidate_set_id is None
                 assert error.error is not None and error.error.code == code
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_discovery_rejects_insufficient_quota_before_seed(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    catalog = Path("tests/fixtures/youtube_reads/catalog.json")
+    profile = Path("config/quota-profiles/youtube-2026-11-16.json")
+    for fixture in (catalog, profile):
+        (project / fixture).parent.mkdir(parents=True)
+    (project / catalog).write_bytes((_ROOT / catalog).read_bytes())
+    config = json.loads((_ROOT / profile).read_bytes())
+    config["costs"]["search.list"] = {"search": 2, "general": 1}
+    config["limits"]["search"] = (
+        23  # The four pages with three attempts each require 24.
+    )
+    (project / profile).write_text(json.dumps(config), encoding="utf-8")
+    database = tmp_path / "state.sqlite3"
+    async with stdio_client(fixture_server(database, project)) as (reader, writer):
+        async with ClientSession(reader, writer, read_timeout_seconds=10) as client:
+            await client.initialize()
+            for tool, args in (
+                ("find_similar_videos", {"video": "vidIndex001"}),
+                ("find_similar_channels", {"channel": "@SystemsStudyLab"}),
+            ):
+                refused = await client.call_tool(tool, args)
+                assert refused.is_error and refused.structured_content is not None
+                assert (
+                    refused.structured_content["error"]["code"] == "QUOTA_INSUFFICIENT"
+                )
+
+    with Database(database).transaction(immediate=False) as connection:
+        assert (
+            connection.execute("SELECT COUNT(*) FROM quota_attempts").fetchone()[0] == 0
+        )
+        assert (
+            connection.execute("SELECT COUNT(*) FROM quota_reservations").fetchone()[0]
+            == 0
+        )
 
 
 @pytest.mark.anyio
@@ -208,9 +261,21 @@ with patch.object(FixtureYouTubeProvider, 'search_videos', paused_search):
 
             assert (tmp_path / "search-interrupted").exists()
             assert not returned.is_set()
-            assert not database_path.exists()
             status = await client.call_tool("fixture_status", {})
             assert not status.is_error
+
+    with Database(database_path).transaction(immediate=False) as connection:
+        released = connection.execute(
+            "SELECT released FROM quota_reservations"
+        ).fetchone()
+        assert released[0] == 1
+        debits = connection.execute(
+            "SELECT bucket, spent FROM quota_reservation_buckets ORDER BY bucket"
+        ).fetchall()
+        assert [tuple(row) for row in debits] == [("general", 1), ("search", 0)]
+        assert (
+            connection.execute("SELECT COUNT(*) FROM cache_entries").fetchone()[0] == 0
+        )
 
 
 @pytest.mark.anyio

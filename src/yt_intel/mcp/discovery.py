@@ -2,6 +2,7 @@ from collections.abc import Awaitable, Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from math import ceil
 from pathlib import Path
+from sqlite3 import Error as SqliteError
 from typing import Annotated
 from uuid import uuid4
 
@@ -13,15 +14,22 @@ from pydantic import ValidationError
 
 from yt_intel.client_skills import project_file
 from yt_intel.contracts.common import AccountBinding, Contract, Label, Limit, OpaqueId
-from yt_intel.contracts.errors import ContractError, ErrorDetail, ResultEnvelope
+from yt_intel.contracts.errors import (
+    ContractError,
+    ErrorDetail,
+    QuotaEstimate,
+    ResultEnvelope,
+)
 from yt_intel.contracts.models import RankedChannel, RankedVideo
 from yt_intel.contracts.workflow import (
+    CallCeiling,
     Endpoint,
-    QuotaReservation,
     RequestContext,
     WorkflowPlan,
 )
 from yt_intel.domain.identifiers import parse_channel_ref, parse_video_id
+from yt_intel.infrastructure.database import Database
+from yt_intel.infrastructure.quota import QuotaProfile, SqliteQuotaLedger
 from yt_intel.presentation.results import render_error, render_ranked_results
 from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
 from yt_intel.services.discovery import (
@@ -90,44 +98,29 @@ class FixtureCancellation:
         await anyio.sleep_forever()
 
 
-class _FixtureAttemptBudget:
-    """Preallocate a single synthetic request's read attempts for MockTransport."""
-
-    def __init__(self, context: RequestContext, calls: Mapping[Endpoint, int]) -> None:
-        self._context = context
-        # The fixture executor allows at most three attempts per read.
-        self._remaining = {endpoint: count * 3 for endpoint, count in calls.items()}
-
-    async def reserve(self, plan: WorkflowPlan) -> QuotaReservation:
-        raise NotImplementedError("Only standalone synthetic reads are supported")
-
-    async def debit_attempt(
-        self, ctx: RequestContext, endpoint: Endpoint, attempt_id: str
-    ) -> None:
-        if ctx is not self._context or self._remaining.get(endpoint, 0) == 0:
-            raise ContractError(
-                ErrorDetail(
-                    code="QUOTA_INSUFFICIENT",
-                    message="The synthetic discovery attempt budget is exhausted.",
-                    retryable=False,
-                    safe_next_action="Check the fixture and discovery bounds.",
-                )
-            )
-        self._remaining[endpoint] -= 1
-
-    async def release(self, reservation_id: str) -> None:
-        raise NotImplementedError("The synthetic budget is discarded after the read")
-
-
 def register_fixture_discovery(
-    server: MCPServer[None], project_root: Path, candidate_sets: FixtureCandidateSets
+    server: MCPServer[None],
+    project_root: Path,
+    fixture_db: Path | None,
+    candidate_sets: FixtureCandidateSets,
 ) -> None:
     catalog_path = project_file(
         project_root, Path("tests/fixtures/youtube_reads/catalog.json")
     )
-    if not catalog_path.is_file():
+    profile_path = project_file(
+        project_root, Path("config/quota-profiles/youtube-2026-11-16.json")
+    )
+    if not catalog_path.is_file() or not profile_path.is_file():
         return
     dataset = FixtureDataset.from_json_file(catalog_path)
+    profile = QuotaProfile.load(profile_path)
+    ledger: SqliteQuotaLedger | None = None
+
+    def quota_ledger() -> SqliteQuotaLedger:
+        nonlocal ledger
+        if ledger is None:
+            ledger = SqliteQuotaLedger(Database(fixture_db), profile)
+        return ledger
 
     @server.tool(
         annotations=ToolAnnotations(
@@ -138,14 +131,16 @@ def register_fixture_discovery(
         ctx: Context[None, object], video: Label, limit: Limit = 10
     ) -> Annotated[CallToolResult, VideoDiscoveryEnvelope]:
         """Rank fixture videos and save their candidate set for playlist planning."""
+        try:
+            args = _discovery_input(_VideoInput, ctx)
+            seed = parse_video_id(args.video)
+        except ContractError as error:
+            return _discovery_error(VideoDiscoveryEnvelope, uuid4().hex, error.detail)
 
         async def rank(
             service: DiscoveryService, request: RequestContext
         ) -> tuple[DiscoveryResult[RankedVideo], OpaqueId]:
-            args = _discovery_input(_VideoInput, ctx)
-            discovery = await service.videos(
-                request, parse_video_id(args.video), limit=args.limit
-            )
+            discovery = await service.videos(request, seed, limit=args.limit)
             # Let a client cancellation interrupt the request before caching results.
             await anyio.lowlevel.checkpoint()
             reference = await candidate_sets.publish(
@@ -154,7 +149,14 @@ def register_fixture_discovery(
             return discovery, reference
 
         return await _run_discovery(
-            ctx, dataset, _VIDEO_CALLS, rank, VideoDiscoveryEnvelope
+            ctx,
+            dataset,
+            quota_ledger,
+            profile,
+            _VIDEO_CALLS,
+            rank,
+            VideoDiscoveryEnvelope,
+            candidate_cap=_BOUNDS.video_candidates,
         )
 
     @server.tool(
@@ -164,79 +166,126 @@ def register_fixture_discovery(
         ctx: Context[None, object], channel: Label, limit: Limit = 10
     ) -> Annotated[CallToolResult, ResultEnvelope[tuple[RankedChannel, ...]]]:
         """Rank sampled synthetic channels by channel ID, handle or YouTube URL."""
+        envelope = ResultEnvelope[tuple[RankedChannel, ...]]
+        try:
+            args = _discovery_input(_ChannelInput, ctx)
+            seed = parse_channel_ref(args.channel)
+        except ContractError as error:
+            return _discovery_error(envelope, uuid4().hex, error.detail)
 
         async def rank(
             service: DiscoveryService, request: RequestContext
         ) -> tuple[DiscoveryResult[RankedChannel], None]:
-            args = _discovery_input(_ChannelInput, ctx)
-            discovery = await service.channels(
-                request, parse_channel_ref(args.channel), limit=args.limit
-            )
+            discovery = await service.channels(request, seed, limit=args.limit)
             return discovery, None
 
         return await _run_discovery(
             ctx,
             dataset,
+            quota_ledger,
+            profile,
             _CHANNEL_CALLS,
             rank,
-            ResultEnvelope[tuple[RankedChannel, ...]],
+            envelope,
+            candidate_cap=_BOUNDS.channel_candidates,
+            sample_cap=1 + _BOUNDS.channel_candidates,
         )
 
 
 async def _run_discovery[T: (RankedVideo, RankedChannel)](
     ctx: Context[None, object],
     dataset: FixtureDataset,
+    quota_ledger: Callable[[], SqliteQuotaLedger],
+    profile: QuotaProfile,
     calls: Mapping[Endpoint, int],
     rank: Callable[
         [DiscoveryService, RequestContext],
         Awaitable[tuple[DiscoveryResult[T], OpaqueId | None]],
     ],
     envelope: type[ResultEnvelope[tuple[T, ...]]],
+    *,
+    candidate_cap: int,
+    sample_cap: int = 0,
 ) -> CallToolResult:
     async def report_progress(completed: int, message: str) -> None:
         await ctx.report_progress(completed, 3, message)
 
-    request = RequestContext(
-        request_id=uuid4().hex,
+    request_id = uuid4().hex
+    plan = WorkflowPlan(
+        plan_id=f"discovery-{request_id}",
         binding=_FIXTURE_ACCOUNT,
-        reservation_id=uuid4().hex,
+        project_id="fixture-project",
+        quota_profile_id=profile.profile_id,
+        endpoint_ceilings={
+            endpoint: CallCeiling(calls=count, attempts_per_call=3)
+            for endpoint, count in calls.items()
+        },
+        buckets={},
+        candidate_cap=candidate_cap,
+        page_cap=_BOUNDS.search_pages,
+        sample_cap=sample_cap,
         deadline=datetime.now(UTC) + timedelta(seconds=60),
-        cancellation=FixtureCancellation(),
-    )
-    provider = FixtureYouTubeProvider(
-        dataset, quota_ledger=_FixtureAttemptBudget(request, calls)
+        cancellation_policy="stop and release unused quota",
+        reconciliation_allowance={},
     )
     try:
-        ranked, candidate_set_id = await rank(
-            DiscoveryService(provider, _BOUNDS, progress=report_progress), request
+        plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
+    except ValueError:
+        return _discovery_error(
+            envelope,
+            request_id,
+            ErrorDetail(
+                code="INVALID_INPUT",
+                message="The quota profile does not cover the discovery plan.",
+                retryable=False,
+                safe_next_action="Check the configured quota profile and try again.",
+            ),
         )
+    try:
+        ledger = quota_ledger()
+        reservation = await ledger.reserve(plan)
+        provider: FixtureYouTubeProvider | None = None
+        try:
+            request = RequestContext(
+                request_id=request_id,
+                binding=plan.binding,
+                reservation_id=reservation.reservation_id,
+                deadline=min(plan.deadline, reservation.reset_at),
+                cancellation=FixtureCancellation(),
+            )
+            provider = FixtureYouTubeProvider(dataset, quota_ledger=ledger)
+            ranked, candidate_set_id = await rank(
+                DiscoveryService(provider, _BOUNDS, progress=report_progress), request
+            )
+        finally:
+            with anyio.CancelScope(shield=True):
+                try:
+                    if provider is not None:
+                        await provider.aclose()
+                finally:
+                    await ledger.release(reservation.reservation_id)
     except ContractError as error:
-        result = envelope(
-            mode="fixture",
-            request_id=request.request_id,
-            status="error",
-            data=None,
-            error=error.detail,
+        return _discovery_error(envelope, request_id, error.detail)
+    except (OSError, SqliteError):
+        return _discovery_error(
+            envelope,
+            request_id,
+            ErrorDetail(
+                code="PROVIDER_UNAVAILABLE",
+                message="The local discovery quota ledger could not be accessed.",
+                retryable=False,
+                safe_next_action="Check access to the fixture database and try again.",
+            ),
         )
-        return CallToolResult(
-            is_error=True,
-            structured_content=result.model_dump(),
-            content=[
-                TextContent(
-                    type="text", text=render_error(error.detail, mode="fixture")
-                )
-            ],
-        )
-    finally:
-        with anyio.CancelScope(shield=True):
-            await provider.aclose()
+
     result = envelope(
         mode="fixture",
-        request_id=request.request_id,
+        request_id=request_id,
         status="ok" if ranked.results else "empty",
         data=ranked.results,
         coverage=ranked.coverage,
         warnings=ranked.coverage.warnings,
+        quota=QuotaEstimate(profile_id=profile.profile_id),
     )
     text = render_ranked_results(
         ranked.results, mode="fixture", coverage=ranked.coverage
@@ -248,4 +297,19 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
     return CallToolResult(
         structured_content=result.model_dump(),
         content=[TextContent(type="text", text=text)],
+    )
+
+
+def _discovery_error[T: (RankedVideo, RankedChannel)](
+    envelope: type[ResultEnvelope[tuple[T, ...]]],
+    request_id: OpaqueId,
+    problem: ErrorDetail,
+) -> CallToolResult:
+    result = envelope(
+        mode="fixture", request_id=request_id, status="error", data=None, error=problem
+    )
+    return CallToolResult(
+        is_error=True,
+        structured_content=result.model_dump(),
+        content=[TextContent(type="text", text=render_error(problem, mode="fixture"))],
     )
