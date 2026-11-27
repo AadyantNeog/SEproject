@@ -193,3 +193,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-05 discovery progress and cancellation
 
 - Added progress for fixture discovery and verified that a cancelled stdio request closes its provider and leaves the candidate cache untouched for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8). All 258 offline tests, scoped Ruff and mypy passed. See [[2026-11-27-a2-05-discovery-progress]].
+
+## 2026-11-27 J2-03 sign-in follow-up
+
+- At Aadyant's request, Codex kept failed disconnect cleanup blocked across restarts and priced the sign-in lookup from the configured quota profile for [PR #29](https://github.com/AadyantNeog/SEproject/pull/29). All 275 offline tests, scoped Ruff and mypy passed. Verified custom costs and refusal before channel dispatch with Paul's draft P2-02 ledger. See [[2026-11-27-j2-03-auth-follow-up]].

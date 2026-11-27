@@ -19,6 +19,7 @@ from yt_intel.contracts.errors import ContractError
 from yt_intel.contracts.models import Channel, LibrarySnapshot
 from yt_intel.contracts.provider import YouTubeReadProvider
 from yt_intel.contracts.workflow import (
+    BucketVector,
     Endpoint,
     QuotaReservation,
     RequestContext,
@@ -732,6 +733,10 @@ def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_qu
 
     ledger = _TrackingQuotaLedger()
 
+    def configured_costs(plan: WorkflowPlan) -> BucketVector:
+        ceiling = plan.endpoint_ceilings["channels.list"]
+        return {"general": ceiling.calls * ceiling.attempts_per_call * 2}
+
     def make_browser(auth_code: str):
         def _open(url: str) -> bool:
             parsed = urlsplit(url)
@@ -804,6 +809,7 @@ def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_qu
             database_path=db_path,
             account_state_path=state_path,
             quota_ledger=ledger,
+            quota_costs=configured_costs,
             clock=clock,
             oauth_transport=httpx.MockTransport(oauth_handler),
             api_transport=make_api_transport(
@@ -827,6 +833,7 @@ def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_qu
                 database_path=db_path,
                 account_state_path=state_path,
                 quota_ledger=ledger,
+                quota_costs=configured_costs,
                 clock=clock,
                 oauth_transport=httpx.MockTransport(oauth_handler),
                 api_transport=make_api_transport(
@@ -845,6 +852,7 @@ def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_qu
             database_path=db_path,
             account_state_path=state_path,
             quota_ledger=ledger,
+            quota_costs=configured_costs,
             clock=clock,
             oauth_transport=httpx.MockTransport(oauth_handler),
             api_transport=make_api_transport(
@@ -856,6 +864,9 @@ def test_cli_auth_reloads_active_account_across_separate_invocations_and_uses_qu
 
         # Every channel lookup reserved, debited `channels.list`, and released through QuotaLedger
         assert len(ledger.reservations) == 3
+        assert all(
+            plan.buckets == {"general": 6} for plan in ledger.reservations.values()
+        )
         assert [ep for _, ep, _ in ledger.debits] == [
             "channels.list",
             "channels.list",

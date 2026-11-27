@@ -4,7 +4,7 @@ import json
 import os
 import uuid
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, timedelta
 from pathlib import Path
 from typing import Protocol
@@ -22,6 +22,7 @@ from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.provider import YouTubeReadProvider
 from yt_intel.contracts.repositories import AccountDataRepository
 from yt_intel.contracts.workflow import (
+    BucketVector,
     CallCeiling,
     CancellationToken,
     Clock,
@@ -46,6 +47,8 @@ from .oauth import (
 _REFRESH_SKEW = timedelta(seconds=60)
 _DEFAULT_AUTH_TIMEOUT = timedelta(seconds=30)
 
+type QuotaCosts = Callable[[WorkflowPlan], BucketVector]
+
 
 class _NeverCancelled:
     def is_cancelled(self) -> bool:
@@ -63,6 +66,7 @@ class AccountRecord:
     channel_title: Label
     vault_reference: OpaqueId
     granted_scopes: tuple[Label, ...]
+    disconnect_pending: bool = False
 
 
 class AccountStateStore(Protocol):
@@ -103,6 +107,7 @@ class JsonAccountStateStore:
                 channel_title=channel_title,
                 vault_reference=vault_reference,
                 granted_scopes=tuple(scopes_raw),
+                disconnect_pending=raw.get("disconnect_pending", False) is not False,
             )
         except Exception:
             return None
@@ -115,6 +120,7 @@ class JsonAccountStateStore:
             "channel_title": record.channel_title,
             "vault_reference": record.vault_reference,
             "granted_scopes": list(record.granted_scopes),
+            "disconnect_pending": record.disconnect_pending,
         }
         tmp = self._path.with_name(f"{self._path.name}.{uuid.uuid4().hex[:8]}.tmp")
         tmp.write_text(json.dumps(payload, sort_keys=True, indent=2), encoding="utf-8")
@@ -139,6 +145,14 @@ def _account_error(
             retryable=retryable,
             safe_next_action=safe_next_action,
         )
+    )
+
+
+def _disconnect_pending() -> ContractError:
+    return _account_error(
+        "OPERATION_CONFLICT",
+        "Account disconnect cleanup is pending.",
+        safe_next_action="Retry disconnect to finish cleanup before signing in.",
     )
 
 
@@ -178,7 +192,9 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         self._refresh_lock = anyio.Lock()
         self._lifecycle_lock = anyio.Lock()
         self._disconnecting = False
-        self._disabled_for_disconnect = False
+        self._disabled_for_disconnect = (
+            loaded_record is not None and loaded_record.disconnect_pending
+        )
         self._generation = 0
 
     @property
@@ -231,6 +247,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         read_provider: YouTubeReadProvider,
         reservation_id: OpaqueId | None = None,
         quota_ledger: QuotaLedger | None = None,
+        quota_costs: QuotaCosts | None = None,
         project_id: OpaqueId = "default-project",
         quota_profile_id: OpaqueId = "youtube-2026-11-16",
         selected_channel_id: ChannelId | None = None,
@@ -239,6 +256,8 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         cancellation: CancellationToken | None = None,
     ) -> AccountStatus:
         """Run the local loopback browser OAuth flow with explicit desktop scopes."""
+        if self._disabled_for_disconnect:
+            raise _disconnect_pending()
         scopes = scopes_for_auth_mode(enable_writes=enable_writes)
         cancel = cancellation if cancellation is not None else _NeverCancelled()
         callback_server = LoopbackCallbackServer()
@@ -268,6 +287,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             read_provider=read_provider,
             reservation_id=reservation_id,
             quota_ledger=quota_ledger,
+            quota_costs=quota_costs,
             project_id=project_id,
             quota_profile_id=quota_profile_id,
             required_scopes=scopes,
@@ -284,6 +304,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
         read_provider: YouTubeReadProvider,
         reservation_id: OpaqueId | None = None,
         quota_ledger: QuotaLedger | None = None,
+        quota_costs: QuotaCosts | None = None,
         project_id: OpaqueId = "default-project",
         quota_profile_id: OpaqueId = "youtube-2026-11-16",
         required_scopes: Sequence[str] = (YOUTUBE_READONLY_SCOPE,),
@@ -293,11 +314,13 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
     ) -> AccountStatus:
         """Complete PKCE exchange, verify channel while keeping account inactive, then bind."""
         async with self._lifecycle_lock:
-            if self._disconnecting:
+            if self._disconnecting or self._disabled_for_disconnect:
+                raise _disconnect_pending()
+            if quota_ledger is not None and quota_costs is None:
                 raise _account_error(
-                    "OPERATION_CONFLICT",
-                    "Account disconnect is in progress.",
-                    safe_next_action="Wait for disconnect to finish before authenticating.",
+                    "PROVIDER_UNAVAILABLE",
+                    "Channel verification requires the configured quota profile.",
+                    safe_next_action="Provide the quota profile before signing in.",
                 )
             cancel = cancellation if cancellation is not None else _NeverCancelled()
             if cancel.is_cancelled():
@@ -361,7 +384,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                 probe_deadline = (
                     self._clock.now().astimezone(UTC) + _DEFAULT_AUTH_TIMEOUT
                 )
-                if quota_ledger is not None:
+                if quota_ledger is not None and quota_costs is not None:
                     probe_plan = WorkflowPlan(
                         plan_id=f"auth-channel-probe-{uuid.uuid4().hex[:12]}",
                         binding=probe_binding,
@@ -370,7 +393,7 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                         endpoint_ceilings={
                             "channels.list": CallCeiling(calls=1, attempts_per_call=3)
                         },
-                        buckets={"general": 3},
+                        buckets={},
                         candidate_cap=0,
                         page_cap=1,
                         sample_cap=0,
@@ -378,6 +401,15 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                         cancellation_policy="cooperative",
                         reconciliation_allowance={},
                     )
+                    try:
+                        buckets = quota_costs(probe_plan)
+                    except ValueError:
+                        raise _account_error(
+                            "INVALID_INPUT",
+                            "The configured quota profile cannot price channel verification.",
+                            safe_next_action="Supply a profile with a cost for channels.list.",
+                        ) from None
+                    probe_plan = probe_plan.model_copy(update={"buckets": buckets})
                     reservation = await quota_ledger.reserve(probe_plan)
                     reserved_id = reservation.reservation_id
                     active_reservation_id = reserved_id
@@ -627,6 +659,20 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
             try:
                 # Drain any in-flight token refresh so it cannot write tokens back after delete.
                 async with self._refresh_lock:
+                    record = replace(record, disconnect_pending=True)
+                    self._record = record
+                    if self._state_store is not None:
+                        try:
+                            self._state_store.save(record)
+                        except OSError:
+                            warnings.append(
+                                _account_error(
+                                    "LOCAL_DELETION_FAILED",
+                                    "Could not persist the pending disconnect state.",
+                                    retryable=True,
+                                    safe_next_action="Restore access to the local account state and retry disconnect.",
+                                ).detail
+                            )
                     now = self._clock.now().astimezone(UTC)
                     deadline = now + _DEFAULT_AUTH_TIMEOUT
                     cancel = _NeverCancelled()
@@ -687,10 +733,22 @@ class LocalAccountService(AccountService, AuthHeaderProvider):
                         )
 
                     if tokens_removed and local_data_removed:
-                        if self._state_store is not None:
-                            self._state_store.clear()
-                        self._record = None
-                        self._disabled_for_disconnect = False
+                        try:
+                            if self._state_store is not None:
+                                self._state_store.clear()
+                        except OSError:
+                            local_data_removed = False
+                            warnings.append(
+                                _account_error(
+                                    "LOCAL_DELETION_FAILED",
+                                    "Could not remove the saved account state.",
+                                    retryable=True,
+                                    safe_next_action="Restore access to the local account state and retry disconnect.",
+                                ).detail
+                            )
+                        else:
+                            self._record = None
+                            self._disabled_for_disconnect = False
             finally:
                 self._disconnecting = False
 

@@ -48,6 +48,7 @@ Running `disconnect_account` (or the local disconnect workflow):
 4. Deletes account-bound local SQLite data (snapshots, proposals, caches, and operation details) while preserving minimal non-secret replay tombstones and project-level quota accounting.
 
 - If revocation or local deletion partially fails, the server reports each status explicitly (`revoked`, `tokens_removed`, `local_data_removed`, `warnings`) and never marks failed local deletion as complete.
+- If credential or account-data cleanup remains pending, the saved account stays disabled across restarts. A successful cleanup retry removes the saved account record.
 - Disconnecting removes local access and local data only; it **does not** delete any playlists or content on your YouTube account.
 
 Distilled basis: [[08-oauth-and-secret-handling]], [[13-api-policy-dependency]], [[15-implementation-boundaries-and-contracts]].

@@ -11,7 +11,7 @@ from typing import cast
 import anyio
 import httpx
 
-from .auth.account import JsonAccountStateStore, LocalAccountService
+from .auth.account import JsonAccountStateStore, LocalAccountService, QuotaCosts
 from .auth.oauth import (
     OAuthClient,
     load_oauth_client_config,
@@ -47,7 +47,7 @@ def _load_sqlite_quota_ledger(
     *,
     quota_profile_path: Path | None = None,
     clock: Clock | None = None,
-) -> tuple[QuotaLedger, OpaqueId]:
+) -> tuple[QuotaLedger, OpaqueId, QuotaCosts]:
     """Load Paul's P2-02 SqliteQuotaLedger; fail closed if P2-02 is not yet installed."""
     try:
         quota_module = importlib.import_module("yt_intel.infrastructure.quota")
@@ -77,9 +77,19 @@ def _load_sqlite_quota_ledger(
                 safe_next_action="Supply a valid --quota-profile JSON path.",
             )
         )
-    profile = profile_cls.load(profile_path)
+    try:
+        profile = profile_cls.load(profile_path)
+    except (OSError, ValueError):
+        raise ContractError(
+            ErrorDetail(
+                code="INVALID_INPUT",
+                message="The configured quota profile could not be read or validated.",
+                retryable=False,
+                safe_next_action="Supply a valid --quota-profile JSON path.",
+            )
+        ) from None
     ledger = cast(QuotaLedger, ledger_cls(database, profile, clock=clock))
-    return ledger, str(profile.profile_id)
+    return ledger, str(profile.profile_id), cast(QuotaCosts, profile.required_buckets)
 
 
 async def run_cli_auth(
@@ -93,6 +103,7 @@ async def run_cli_auth(
     database_path: Path | None = None,
     account_state_path: Path | None = None,
     quota_ledger: QuotaLedger | None = None,
+    quota_costs: QuotaCosts | None = None,
     quota_profile_path: Path | None = None,
     quota_profile_id: OpaqueId = _DEFAULT_QUOTA_PROFILE_ID,
     clock: Clock | None = None,
@@ -121,7 +132,7 @@ async def run_cli_auth(
     state_store = JsonAccountStateStore(state_path)
 
     if quota_ledger is None:
-        ledger, resolved_profile_id = _load_sqlite_quota_ledger(
+        ledger, resolved_profile_id, quota_costs = _load_sqlite_quota_ledger(
             db, quota_profile_path=quota_profile_path, clock=clock
         )
     else:
@@ -155,6 +166,7 @@ async def run_cli_auth(
             enable_writes=enable_writes,
             read_provider=read_provider,
             quota_ledger=ledger,
+            quota_costs=quota_costs,
             quota_profile_id=resolved_profile_id,
             selected_channel_id=channel_id,
             timeout_seconds=timeout_seconds,

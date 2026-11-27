@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -5,7 +6,11 @@ import anyio
 import httpx
 import pytest
 
-from yt_intel.auth.account import AccountRecord, LocalAccountService
+from yt_intel.auth.account import (
+    AccountRecord,
+    JsonAccountStateStore,
+    LocalAccountService,
+)
 from yt_intel.auth.oauth import (
     YOUTUBE_READONLY_SCOPE,
     OAuthClient,
@@ -64,7 +69,7 @@ class _FakeLedger:
 class _InMemoryTestVault(TokenVault):
     def __init__(self, *, fail_delete: bool = False) -> None:
         self.items: dict[str, bytes] = {}
-        self._fail_delete = fail_delete
+        self.fail_delete = fail_delete
 
     async def read(self, reference: OpaqueId) -> bytes | None:
         return self.items.get(reference)
@@ -73,7 +78,7 @@ class _InMemoryTestVault(TokenVault):
         self.items[reference] = sealed_payload
 
     async def delete(self, reference: OpaqueId) -> None:
-        if self._fail_delete:
+        if self.fail_delete:
             raise RuntimeError("simulated vault delete failure")
         self.items.pop(reference, None)
 
@@ -221,6 +226,18 @@ def test_account_isolation_and_partial_disconnect_failure_reporting(
             granted_scopes=(YOUTUBE_READONLY_SCOPE,),
         )
         await vault.store(vault_ref, tokens.to_vault_bytes())
+        state_path = tmp_path / "account.json"
+        JsonAccountStateStore(state_path).save(
+            AccountRecord(
+                binding=active_binding,
+                channel_title="Fixture Channel",
+                vault_reference=vault_ref,
+                granted_scopes=(YOUTUBE_READONLY_SCOPE,),
+            )
+        )
+        legacy_record = json.loads(state_path.read_text(encoding="utf-8"))
+        del legacy_record["disconnect_pending"]
+        state_path.write_text(json.dumps(legacy_record), encoding="utf-8")
 
         async with AccountedHttpExecutor(
             quota_ledger=_FakeLedger(),
@@ -230,20 +247,20 @@ def test_account_isolation_and_partial_disconnect_failure_reporting(
             oauth = OAuthClient(
                 OAuthClientConfig(client_id="cid-1"), executor, clock=_FixedClock()
             )
-            service = LocalAccountService(
-                installation_id=active_binding.installation_id,
-                mode=active_binding.mode,
-                vault=vault,
-                oauth_client=oauth,
-                account_data=account_repo,
-                clock=_FixedClock(),
-                initial_record=AccountRecord(
-                    binding=active_binding,
-                    channel_title="Fixture Channel",
-                    vault_reference=vault_ref,
-                    granted_scopes=(YOUTUBE_READONLY_SCOPE,),
-                ),
-            )
+
+            def open_service() -> LocalAccountService:
+                return LocalAccountService(
+                    installation_id=active_binding.installation_id,
+                    mode=active_binding.mode,
+                    vault=vault,
+                    oauth_client=oauth,
+                    account_data=account_repo,
+                    clock=_FixedClock(),
+                    state_store=JsonAccountStateStore(state_path),
+                )
+
+            service = open_service()
+            assert await service.require_binding() == active_binding
 
             # Foreign binding cannot read auth headers or disconnect the active account
             with pytest.raises(ContractError) as hdr_err:
@@ -268,6 +285,20 @@ def test_account_isolation_and_partial_disconnect_failure_reporting(
             with pytest.raises(ContractError) as blocked_hdr:
                 await service.get_headers(active_binding)
             assert blocked_hdr.value.detail.code == "AUTH_REQUIRED"
+            assert await vault.read(vault_ref) is not None
+
+            restarted = open_service()
+            assert await restarted.current() is None
+            with pytest.raises(ContractError) as restarted_hdr:
+                await restarted.get_headers(active_binding)
+            assert restarted_hdr.value.detail.code == "AUTH_REQUIRED"
+
+            vault.fail_delete = False
+            retried = await restarted.disconnect(active_binding)
+            assert retried.tokens_removed and retried.local_data_removed
+            assert not state_path.exists()
+            assert await vault.read(vault_ref) is None
+            assert await open_service().current() is None
             # SQLite snapshot for active_binding was deleted by Paul's repository
             assert (
                 await snapshot_repo.get_snapshot(
