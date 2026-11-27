@@ -47,6 +47,12 @@ class VideoDiscoveryResult(DiscoveryResult[RankedVideo]):
 
 
 @dataclass(frozen=True, slots=True)
+class VideoCandidatePool:
+    videos: tuple[Video, ...]
+    coverage: Coverage
+
+
+@dataclass(frozen=True, slots=True)
 class _SearchPool:
     ids: tuple[str, ...]
     paginated: bool
@@ -131,11 +137,38 @@ class DiscoveryService:
             )
         await self._report_progress(1, "Loaded the seed video.")
 
-        pool = await self._search(
+        candidates = await self.video_candidates(
             ctx,
             _query((seed.title, seed.description or "", *(seed.tags or ())[:32])),
+            exclude_video_id=seed_id,
+        )
+        await self._report_progress(2, "Collected candidate video metadata.")
+        results = rank_videos(seed, candidates.videos, limit=limit)
+        coverage = candidates.coverage
+        if not results:
+            coverage = coverage.model_copy(
+                update={
+                    "warnings": (
+                        "No accessible candidate had overlapping video metadata.",
+                    )
+                }
+            )
+        return VideoDiscoveryResult(results, coverage, seed, candidates.videos)
+
+    async def video_candidates(
+        self,
+        ctx: RequestContext,
+        query: str,
+        *,
+        exclude_video_id: VideoId | None = None,
+    ) -> VideoCandidatePool:
+        """Hydrate a bounded search for a server-derived query under the caller's reservation."""
+        _fixture_context(ctx)
+        pool = await self._search(
+            ctx,
+            query,
             lambda hit: hit.video_id,
-            seed_id,
+            exclude_video_id,
             self._bounds.video_candidates,
         )
         usable = []
@@ -151,22 +184,16 @@ class DiscoveryService:
                     inaccessible += 1
                 else:
                     usable.append(video)
-        await self._report_progress(2, "Collected candidate video metadata.")
-        results = rank_videos(seed, usable, limit=limit)
-        return VideoDiscoveryResult(
-            results,
+        return VideoCandidatePool(
+            tuple(usable),
             self._coverage(
                 pool,
                 len(usable),
                 inaccessible,
                 unknown,
                 {"video_candidates": self._bounds.video_candidates},
-                ()
-                if results
-                else ("No accessible candidate had overlapping video metadata.",),
+                (),
             ),
-            seed,
-            tuple(usable),
         )
 
     async def channels(
@@ -243,7 +270,7 @@ class DiscoveryService:
         ctx: RequestContext,
         query: str,
         identify: Callable[[SearchHit], str | None],
-        seed_id: str,
+        seed_id: str | None,
         cap: int,
     ) -> _SearchPool:
         ids: dict[str, None] = {}

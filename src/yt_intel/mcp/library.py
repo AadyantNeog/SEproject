@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Annotated
@@ -47,6 +49,7 @@ _FIXTURE_ACCOUNT = AccountBinding(
     mode="fixture",
 )
 _QUOTA_PROFILE_ID = "youtube-2026-11-16"
+_PROJECT_ID = "fixture-project"
 
 
 class _GetVideoInput(Contract):
@@ -129,6 +132,17 @@ class _FixtureAccountService(AccountService):
         )
 
 
+@dataclass(frozen=True, slots=True)
+class FixtureLibraryRuntime:
+    accounts: AccountService
+    snapshots: SqliteSnapshotRepository
+    ledger: QuotaLedger
+    profile: QuotaProfile
+    project_id: OpaqueId
+    provider: FixtureYouTubeProvider
+    library: LibraryService
+
+
 def _error_result(
     problem: ErrorDetail, *, request_id: str, mode: str = "fixture"
 ) -> CallToolResult:
@@ -150,7 +164,7 @@ def register_fixture_library(
     server: MCPServer[None],
     project_root: Path,
     fixture_db: Path | None,
-) -> None:
+) -> Callable[[], FixtureLibraryRuntime] | None:
     """Register Jeswin's get_video, get_library, get_account_status, and disconnect_account tools."""
     catalog_path = project_file(
         project_root, Path("tests/fixtures/libraries/library_catalog.json")
@@ -163,26 +177,15 @@ def register_fixture_library(
         project_root, Path(f"config/quota-profiles/{_QUOTA_PROFILE_ID}.json")
     )
     if not catalog_path.is_file() or not profile_path.is_file():
-        return
+        return None
 
     dataset = FixtureDataset.from_json_file(catalog_path)
     profile = QuotaProfile.load(profile_path)
-    runtime_holder: list[
-        tuple[
-            QuotaLedger,
-            _FixtureAccountService,
-            FixtureYouTubeProvider,
-            LibraryService,
-        ]
-    ] = []
+    runtime: FixtureLibraryRuntime | None = None
 
-    def _runtime() -> tuple[
-        QuotaLedger,
-        _FixtureAccountService,
-        FixtureYouTubeProvider,
-        LibraryService,
-    ]:
-        if not runtime_holder:
+    def _runtime() -> FixtureLibraryRuntime:
+        nonlocal runtime
+        if runtime is None:
             database = Database(fixture_db) if fixture_db is not None else Database()
             database.migrate()
             ledger: QuotaLedger = SqliteQuotaLedger(database, profile)
@@ -197,10 +200,18 @@ def register_fixture_library(
                 quota_profile=profile,
                 snapshot_repo=snapshot_repo,
                 bounds=LibraryBounds(),
-                project_id="fixture-project",
+                project_id=_PROJECT_ID,
             )
-            runtime_holder.append((ledger, accounts, provider, service))
-        return runtime_holder[0]
+            runtime = FixtureLibraryRuntime(
+                accounts=accounts,
+                snapshots=snapshot_repo,
+                ledger=ledger,
+                profile=profile,
+                project_id=_PROJECT_ID,
+                provider=provider,
+                library=service,
+            )
+        return runtime
 
     @server.tool(
         annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
@@ -216,14 +227,14 @@ def register_fixture_library(
                 (ctx.request_context.params or {}).get("arguments", {})
             )
             video_id = parse_video_id(parsed.video)
-            ledger, accounts, provider, _ = _runtime()
-            binding = await accounts.require_binding()
+            active = _runtime()
+            binding = await active.accounts.require_binding()
             now = datetime.now(UTC)
             deadline = now + timedelta(seconds=30)
             plan = WorkflowPlan(
                 plan_id=f"get-video-{uuid4().hex[:12]}",
                 binding=binding,
-                project_id="fixture-project",
+                project_id=active.project_id,
                 quota_profile_id=profile.profile_id,
                 endpoint_ceilings={
                     "videos.list": CallCeiling(calls=1, attempts_per_call=3)
@@ -237,7 +248,7 @@ def register_fixture_library(
                 reconciliation_allowance={},
             )
             plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
-            reservation = await ledger.reserve(plan)
+            reservation = await active.ledger.reserve(plan)
             try:
                 req_ctx = RequestContext(
                     request_id=request_id,
@@ -246,9 +257,9 @@ def register_fixture_library(
                     deadline=deadline,
                     cancellation=_FixtureCancellation(),
                 )
-                batch = await provider.get_videos(req_ctx, (video_id,))
+                batch = await active.provider.get_videos(req_ctx, (video_id,))
             finally:
-                await ledger.release(reservation.reservation_id)
+                await active.ledger.release(reservation.reservation_id)
             item = batch.videos.get(video_id)
             if item is None:
                 raise ContractError(
@@ -318,8 +329,7 @@ def register_fixture_library(
             if "sources" in raw_args and isinstance(raw_args["sources"], list):
                 raw_args = {**raw_args, "sources": tuple(raw_args["sources"])}
             parsed = _GetLibraryInput.model_validate(raw_args)
-            _, _, _, service = _runtime()
-            result = await service.collect(
+            result = await _runtime().library.collect(
                 cancellation=_FixtureCancellation(),
                 sources=parsed.sources,
                 continuation_ref=parsed.continuation_ref,
@@ -379,8 +389,7 @@ def register_fixture_library(
                 ),
                 request_id=request_id,
             )
-        _, accounts, _, _ = _runtime()
-        status = await accounts.current()
+        status = await _runtime().accounts.current()
         envelope = ResultEnvelope[AccountStatus | None](
             mode="fixture",
             request_id=request_id,
@@ -416,7 +425,7 @@ def register_fixture_library(
                 request_id=request_id,
             )
         try:
-            _, accounts, _, _ = _runtime()
+            accounts = _runtime().accounts
             binding = await accounts.require_binding()
             result = await accounts.disconnect(binding)
         except ContractError as exc:
@@ -440,3 +449,5 @@ def register_fixture_library(
                 )
             ],
         )
+
+    return _runtime

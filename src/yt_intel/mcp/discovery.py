@@ -81,7 +81,7 @@ def _discovery_input[T: Contract](model: type[T], ctx: Context[None, object]) ->
         ) from None
 
 
-class _FixtureCancellation:
+class FixtureCancellation:
     # The SDK cancels the handler task and its awaited transport on MCP cancellation.
     def is_cancelled(self) -> bool:
         return False
@@ -201,7 +201,7 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
         binding=_FIXTURE_ACCOUNT,
         reservation_id=uuid4().hex,
         deadline=datetime.now(UTC) + timedelta(seconds=60),
-        cancellation=_FixtureCancellation(),
+        cancellation=FixtureCancellation(),
     )
     provider = FixtureYouTubeProvider(
         dataset, quota_ledger=_FixtureAttemptBudget(request, calls)

@@ -73,13 +73,26 @@ class RecommendationService:
         self._normalize_language = normalize_language
 
     def search_query(
-        self, snapshot: LibrarySnapshot, *, binding: AccountBinding, now: datetime
+        self,
+        snapshot: LibrarySnapshot,
+        *,
+        binding: AccountBinding,
+        now: datetime,
+        filters: RecommendationFilters = RecommendationFilters(),
     ) -> str:
-        return profile_search_query(
+        self._parse_filters(filters)
+        query = profile_search_query(
             self._profile(
                 snapshot, binding, _UTC_TIME.validate_python(now, strict=True)
             )
         )
+        if not query:
+            raise _failure(
+                "INSUFFICIENT_DATA",
+                "No usable preference terms fit the bounded search query.",
+                "Ask for a seed video or topic.",
+            )
+        return query
 
     def recommend(
         self,
@@ -104,20 +117,7 @@ class RecommendationService:
                 "Refresh the candidates and try again.",
             )
         profile = self._profile(snapshot, binding, now)
-        topic = Counter(tokenize(filters.topic)) if filters.topic is not None else None
-        language = (
-            self._normalize_language(filters.language)
-            if filters.language is not None
-            else None
-        )
-        if (topic is not None and not topic) or (
-            filters.language is not None and language is None
-        ):
-            raise _failure(
-                "CLARIFICATION_REQUIRED",
-                "A topic or language filter needs clarification.",
-                "Supply a descriptive topic or a supported audio-language tag.",
-            )
+        topic, language = self._parse_filters(filters)
 
         eligible = tuple(
             video
@@ -169,6 +169,25 @@ class RecommendationService:
             total_seconds=total,
             unused_seconds=unused,
         )
+
+    def _parse_filters(
+        self, filters: RecommendationFilters
+    ) -> tuple[Counter[str] | None, str | None]:
+        topic = Counter(tokenize(filters.topic)) if filters.topic is not None else None
+        language = (
+            self._normalize_language(filters.language)
+            if filters.language is not None
+            else None
+        )
+        if (topic is not None and not topic) or (
+            filters.language is not None and language is None
+        ):
+            raise _failure(
+                "CLARIFICATION_REQUIRED",
+                "A topic or language filter needs clarification.",
+                "Supply a descriptive topic or a supported audio-language tag.",
+            )
+        return topic, language
 
     def _matches_filters(
         self, video: Video, filters: RecommendationFilters, language: str | None
