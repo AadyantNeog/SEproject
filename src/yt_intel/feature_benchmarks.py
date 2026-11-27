@@ -529,7 +529,7 @@ def _commit(root: Path) -> dict[str, object]:
     try:
         return {
             "commit": git("rev-parse", "HEAD"),
-            "dirty": bool(git("status", "--porcelain")),
+            "dirty": bool(git("status", "--porcelain", "--untracked-files=no")),
         }
     except (OSError, subprocess.CalledProcessError):
         return {"commit": None, "dirty": None}
