@@ -222,3 +222,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-27 A2-02 standalone discovery quota
 
 - Connected both discovery tools to the SQLite ledger for [issue #10](https://github.com/AadyantNeog/SEproject/issues/10) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). Stdio tests verified search debits, refusal before the seed fetch, and cancellation without a cache entry. All 293 offline tests passed. See [[2026-11-27-a2-02-discovery-quota]].
+
+## 2026-11-27 A2-05 discovery and preview under a shared reservation
+
+- Wired the discovery and preview handlers to one workflow reservation for [issue #8](https://github.com/AadyantNeog/SEproject/issues/8) and [issue #26](https://github.com/AadyantNeog/SEproject/issues/26). The stdio test uses a test-only seed adapter, then verifies the original reservation and candidate handoff through the real discovery and preview tools. All 294 offline tests passed. See [[2026-11-27-a2-05-composed-preview]].

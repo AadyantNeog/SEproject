@@ -1,4 +1,5 @@
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from math import ceil
 from pathlib import Path
@@ -13,7 +14,14 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
 from yt_intel.client_skills import project_file
-from yt_intel.contracts.common import AccountBinding, Contract, Label, Limit, OpaqueId
+from yt_intel.contracts.common import (
+    AccountBinding,
+    Contract,
+    Label,
+    Limit,
+    OpaqueId,
+    VideoId,
+)
 from yt_intel.contracts.errors import (
     ContractError,
     ErrorDetail,
@@ -38,6 +46,9 @@ from yt_intel.services.discovery import (
     DiscoveryService,
 )
 from yt_intel.services.fixture_candidates import FixtureCandidateSets
+from yt_intel.services.workflows import StageAccess
+
+from .workflows import FixtureWorkflowRuntime
 
 _BOUNDS = DiscoveryBounds()
 _FIXTURE_ACCOUNT = AccountBinding(
@@ -61,6 +72,7 @@ _CHANNEL_CALLS: Mapping[Endpoint, int] = {
 class _VideoInput(Contract):
     video: Label
     limit: Limit = 10
+    workflow_id: OpaqueId | None = None
 
 
 class _ChannelInput(Contract):
@@ -103,6 +115,7 @@ def register_fixture_discovery(
     project_root: Path,
     fixture_db: Path | None,
     candidate_sets: FixtureCandidateSets,
+    workflows: FixtureWorkflowRuntime | None,
 ) -> None:
     catalog_path = project_file(
         project_root, Path("tests/fixtures/youtube_reads/catalog.json")
@@ -113,11 +126,15 @@ def register_fixture_discovery(
     if not catalog_path.is_file() or not profile_path.is_file():
         return
     dataset = FixtureDataset.from_json_file(catalog_path)
-    profile = QuotaProfile.load(profile_path)
+    profile = (
+        workflows.profile if workflows is not None else QuotaProfile.load(profile_path)
+    )
     ledger: SqliteQuotaLedger | None = None
 
     def quota_ledger() -> SqliteQuotaLedger:
         nonlocal ledger
+        if workflows is not None:
+            return workflows.ledger
         if ledger is None:
             ledger = SqliteQuotaLedger(Database(fixture_db), profile)
         return ledger
@@ -128,12 +145,20 @@ def register_fixture_discovery(
         )
     )
     async def find_similar_videos(
-        ctx: Context[None, object], video: Label, limit: Limit = 10
+        ctx: Context[None, object],
+        video: Label,
+        limit: Limit = 10,
+        workflow_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, VideoDiscoveryEnvelope]:
         """Rank fixture videos and save their candidate set for playlist planning."""
         try:
             args = _discovery_input(_VideoInput, ctx)
             seed = parse_video_id(args.video)
+            composed = None
+            if args.workflow_id is not None:
+                if workflows is None:
+                    raise _workflow_unavailable()
+                composed = (workflows, args.workflow_id, seed)
         except ContractError as error:
             return _discovery_error(VideoDiscoveryEnvelope, uuid4().hex, error.detail)
 
@@ -157,6 +182,7 @@ def register_fixture_discovery(
             rank,
             VideoDiscoveryEnvelope,
             candidate_cap=_BOUNDS.video_candidates,
+            composed=composed,
         )
 
     @server.tool(
@@ -206,64 +232,44 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
     *,
     candidate_cap: int,
     sample_cap: int = 0,
+    composed: tuple[FixtureWorkflowRuntime, OpaqueId, VideoId] | None = None,
 ) -> CallToolResult:
     async def report_progress(completed: int, message: str) -> None:
         await ctx.report_progress(completed, 3, message)
 
     request_id = uuid4().hex
-    plan = WorkflowPlan(
-        plan_id=f"discovery-{request_id}",
-        binding=_FIXTURE_ACCOUNT,
-        project_id="fixture-project",
-        quota_profile_id=profile.profile_id,
-        endpoint_ceilings={
-            endpoint: CallCeiling(calls=count, attempts_per_call=3)
-            for endpoint, count in calls.items()
-        },
-        buckets={},
-        candidate_cap=candidate_cap,
-        page_cap=_BOUNDS.search_pages,
-        sample_cap=sample_cap,
-        deadline=datetime.now(UTC) + timedelta(seconds=60),
-        cancellation_policy="stop and release unused quota",
-        reconciliation_allowance={},
-    )
-    try:
-        plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
-    except ValueError:
-        return _discovery_error(
-            envelope,
-            request_id,
-            ErrorDetail(
-                code="INVALID_INPUT",
-                message="The quota profile does not cover the discovery plan.",
-                retryable=False,
-                safe_next_action="Check the configured quota profile and try again.",
-            ),
-        )
     try:
         ledger = quota_ledger()
-        reservation = await ledger.reserve(plan)
-        provider: FixtureYouTubeProvider | None = None
-        try:
-            request = RequestContext(
+        if composed is None:
+            stage = _standalone_stage(
+                ledger,
+                profile,
+                request_id,
+                calls,
+                candidate_cap=candidate_cap,
+                sample_cap=sample_cap,
+            )
+        else:
+            runtime, workflow_id, seed = composed
+            stage = runtime.service.stage(
+                workflow_id,
+                "find_similar_videos",
+                binding=_FIXTURE_ACCOUNT,
                 request_id=request_id,
-                binding=plan.binding,
-                reservation_id=reservation.reservation_id,
-                deadline=min(plan.deadline, reservation.reset_at),
                 cancellation=FixtureCancellation(),
+                video=seed,
             )
+        async with stage as access:
             provider = FixtureYouTubeProvider(dataset, quota_ledger=ledger)
-            ranked, candidate_set_id = await rank(
-                DiscoveryService(provider, _BOUNDS, progress=report_progress), request
-            )
-        finally:
-            with anyio.CancelScope(shield=True):
-                try:
-                    if provider is not None:
-                        await provider.aclose()
-                finally:
-                    await ledger.release(reservation.reservation_id)
+            try:
+                ranked, candidate_set_id = await rank(
+                    DiscoveryService(provider, _BOUNDS, progress=report_progress),
+                    access.context,
+                )
+                access.candidate_set_id = candidate_set_id
+            finally:
+                with anyio.CancelScope(shield=True):
+                    await provider.aclose()
     except ContractError as error:
         return _discovery_error(envelope, request_id, error.detail)
     except (OSError, SqliteError):
@@ -297,6 +303,71 @@ async def _run_discovery[T: (RankedVideo, RankedChannel)](
     return CallToolResult(
         structured_content=result.model_dump(),
         content=[TextContent(type="text", text=text)],
+    )
+
+
+@asynccontextmanager
+async def _standalone_stage(
+    ledger: SqliteQuotaLedger,
+    profile: QuotaProfile,
+    request_id: OpaqueId,
+    calls: Mapping[Endpoint, int],
+    *,
+    candidate_cap: int,
+    sample_cap: int,
+) -> AsyncIterator[StageAccess]:
+    plan = WorkflowPlan(
+        plan_id=f"discovery-{request_id}",
+        binding=_FIXTURE_ACCOUNT,
+        project_id="fixture-project",
+        quota_profile_id=profile.profile_id,
+        endpoint_ceilings={
+            endpoint: CallCeiling(calls=count, attempts_per_call=3)
+            for endpoint, count in calls.items()
+        },
+        buckets={},
+        candidate_cap=candidate_cap,
+        page_cap=_BOUNDS.search_pages,
+        sample_cap=sample_cap,
+        deadline=datetime.now(UTC) + timedelta(seconds=60),
+        cancellation_policy="stop and release unused quota",
+        reconciliation_allowance={},
+    )
+    try:
+        plan = plan.model_copy(update={"buckets": profile.required_buckets(plan)})
+    except ValueError as error:
+        raise ContractError(
+            ErrorDetail(
+                code="INVALID_INPUT",
+                message="The quota profile does not cover the discovery plan.",
+                retryable=False,
+                safe_next_action="Check the configured quota profile and try again.",
+            ),
+        ) from error
+    reservation = await ledger.reserve(plan)
+    try:
+        yield StageAccess(
+            context=RequestContext(
+                request_id=request_id,
+                binding=plan.binding,
+                reservation_id=reservation.reservation_id,
+                deadline=min(plan.deadline, reservation.reset_at),
+                cancellation=FixtureCancellation(),
+            ),
+        )
+    finally:
+        with anyio.CancelScope(shield=True):
+            await ledger.release(reservation.reservation_id)
+
+
+def _workflow_unavailable() -> ContractError:
+    return ContractError(
+        ErrorDetail(
+            code="INVALID_INPUT",
+            message="Workflow session is unavailable.",
+            retryable=False,
+            safe_next_action="Start a fixture workflow and follow its stage order.",
+        )
     )
 
 
