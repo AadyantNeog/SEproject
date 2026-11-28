@@ -1,9 +1,10 @@
 {
   "dependency": "D-02",
-  "state": "unresolved",
-  "summary": "Instructor or provider direction on API policy applicability for live-derived processing has not been recorded.",
-  "evidence_url": null,
-  "recorded_by": null,
-  "recorded_on": null,
-  "change_rule": "Only a human may set state to resolved, through a reviewed PR that links the instructor or provider evidence. An agent, model output or environment flag cannot resolve D-02."
+  "state": "resolved",
+  "basis": "team-lead-decision",
+  "summary": "Resolved for the project's own authorised test accounts by Aadyant Neog's team-lead decision on 28 November 2026 (ADR-0012). This is not instructor or provider evidence. Live writes are not covered.",
+  "evidence_url": "https://github.com/AadyantNeog/SEproject/blob/main/docs/adr/0012-d02-team-lead-resolution.md",
+  "recorded_by": "Aadyant Neog (team lead)",
+  "recorded_on": "2026-11-28",
+  "change_rule": "Only a human may change state, through a reviewed PR that links the instructor or provider evidence, or a team-lead ADR that says plainly it is not instructor evidence. An agent, model output or environment flag cannot change it on its own. To revoke, set state to unresolved."
 }

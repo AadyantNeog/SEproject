@@ -13,7 +13,7 @@ recorded. A blocked prerequisite is not a passed acceptance case.
 
 | Prerequisite | Owner | State | Observable evidence needed |
 | --- | --- | --- | --- |
-| D-02 policy applicability | Aadyant, with the instructor or provider | **Unresolved** | The instructor's or provider's written direction, linked from [d02-status.json](d02-status.json) by a human in a reviewed PR |
+| D-02 policy applicability | Aadyant | **Resolved by team-lead decision (28 November 2026)** | [ADR-0012](../../adr/0012-d02-team-lead-resolution.md), linked from [d02-status.json](d02-status.json). This is **not** instructor or provider evidence, and it departs from SRS §13.2. Live writes are not covered. |
 | Authorised test account and channel | Aadyant | **In use (28 November 2026)** | Aadyant authorised his own YouTube account, added as an OAuth test user. The address and channel ID stay out of the repository. See the [live read evidence](../live/README.md). |
 | Google Cloud project and Desktop OAuth client | Aadyant | **Created (28 November 2026)** | One project with YouTube Data API v3 enabled. The consent screen is in Testing mode. The Desktop client JSON is stored outside the checkout. |
 | OS-protected vault | Aadyant | **Backend detected on the development workstation** | `KeyringTokenVault()` found `keyring.backends.Windows.WinVaultKeyring` on 28 November 2026. Nothing was stored. The runner needs its own check. |

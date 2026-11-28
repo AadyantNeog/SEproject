@@ -128,9 +128,9 @@ covers the expiry.
 2. **Manual runs (done 28 November 2026).** The Codex walkthrough, the
    native create approve and reject, and the resume approve and reject are
    recorded. #22 and #53 are closed.
-3. **D-02.** Record the instructor or provider direction in
-   [d02-status.json](../policy-and-consent/d02-status.json) through a
-   reviewed PR.
+3. **D-02 (resolved 28 November 2026 by team-lead decision).** See
+   [ADR-0012](../../adr/0012-d02-team-lead-resolution.md). It is not
+   instructor or provider evidence, and it departs from SRS §13.2.
 4. **Live setup.** Provision the test account, OAuth client and protected
    runner, then run the supervised live demonstrations.
 5. **Reflections.** Each member writes their own reflection and
