@@ -34,10 +34,14 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
 from yt_intel.analytics.summaries import AnalysisReport
+from yt_intel.approval.grants import InMemoryGrantStore
+from yt_intel.approval.native import NativeApprovalAdapter
+from yt_intel.approval.service import ApprovalService
 from yt_intel.auth.account import JsonAccountStateStore, LocalAccountService
 from yt_intel.auth.oauth import OAuthClient, load_oauth_client_config
 from yt_intel.auth.vault import KeyringTokenVault
 from yt_intel.contracts.account import AccountStatus, DisconnectResult, TokenVault
+from yt_intel.contracts.approval import ApprovalAdapter
 from yt_intel.contracts.common import (
     Contract,
     Label,
@@ -64,21 +68,28 @@ from yt_intel.infrastructure.quota import QuotaProfile, SqliteQuotaLedger
 from yt_intel.infrastructure.repositories import (
     SqliteAccountDataRepository,
     SqliteCacheRepository,
+    SqliteOperationRepository,
     SqliteProposalRepository,
     SqliteSnapshotRepository,
 )
 from yt_intel.policy import D02_RECORD, policy_resolved, recorded_policy_check
 from yt_intel.presentation.results import render_error
 from yt_intel.providers.youtube import LiveYouTubeReadProvider
+from yt_intel.providers.youtube_writes import YouTubeWriteAdapter
 from yt_intel.services.analysis import AnalysisService
+from yt_intel.services.creation import PlaylistCreationService
 from yt_intel.services.library import LibraryBounds, LibraryService, LibrarySummary
 from yt_intel.services.recommendations import (
     RecommendationResult,
     RecommendationService,
 )
+from yt_intel.services.workflows import WorkflowService
 
-from . import live_derived
+from . import live_creation, live_derived
+from .execution import CreationStatus
+from .live_creation import LiveWriteServices
 from .live_derived import LiveDerivedServices, live_candidate_sets
+from .workflows import WorkflowStarted
 
 LIVE_PROJECT_ID = "default-project"
 QUOTA_PROFILE = Path("config/quota-profiles/youtube-2026-11-16.json")
@@ -89,8 +100,10 @@ DERIVED_TOOLS = (
     "analyse_library",
     "begin_workflow",
     "propose_playlist",
+    "prepare_creation",
+    "create_playlist",
+    "get_operation",
 )
-LIVE_DERIVED_TOOLS = tuple(tool for tool in DERIVED_TOOLS if tool != "begin_workflow")
 _READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
 
@@ -104,6 +117,7 @@ class LiveStatus(Contract):
 
 class _GetVideoInput(Contract):
     video: Label
+    workflow_id: OpaqueId | None = None
 
 
 class _GetLibraryInput(Contract):
@@ -129,6 +143,7 @@ class LiveRuntime:
     executors: tuple[AccountedHttpExecutor, ...]
     policy_path: Path
     derived: LiveDerivedServices
+    writes: LiveWriteServices
 
 
 def _envelope_result[T](
@@ -146,6 +161,33 @@ def _error(problem: ErrorDetail, request_id: OpaqueId) -> CallToolResult:
         mode="live", request_id=request_id, status="error", data=None, error=problem
     )
     return _envelope_result(envelope, render_error(problem, mode="live"), is_error=True)
+
+
+def _video_result(request_id: OpaqueId, item: Video, profile_id: str) -> CallToolResult:
+    coverage = Coverage(
+        complete=True,
+        paginated=False,
+        sampled=False,
+        truncated=False,
+        retrieved=1,
+        usable=1 if item.availability == "available" else 0,
+        inaccessible=1 if item.availability == "inaccessible" else 0,
+        unknown=1 if item.availability == "unknown" else 0,
+        limits={"videos": 1},
+        completeness_basis="Single video lookup",
+    )
+    envelope = ResultEnvelope[Video](
+        mode="live",
+        request_id=request_id,
+        status="ok",
+        data=item,
+        warnings=item.evidence_warnings,
+        coverage=coverage,
+        quota=QuotaEstimate(profile_id=profile_id),
+    )
+    return _envelope_result(
+        envelope, f"Mode: live\n{item.title} ({item.canonical_url})"
+    )
 
 
 def _blocked(runtime: LiveRuntime, tool: str) -> CallToolResult:
@@ -187,8 +229,13 @@ def build_live_runtime(
     clock: Clock | None = None,
     oauth_transport: httpx.AsyncBaseTransport | None = None,
     api_transport: httpx.AsyncBaseTransport | None = None,
+    approval_adapter: ApprovalAdapter | None = None,
 ) -> LiveRuntime:
-    """Compose live services. No network or vault access happens here."""
+    """Compose live services. No network or vault access happens here.
+
+    `approval_adapter` exists only for isolated test construction. The CLI
+    never passes it, so the shipped server always uses the native dialog.
+    """
     database = Database(database_path)
     database.migrate()
     profile = QuotaProfile.load(project_root / QUOTA_PROFILE)
@@ -226,6 +273,8 @@ def build_live_runtime(
         bounds=LibraryBounds(),
         project_id=LIVE_PROJECT_ID,
     )
+    proposals = SqliteProposalRepository(database, clock=clock)
+    operations = SqliteOperationRepository(database, clock=clock)
     derived = LiveDerivedServices(
         accounts=accounts,
         profile=profile,
@@ -233,7 +282,7 @@ def build_live_runtime(
         provider=provider,
         library=library,
         snapshots=snapshots,
-        proposals=SqliteProposalRepository(database, clock=clock),
+        proposals=proposals,
         candidate_sets=live_candidate_sets(
             lambda: SqliteCacheRepository(database, clock=clock), permits
         ),
@@ -242,6 +291,28 @@ def build_live_runtime(
         planner=PlaylistPlanner(normalize_language_tag, permits=permits),
         permits=permits,
         project_id=LIVE_PROJECT_ID,
+        workflows=WorkflowService(ledger, profile, clock=clock),
+    )
+    writes = LiveWriteServices(
+        derived=derived,
+        creation=PlaylistCreationService(
+            proposals,
+            operations,
+            ApprovalService(
+                approval_adapter
+                if approval_adapter is not None
+                else NativeApprovalAdapter(),
+                InMemoryGrantStore(),
+                proposals,
+            ),
+            ledger,
+            profile,
+            provider,
+            YouTubeWriteAdapter(read_executor),
+            clock=clock,
+            permits=permits,
+        ),
+        operations=operations,
     )
     return LiveRuntime(
         accounts=accounts,
@@ -252,6 +323,7 @@ def build_live_runtime(
         executors=(oauth_executor, read_executor),
         policy_path=resolved_policy,
         derived=derived,
+        writes=writes,
     )
 
 
@@ -274,10 +346,8 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
         status = LiveStatus(
             account_connected=await runtime.accounts.current() is not None,
             d02_resolved=resolved,
-            available_tools=(*available, *LIVE_DERIVED_TOOLS)
-            if resolved
-            else available,
-            blocked_tools=("begin_workflow",) if resolved else DERIVED_TOOLS,
+            available_tools=(*available, *DERIVED_TOOLS) if resolved else available,
+            blocked_tools=() if resolved else DERIVED_TOOLS,
         )
         envelope = ResultEnvelope[LiveStatus](
             mode="live", request_id=uuid4().hex, status="ok", data=status
@@ -342,9 +412,13 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
 
     @server.tool(annotations=_READ_ONLY)
     async def get_video(
-        ctx: Context[None, object], video: str
+        ctx: Context[None, object], video: str, workflow_id: OpaqueId | None = None
     ) -> Annotated[CallToolResult, ResultEnvelope[Video]]:
-        """Fetch official metadata for one YouTube video URL or ID (read-only)."""
+        """Fetch official metadata for one YouTube video URL or ID (read-only).
+
+        Pass `workflow_id` to fetch the seed as the first stage of a
+        video-to-playlist workflow, using its reserved quota.
+        """
         request_id = uuid4().hex
         try:
             inputs = _GetVideoInput.model_validate(
@@ -352,6 +426,32 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
             )
             video_id = parse_video_id(inputs.video)
             binding = await runtime.accounts.require_binding()
+            if inputs.workflow_id is not None:
+                if not policy_resolved(runtime.policy_path):
+                    return _blocked(runtime, "begin_workflow")
+                async with runtime.derived.workflows.stage(
+                    inputs.workflow_id,
+                    "get_video",
+                    binding=binding,
+                    request_id=request_id,
+                    cancellation=_NotCancelled(),
+                    video=video_id,
+                ) as access:
+                    batch = await runtime.provider.get_videos(
+                        access.context, (video_id,)
+                    )
+                    if batch.videos.get(video_id) is None:
+                        raise ContractError(
+                            ErrorDetail(
+                                code="CONTENT_UNAVAILABLE",
+                                message="The video is private, deleted or unavailable.",
+                                retryable=False,
+                                safe_next_action="Supply an accessible video ID or URL.",
+                            )
+                        )
+                return _video_result(
+                    request_id, batch.videos[video_id], runtime.profile.profile_id
+                )
             deadline = datetime.now(UTC) + timedelta(seconds=30)
             plan = WorkflowPlan(
                 plan_id=f"live-get-video-{uuid4().hex[:12]}",
@@ -409,30 +509,7 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
             )
         except ContractError as error:
             return _error(error.detail, request_id)
-        coverage = Coverage(
-            complete=True,
-            paginated=False,
-            sampled=False,
-            truncated=False,
-            retrieved=1,
-            usable=1 if item.availability == "available" else 0,
-            inaccessible=1 if item.availability == "inaccessible" else 0,
-            unknown=1 if item.availability == "unknown" else 0,
-            limits={"videos": 1},
-            completeness_basis="Single video lookup",
-        )
-        envelope = ResultEnvelope[Video](
-            mode="live",
-            request_id=request_id,
-            status="ok",
-            data=item,
-            warnings=item.evidence_warnings,
-            coverage=coverage,
-            quota=QuotaEstimate(profile_id=runtime.profile.profile_id),
-        )
-        return _envelope_result(
-            envelope, f"Mode: live\n{item.title} ({item.canonical_url})"
-        )
+        return _video_result(request_id, item, runtime.profile.profile_id)
 
     @server.tool(annotations=_READ_ONLY)
     async def get_library(
@@ -535,13 +612,20 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
         return await live_derived.analyse(runtime.derived, _params(ctx))
 
     @server.tool(
-        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
+        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=True)
     )
     async def begin_workflow(
-        kind: Literal["video_to_playlist"], video: str | None = None
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Not available in live mode: the workflow ends in a live write."""
-        return _blocked(runtime, "begin_workflow")
+        ctx: Context[None, object],
+        kind: Literal["video_to_playlist"],
+        video: str | None = None,
+    ) -> Annotated[CallToolResult, ResultEnvelope[WorkflowStarted]]:
+        """Reserve the whole live video-to-playlist budget before fetching a seed.
+
+        Needs D-02 resolved and the write scope (`yt-intel auth --enable-writes`).
+        """
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "begin_workflow")
+        return await live_creation.begin(runtime.writes, _params(ctx))
 
     @server.tool(
         annotations=ToolAnnotations(
@@ -562,9 +646,55 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
         candidate_set_id: OpaqueId | None = None,
         workflow_id: OpaqueId | None = None,
     ) -> Annotated[CallToolResult, ResultEnvelope[PlaylistProposal]]:
-        """Preview a playlist from a live candidate set (FR-5 planning). Preview only."""
+        """Preview a playlist from a live candidate set (FR-5 planning).
+
+        Without `workflow_id` it is a preview only. Inside a workflow it is the
+        exact proposal that `prepare_creation` and `create_playlist` act on.
+        """
         if not policy_resolved(runtime.policy_path):
             return _blocked(runtime, "propose_playlist")
         return await live_derived.propose(runtime.derived, _params(ctx))
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
+    )
+    async def prepare_creation(
+        ctx: Context[None, object],
+        workflow_id: OpaqueId,
+        proposal_id: OpaqueId,
+        version: Positive,
+    ) -> Annotated[CallToolResult, ResultEnvelope[CreationStatus]]:
+        """Record an operation for the exact live preview. Writes nothing to YouTube."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "prepare_creation")
+        return await live_creation.prepare(runtime.writes, _params(ctx))
+
+    @server.tool(
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, open_world_hint=True
+        )
+    )
+    async def create_playlist(
+        ctx: Context[None, object],
+        workflow_id: OpaqueId,
+        proposal_id: OpaqueId,
+        version: Positive,
+        operation_id: OpaqueId,
+    ) -> Annotated[CallToolResult, ResultEnvelope[CreationStatus]]:
+        """Ask for native approval of the exact preview, then create the playlist on YouTube."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "create_playlist")
+        return await live_creation.create(runtime.writes, _params(ctx))
+
+    @server.tool(
+        annotations=ToolAnnotations(read_only_hint=True, open_world_hint=False)
+    )
+    async def get_operation(
+        ctx: Context[None, object], operation_id: OpaqueId
+    ) -> Annotated[CallToolResult, ResultEnvelope[CreationStatus]]:
+        """Read the recorded status of a live playlist operation."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "get_operation")
+        return await live_creation.operation(runtime.writes, _params(ctx))
 
     return server

@@ -19,6 +19,7 @@ from yt_intel.contracts.approval import ApprovalAdapter
 from yt_intel.contracts.common import (
     Contract,
     Label,
+    Mode,
     NonNegative,
     OpaqueId,
     PlaylistId,
@@ -164,7 +165,9 @@ def _problem(code: ErrorCode, message: str) -> ErrorDetail:
     )
 
 
-def _failure(request_id: OpaqueId, error: Exception) -> CallToolResult:
+def _failure(
+    request_id: OpaqueId, error: Exception, *, mode: Mode = "fixture"
+) -> CallToolResult:
     if isinstance(error, ContractError):
         detail = error.detail
     elif isinstance(error, (OperationConflict, StaleOperationUpdate)):
@@ -183,7 +186,7 @@ def _failure(request_id: OpaqueId, error: Exception) -> CallToolResult:
         )
     else:
         detail = _problem("INVALID_INPUT", "Invalid execution tool arguments.")
-    return _response(request_id, "blocked", detail=detail)
+    return _response(request_id, "blocked", detail=detail, mode=mode)
 
 
 def _response(
@@ -193,19 +196,21 @@ def _response(
     intent: OperationIntent | None = None,
     detail: ErrorDetail | None = None,
     text: str | None = None,
+    mode: Mode = "fixture",
 ) -> CallToolResult:
+    label = "Fixture" if mode == "fixture" else "Live"
     data = _status(intent) if intent is not None else None
     result = ResultEnvelope[CreationStatus](
-        mode="fixture",
+        mode=mode,
         request_id=request_id,
         status=status,
         data=data,
         error=detail,
     )
-    result_text = render_error(detail, mode="fixture") if detail is not None else text
+    result_text = render_error(detail, mode=mode) if detail is not None else text
     if result_text is None:
         result_text = (
-            f"Fixture operation state: {data.state}." if data else "Fixture operation."
+            f"{label} operation state: {data.state}." if data else f"{label} operation."
         )
     if data is not None and text is None:
         progress = [f"Confirmed items: {data.confirmed_items}."]
@@ -214,7 +219,7 @@ def _response(
                 f"Confirmed duration: {data.confirmed_duration_seconds} seconds."
             )
         if data.playlist_url:
-            progress.append(f"Fixture playlist: {data.playlist_url}")
+            progress.append(f"{label} playlist: {data.playlist_url}")
         progress.extend(
             f"Unconfirmed item {item.position + 1}: {item.video_id} ({item.outcome})."
             for item in data.pending_items
@@ -227,12 +232,15 @@ def _response(
     )
 
 
-def _creation_response(request_id: OpaqueId, intent: OperationIntent) -> CallToolResult:
+def _creation_response(
+    request_id: OpaqueId, intent: OperationIntent, *, mode: Mode = "fixture"
+) -> CallToolResult:
     if intent.state == "rejected":
         return _response(
             request_id,
             "blocked",
             intent=intent,
+            mode=mode,
             detail=_problem(
                 "APPROVAL_REJECTED", "Native approval was rejected or dismissed."
             ),
@@ -242,22 +250,24 @@ def _creation_response(request_id: OpaqueId, intent: OperationIntent) -> CallToo
             request_id,
             "unknown",
             intent=intent,
+            mode=mode,
             detail=_problem(
                 "OPERATION_UNKNOWN", "The outcome requires reconciliation."
             ),
         )
     if intent.state in {"partial", "verification_pending"}:
-        return _response(request_id, "partial", intent=intent)
+        return _response(request_id, "partial", intent=intent, mode=mode)
     if intent.state != "completed":
         return _response(
             request_id,
             "error",
             intent=intent,
+            mode=mode,
             detail=_problem(
-                "PROVIDER_UNAVAILABLE", "The fixture operation did not complete."
+                "PROVIDER_UNAVAILABLE", f"The {mode} operation did not complete."
             ),
         )
-    return _response(request_id, "ok", intent=intent)
+    return _response(request_id, "ok", intent=intent, mode=mode)
 
 
 def register_fixture_execution(
