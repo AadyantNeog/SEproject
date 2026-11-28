@@ -228,6 +228,37 @@ async def run_cli_disconnect(
         await oauth_executor.aclose()
 
 
+def _serve_live(project_root: Path | None, secrets: Path | None) -> int:
+    """Run the live MCP server; refuse to start without what live mode needs."""
+    if secrets is None or not secrets.is_file():
+        print(
+            f"AUTH_REQUIRED: live mode needs --client-secrets <path> or {_OAUTH_SECRETS_ENV}.",
+            file=sys.stderr,
+        )
+        return 2
+    from .mcp.live import build_live_runtime, build_live_server
+
+    root = (
+        project_root
+        if project_root is not None
+        else Path(__file__).resolve().parents[2]
+    )
+    try:
+        runtime = build_live_runtime(
+            project_root=root,
+            database_path=default_database_path("live"),
+            client_secrets_path=secrets,
+        )
+    except ContractError as exc:
+        print(
+            f"{exc.detail.code}: {exc.detail.message} Next: {exc.detail.safe_next_action}",
+            file=sys.stderr,
+        )
+        return 1
+    build_live_server(runtime).run(transport="stdio")
+    return 0
+
+
 def _client_secrets(explicit: Path | None) -> Path | None:
     if explicit is not None:
         return explicit
@@ -239,12 +270,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="yt-intel")
     commands = parser.add_subparsers(dest="command", required=True)
     serve = commands.add_parser("serve", help="Run the local MCP server over stdio")
-    serve.add_argument("--provider", choices=("fixture",), default="fixture")
+    serve.add_argument("--provider", choices=("fixture", "live"), default="fixture")
     serve.add_argument(
         "--project-root", type=Path, help="Checkout for fixture previews and skills"
     )
     serve.add_argument(
         "--fixture-db", type=Path, help="Override the local fixture database path"
+    )
+    serve.add_argument(
+        "--client-secrets",
+        type=Path,
+        default=None,
+        help=f"Live mode: local Google Desktop OAuth JSON (or set {_OAUTH_SECRETS_ENV})",
     )
     skills = commands.add_parser(
         "sync-claude-skills", help="Copy canonical skills to Claude Code"
@@ -375,6 +412,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             for name, digest in sync_claude_skills(root, check=args.check).items():
                 print(f"{name} {digest}")
             return 0
+        if args.provider == "live":
+            return _serve_live(root, _client_secrets(args.client_secrets))
         server = create_fixture_server(root, fixture_db=args.fixture_db)
     except (OSError, ValueError) as error:
         parser.error(str(error))

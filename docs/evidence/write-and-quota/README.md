@@ -55,8 +55,8 @@ All of these made **zero writes**
   the real native dialog. See the
   [native approval record](../native-approval/README.md).
 - **Live writes.** Live creation and recovery are blocked on D-02 and the
-  live prerequisites. The `serve` entry point accepts only the fixture
-  provider. Live creation needs a supervised approval and a separately
+  live prerequisites. Live `serve` mode exposes no write tools
+  ([ADR-0011](../../adr/0011-staged-live-serve-mode.md)). Live creation needs a supervised approval and a separately
   recorded quota spend.
 - **Personal records.** Paul's own reflection for his merged P2-01–P2-07
   work is his to write.
