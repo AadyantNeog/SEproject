@@ -18,9 +18,9 @@ Checks on merged `main`:
 | --- | --- | --- | --- |
 | 1 | ~~Codex Desktop walkthrough of FR-1, FR-2, FR-3 and FR-5 planning~~. **Done** 28 November ([evidence](../evidence/features/README.md#observed-in-codex-desktop-on-windows)). | Aadyant (human) | #53 closed |
 | 2 | ~~Native create and resume dialogs, approve and reject, and the full `video-to-playlist` skill in Codex~~. **Done** 28 November ([record](../evidence/native-approval/README.md)). | Aadyant (human) | #22 and #53 closed, part of #56 |
-| 3 | Obtain the D-02 direction from the instructor or provider. Record it in [d02-status.json](../evidence/policy-and-consent/d02-status.json) through a reviewed PR. | Aadyant with the instructor | gate for 4 |
+| 3 | Send the [drafted D-02 question](../evidence/policy-and-consent/instructor-d02-request.md) and obtain the D-02 direction from the instructor or provider. Record it in [d02-status.json](../evidence/policy-and-consent/d02-status.json) through a reviewed PR. | Aadyant with the instructor | gate for 4 |
 | 4 | Set up the authorised test account and channel, the Desktop OAuth client and the protected runner, following the [readiness record](../evidence/policy-and-consent/README.md). Run the scheduled read-only check, then the supervised live FR-1 to FR-5 demonstrations, including one approved live write and its quota spend. | Aadyant | part of #56 |
-| 5 | Get Jeswin's and Paul's written acknowledgement of the transfer. Each member writes their own reflection and contribution record. Record the stage reviews and the demo walkthrough. | Team | #56 |
+| 5 | Get Jeswin's and Paul's written acknowledgement of the transfer. Each member writes their own reflection and contribution record. Rewrite and sign the drafted [Stage 2](../../brain/projects/youtube-mcp/stage-2-design-review.md) and [Stage 3](../../brain/projects/youtube-mcp/stage-3-testing-ci-review.md) review notes. Rehearse the [Stage 4 run sheet](../evidence/stages/stage-4-walkthrough.md). | Team | #56 |
 | 6 | Re-run the checks if any code changes, then create the release tag. | Aadyant | — |
 
 Open issue: [#56](https://github.com/AadyantNeog/SEproject/issues/56), which lists the live, review and release items it is waiting on.
