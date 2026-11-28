@@ -82,7 +82,9 @@ Status: pending human owner review.
   Each handler reserves its bounded worst case before the first call, under
   `default-project`. Tool handlers check the record before any provider
   call, and the services check it again.
-- **Still not built.** `begin_workflow`, live creation through the native
+- **Superseded for creation.** ADR-0013 adds `begin_workflow` and live
+  creation through the native dialog. Live recovery is still not built.
+- **Was not built at step two.** `begin_workflow`, live creation through the native
   dialog, and live recovery. The live FR-5 creation demo stays blocked.
 - **D-02 is unchanged.** It is still unresolved. Nothing runs live until a
   human records the instructor's or provider's direction through a reviewed

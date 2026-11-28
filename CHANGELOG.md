@@ -12,6 +12,10 @@ team decision ([ADR-0010](docs/adr/0010-solo-completion-ownership-transfer.md)).
 
 ### Added
 
+- **Live creation (ADR-0013).** The live video-to-playlist workflow and
+  approved playlist creation through the native dialog, with the whole
+  budget reserved first, the write scope, one attempt per write and
+  `get_operation`. Live recovery is not exposed.
 - **Live evidence.** Live FR-1 to FR-4 and the FR-5 preview ran in Codex
   Desktop against the real API. The record includes quota totals and
   three ranking-quality observations.

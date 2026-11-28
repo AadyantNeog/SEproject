@@ -91,7 +91,7 @@ acceptance. The per-requirement links are in
 | AT-16 Rate limits, timeouts, 5xx, bounded retries | Fixture pass | None for fixtures |
 | AT-17 Offline performance | **Pass**, all 12 targets at `283a330` and again on merged `main` `061932d` | Re-run if code changes before the tag |
 | AT-18 Skills, notes, validation, offline CI | Skill tests and validators pass. Hosted CI ran knowledge validation on #63. | Skill evaluation with the live client |
-| AT-19 Walkthroughs and live skill demo | Codex walkthrough done ([features](../features/README.md)). Live reads, live FR-1 to FR-4 and the live FR-5 preview demonstrated in Codex ([live evidence](../live/README.md#live-derived-runs-fr-1-to-fr-4-and-the-fr-5-preview)). D-02's basis is a team-lead decision (ADR-0012). | Live playlist creation through the native dialog, which is not built |
+| AT-19 Walkthroughs and live skill demo | Codex walkthrough done ([features](../features/README.md)). Live reads, live FR-1 to FR-4 and the live FR-5 preview demonstrated in Codex ([live evidence](../live/README.md#live-derived-runs-fr-1-to-fr-4-and-the-fr-5-preview)). D-02's basis is a team-lead decision (ADR-0012). | A supervised live `create_playlist` through the native dialog. It is built ([ADR-0013](../../adr/0013-live-approved-playlist-creation.md)) and passes offline, but has not yet been run live. |
 | AT-20 Design, ADR, plan, review, trace, release | ADRs 0001–0010, [architecture](../../developer/architecture.md), coverage register, this record | **Human owner reviews**, stage reviews and the release tag |
 
 ## Defects and regressions found in this cycle

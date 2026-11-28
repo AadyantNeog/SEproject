@@ -13,9 +13,11 @@ tools return `POLICY_BLOCKED` with zero provider calls. Once it is resolved,
 they run the live handlers in `live_derived.py` (ADR-0011 step two). They
 never fall back to fixtures.
 
-`begin_workflow` and live playlist creation are not part of this build, so
-`propose_playlist` stores a preview only. No tool here can create, modify or
-delete anything on YouTube.
+The only live write is playlist creation inside one `begin_workflow`
+session (`live_creation.py`, ADR-0013). It needs the write scope and the
+human's approval of the exact preview in the native dialog. A standalone
+`propose_playlist` stores a preview only. No live tool deletes or modifies
+existing YouTube content, and live recovery is not exposed.
 """
 
 from __future__ import annotations
