@@ -117,6 +117,58 @@ held. Three quality weaknesses showed up with real data:
 They are recorded as follow-up candidates, not as passed or failed
 acceptance cases.
 
+## Supervised live playlist creation (FR-5)
+
+28 November 2026, on `main` at `7987cb2`. This build includes live creation
+(PR #77, [ADR-0013](../../adr/0013-live-approved-playlist-creation.md)).
+The steps:
+1. **Sign-in.** Aadyant signed in again with
+   `yt-intel auth --enable-writes`.
+2. **Restart.** He restarted `yt-intel-live` in Codex Desktop.
+3. **Workflow.** He asked for the video-to-playlist workflow on
+   `dQw4w9WgXcQ`: title "Live test", topic "rick astley never gonna give
+   you up", 900 s total, 600 s per video, English audio.
+4. **Approval.** The native dialog opened on his computer, and he made the
+   decision there.
+
+**Privacy.** The destination channel ID and name, and the created
+playlist's ID and URL, are left out. The videos are public.
+
+| Step | Tool | Result |
+| --- | --- | --- |
+| 1 | `begin_workflow` | Reserved the whole budget before any read: **2,583 general and 12 search units**, with a 5-minute expiry |
+| 2 | `get_video` (workflow) | The seed's metadata. Audio language `en` comes from `defaultAudioLanguage`. |
+| 3 | `find_similar_videos` (workflow) | 10 ranked results. The 169 candidates are marked `truncated: true`. A candidate set was saved. |
+| 4 | `propose_playlist` (workflow) | A private proposal of 16 videos totalling exactly **900 of 900 s**. The longest is 306 s, and every video has English audio evidence. Exclusions are reported: 80 audio language unverified, 11 audio language mismatch, 7 topic mismatch, 9 over the per-video limit, 46 over the remaining time, and 1 seed not requested. |
+| 5 | `prepare_creation` | Operation recorded in state `not_started`. Nothing written. |
+| 6 | `create_playlist` | Native dialog shown. State **`completed`**: 16 of 16 items confirmed, 900 s confirmed, nothing pending. The server would not write without an approve decision from the native dialog, so completion means the dialog returned approval. |
+
+### Quota for this workflow (live ledger)
+
+| Endpoint | Attempts | Units |
+| --- | ---: | ---: |
+| `playlists.insert` | 1 | 50 |
+| `playlistItems.insert` | 16 | 800 |
+| `videos.list` | 7 | 7 |
+| `channels.list` | 1 | 1 |
+| `playlistItems.list` | 1 | 1 |
+| `search.list` | 4 | 4 (search bucket) |
+| **Total** | **30** | **859 general and 4 search**, out of the 2,583 and 12 reserved. The rest was released. |
+
+- **Writes.** One attempt per write, with no retries: exactly 1 + 16 insert
+  attempts for 16 items.
+- **The day.** 14 reservations under `default-project`, none open. One
+  operation recorded, in state `completed`.
+- **Still to confirm.** The playlist's contents in YouTube Studio should
+  be checked by Aadyant as the account owner. It can be deleted there;
+  nothing in this project deletes playlists.
+
+### Planning quality (same observation as before)
+
+Most items are short clips and Shorts. Only 2 of the 16 are full-length
+performances. The planner packs by relevance and never relaxes the topic,
+duration or language limits. See observation 2 above.
+
 ## What this does and does not show
 
 - **Shows.** The live stack works end to end against Google's real API:
@@ -130,9 +182,13 @@ acceptance cases.
 - **Also shows (later runs).** Live FR-1 to FR-4 and the FR-5 preview
   in Codex, with honest coverage, strict constraints and no writes. D-02's
   basis is a team-lead decision (ADR-0012), not instructor evidence.
-- **Does not show.** Live playlist creation through the native approval
-  dialog, which is not built in live mode. This remains a gap, not a
-  passed acceptance case (SRS §13.2).
+- **Also shows (supervised write).** One live playlist created through
+  the native approval dialog. The whole budget was reserved first, each
+  write had one attempt, every item was confirmed, and the reservation was
+  released.
+- **Does not show.** Live recovery of a partial or unknown write, which is
+  not exposed in live mode. The scheduled protected-runner check, and live
+  token expiry or revocation, are also not shown.
 - **Not run.** The scheduled protected-runner check and live token expiry or
   revocation recovery.
 
