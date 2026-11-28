@@ -39,8 +39,10 @@ and [owner AI-assisted review](../../brain/resources/19-owner-ai-assisted-review
   coverage registers once those links exist.
 - **Workload.** Aadyant's planned implementation range grows from 56–80 h to
   70–100 h. This is a recorded rebalancing, not a claim of equal workload.
-- **Acknowledgement.** Written acknowledgement from Jeswin and Paul is not
-  in the repository. Link it from the transfer record when it exists.
+- **Acknowledgement.** On 29 November 2026 Aadyant decided, as team lead, that
+  written acknowledgement from Jeswin and Paul is not required. The
+  transfer stands as a team-lead decision, not as teammates' signed
+  agreement. Their own reflections remain theirs to write.
 - **Unchanged.** The submitted SRS, the API-only boundary, the
   human-approval rule and the live gates do not change. D-02 and the live
   prerequisites are still external dependencies.

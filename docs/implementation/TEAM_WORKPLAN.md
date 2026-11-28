@@ -18,7 +18,7 @@ each transferred task's `implementer`. Transferred work uses the own-work
 review mode: chosen AI review plus Aadyant's recorded human owner review.
 Jeswin and Paul keep credit for their 20 merged tasks and write their own
 reflections. Aadyant's planned implementation range grows to 70–100 h.
-Written teammate acknowledgement is pending.
+Written teammate acknowledgement is not required, by team-lead decision on 29 November 2026.
 [ADR-0010](../adr/0010-solo-completion-ownership-transfer.md) ·
 [decision note](../../brain/resources/20-solo-completion-ownership-transfer.md)
 

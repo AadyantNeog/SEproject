@@ -20,7 +20,7 @@ Checks on merged `main`:
 | 2 | ~~Native create and resume dialogs, approve and reject, and the full `video-to-playlist` skill in Codex~~. **Done** 28 November ([record](../evidence/native-approval/README.md)). | Aadyant (human) | #22 and #53 closed, part of #56 |
 | 3 | ~~D-02~~. **Resolved** 28 November by team-lead decision ([ADR-0012](../adr/0012-d02-team-lead-resolution.md)). This is not instructor evidence, and it departs from SRS §13.2. | Aadyant | gate for 4 |
 | 4 | ~~Test account, OAuth client and live reads in Codex~~. **Done** 28 November ([live evidence](../evidence/live/README.md)). Live FR-1 to FR-4 and the FR-5 preview were **demonstrated** in Codex on 28 November ([evidence](../evidence/live/README.md#live-derived-runs-fr-1-to-fr-4-and-the-fr-5-preview)). The supervised live write **passed**: 16 items and 900 s through the native dialog ([evidence](../evidence/live/README.md#supervised-live-playlist-creation-fr-5)). Still open: the protected runner and the scheduled check. | Aadyant | part of #56 |
-| 5 | Get Jeswin's and Paul's written acknowledgement of the transfer. Each member writes their own reflection and contribution record. Rewrite and sign the drafted [Stage 2](../../brain/projects/youtube-mcp/stage-2-design-review.md) and [Stage 3](../../brain/projects/youtube-mcp/stage-3-testing-ci-review.md) review notes. Rehearse the [Stage 4 run sheet](../evidence/stages/stage-4-walkthrough.md). | Team | #56 |
+| 5 | Each member writes their own reflection and contribution record. Rewrite and sign the drafted [Stage 2](../../brain/projects/youtube-mcp/stage-2-design-review.md) and [Stage 3](../../brain/projects/youtube-mcp/stage-3-testing-ci-review.md) review notes. Rehearse the [Stage 4 run sheet](../evidence/stages/stage-4-walkthrough.md). | Team | #56 |
 | 6 | Re-run the checks if any code changes, then create the release tag. | Aadyant | — |
 
 Open issue: [#56](https://github.com/AadyantNeog/SEproject/issues/56), which lists the live, review and release items it is waiting on.
@@ -31,13 +31,13 @@ Open issue: [#56](https://github.com/AadyantNeog/SEproject/issues/56), which lis
 - [x] **Performance.** All 12 NFR-08 targets pass, with one warm-up and 30 runs each, at `283a330` and again on merged `main` ([report](../evidence/performance/report.md)).
 - [x] **CI and evidence.** Offline CI runs the tests, the plan validator and the knowledge validator. Hosted CI passed on #63.
 - [ ] **Traceability and submission artefacts.** `coverage.csv` and the [requirement trace](../evidence/release/requirement-trace.csv) link real issues, PRs and test files for all 46 requirements. The [architecture and ER page](../developer/architecture.md), defect log, [changelog](../../CHANGELOG.md) and release record exist. *Still to do: stage reviews, the demo walkthrough, reflections and the tag.*
-- [ ] **Live acceptance.** Blocked on D-02, the test account and the protected runner. The read-only check and workflow are ready and fail closed.
+- [ ] **Live acceptance.** Live reads, FR-1 to FR-4, the FR-5 preview and one supervised write passed in Codex ([evidence](../evidence/live/README.md)). Still open: the protected runner and the scheduled read-only check, which fail closed until configured.
 
 ## Known conflicts
 
 - **Protected traceability file.** `docs/requirements/traceability.csv` is part of the SHA-protected submitted-SRS baseline, so it was not backfilled. The live trace is in `coverage.csv` and the release trace. Changing the baseline needs instructor direction.
-- **Teammate acknowledgement.** Jeswin's and Paul's written acknowledgement of the transfer is not in the repository yet.
-- **Live gates.** `serve --provider live` now runs the account, metadata and library reads against the real API ([ADR-0011](../adr/0011-staged-live-serve-mode.md)). Derived FR-1 to FR-5 tools return `POLICY_BLOCKED` until D-02 is resolved, and their live handlers are a further step. Live writes are not exposed. That is intended until D-02 and the live prerequisites are met.
+- **Teammate acknowledgement.** Not required, by team-lead decision on 29 November 2026 ([ADR-0010](../adr/0010-solo-completion-ownership-transfer.md)). The repository does not contain Jeswin's or Paul's signed agreement.
+- **Live gates.** `serve --provider live` runs reads, the derived FR-1 to FR-4 tools and the FR-5 workflow while the D-02 record is resolved ([ADR-0011](../adr/0011-staged-live-serve-mode.md), [ADR-0013](../adr/0013-live-approved-playlist-creation.md)). Reverting the record returns them to `POLICY_BLOCKED`. Live recovery is not exposed.
 
 ## Ownership and review
 

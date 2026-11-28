@@ -21,8 +21,9 @@ P2-08, plus Aadyant's own A2-08. The release checklist and the open issues
 on merged slices were not assigned to any task.
 
 The record does not include a written acknowledgement from Jeswin or Paul.
-The decision is recorded as reported by the team lead. Their
-acknowledgement links are pending.
+The decision is recorded as reported by the team lead. On 29 November 2026 the team
+lead decided that their written acknowledgement is not required, so it is
+not a pending item. This must not be described as their signed agreement.
 
 ## Implications
 
