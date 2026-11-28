@@ -71,7 +71,10 @@ by `yt-intel auth`. It needs `--client-secrets` or
 | `live_status` | Account connected, D-02 state, available and blocked tools |
 | `get_account_status`, `disconnect_account` | The real account. Disconnect revokes the token at Google. |
 | `get_video`, `get_library` | Official API reads with bearer auth and quota accounting |
-| `find_similar_videos`, `find_similar_channels`, `recommend_videos`, `analyse_library`, `begin_workflow`, `propose_playlist` | `POLICY_BLOCKED` with zero API calls until D-02 has a recorded resolution |
+| `find_similar_videos`, `find_similar_channels`, `recommend_videos`, `analyse_library`, `propose_playlist` | **D-02 unresolved:** `POLICY_BLOCKED` with zero API calls. **D-02 resolved:** the live handlers run (FR-1 to FR-4, and the FR-5 preview). The record is re-read on every call. |
+| `recommend_videos` | Needs a `snapshot_id` from live `get_library` |
+| `propose_playlist` | Needs a `candidate_set_id` from live `find_similar_videos`. Stores a **preview only**. |
+| `begin_workflow` | `POLICY_BLOCKED` while D-02 is unresolved, then `PROVIDER_UNAVAILABLE`: live workflows end in a write, which is not built |
 
 No write, operation or recovery tool is exposed in live mode.
 
@@ -90,4 +93,4 @@ No write, operation or recovery tool is exposed in live mode.
 | `OPERATION_CONFLICT`, `OPERATION_UNKNOWN`, `OPERATION_RESULT_EXPIRED` | Wrong operation, an ambiguous write that needs reconciliation, or expired detail |
 | `POLICY_BLOCKED` | Live derived processing is disabled until D-02 is resolved |
 
-Generated from `tools/list` on the fixture server, and from `mcp/live.py` for live mode, at `main` `fafbbd7`.
+Generated from `tools/list` on the fixture server, and from `mcp/live.py` and `mcp/live_derived.py` for live mode, on branch `codex/live-derived-handlers`.

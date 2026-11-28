@@ -26,6 +26,7 @@ from yt_intel.contracts.models import (
     Warnings,
 )
 from yt_intel.domain.constraints import NormalizeLanguageTag, audio_language_matches
+from yt_intel.domain.derived import DerivedProcessingCheck, fixture_only
 from yt_intel.domain.profiles import (
     PROFILE_VERSION,
     SOURCE_WEIGHTS,
@@ -69,8 +70,14 @@ def _failure(code: ErrorCode, message: str, next_action: str) -> ContractError:
 class RecommendationService:
     """Rank a server-resolved snapshot and candidate pool without fetching either."""
 
-    def __init__(self, normalize_language: NormalizeLanguageTag) -> None:
+    def __init__(
+        self,
+        normalize_language: NormalizeLanguageTag,
+        *,
+        permits: DerivedProcessingCheck = fixture_only,
+    ) -> None:
         self._normalize_language = normalize_language
+        self._permits = permits
 
     def search_query(
         self,
@@ -217,7 +224,7 @@ class RecommendationService:
                 "The library snapshot belongs to a different account.",
                 "Load a snapshot for the current account.",
             )
-        if binding.mode != "fixture":
+        if not self._permits(binding):
             raise _failure(
                 "POLICY_BLOCKED",
                 "Live recommendations are pending policy clearance.",

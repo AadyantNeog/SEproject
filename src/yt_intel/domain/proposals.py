@@ -17,6 +17,7 @@ from yt_intel.contracts.proposals import (
     ProposalItem,
     ProposalRef,
 )
+from yt_intel.domain.derived import DerivedProcessingCheck, fixture_only
 
 from .constraints import (
     NormalizeLanguageTag,
@@ -74,8 +75,14 @@ class ProposalRevision:
 class PlaylistPlanner:
     """Pure planner consuming an already resolved candidate set and account context."""
 
-    def __init__(self, normalize_language: NormalizeLanguageTag) -> None:
+    def __init__(
+        self,
+        normalize_language: NormalizeLanguageTag,
+        *,
+        permits: DerivedProcessingCheck = fixture_only,
+    ) -> None:
         self._normalize_language = normalize_language
+        self._permits = permits
 
     def plan(
         self,
@@ -156,7 +163,7 @@ class PlaylistPlanner:
                 "The candidate set belongs to a different account.",
                 "Refresh the candidates for the current account.",
             )
-        if binding.mode != "fixture":
+        if not self._permits(binding):
             raise planning_error(
                 "POLICY_BLOCKED",
                 "Live playlist planning is pending policy clearance.",

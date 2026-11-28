@@ -16,6 +16,7 @@ from yt_intel.contracts.models import (
 )
 from yt_intel.contracts.provider import ChannelRef, SearchHit, YouTubeReadProvider
 from yt_intel.contracts.workflow import RequestContext
+from yt_intel.domain.derived import DerivedProcessingCheck, fixture_only
 from yt_intel.domain.ranking import ChannelCorpus, rank_channels, rank_videos, tokenize
 
 _VIDEO_ID = TypeAdapter(VideoId)
@@ -69,8 +70,10 @@ def _failure(code: ErrorCode, message: str, next_action: str) -> ContractError:
     )
 
 
-def _fixture_context(ctx: RequestContext) -> None:
-    if ctx.binding.mode != "fixture":
+def _fixture_context(
+    ctx: RequestContext, permits: DerivedProcessingCheck = fixture_only
+) -> None:
+    if not permits(ctx.binding):
         raise _failure(
             "POLICY_BLOCKED",
             "Live metadata ranking is pending policy clearance.",
@@ -105,8 +108,10 @@ class DiscoveryService:
         bounds: DiscoveryBounds = DiscoveryBounds(),
         *,
         progress: DiscoveryProgress | None = None,
+        permits: DerivedProcessingCheck = fixture_only,
     ) -> None:
         self._provider = provider
+        self._permits = permits
         self._bounds = bounds
         self._progress = progress
 
@@ -126,7 +131,7 @@ class DiscoveryService:
                 "Expected a normalized video ID and a limit from 1 to 50.",
                 "Correct the ID or result limit.",
             ) from None
-        _fixture_context(ctx)
+        _fixture_context(ctx, self._permits)
         seed_batch = await self._provider.get_videos(ctx, (seed_id,))
         seed = seed_batch.videos.get(seed_id)
         if seed is None or seed.availability != "available":
@@ -163,7 +168,7 @@ class DiscoveryService:
         exclude_video_id: VideoId | None = None,
     ) -> VideoCandidatePool:
         """Hydrate a bounded search for a server-derived query under the caller's reservation."""
-        _fixture_context(ctx)
+        _fixture_context(ctx, self._permits)
         pool = await self._search(
             ctx,
             query,
@@ -208,7 +213,7 @@ class DiscoveryService:
                 "Expected a normalized channel reference and a limit from 1 to 50.",
                 "Correct the channel reference or result limit.",
             ) from None
-        _fixture_context(ctx)
+        _fixture_context(ctx, self._permits)
         channel = await self._provider.resolve_channel(ctx, seed_ref)
         seed = await self._sample(ctx, channel)
         if not seed.supporting_document():

@@ -163,11 +163,16 @@ without it.
 - **Live now.** `live_status`, `get_account_status`, `disconnect_account`,
   `get_video` and `get_library`. These are official API reads with bearer
   auth and quota accounting.
-- **Blocked.** Similarity, recommendations, analysis and the playlist
-  workflow return `POLICY_BLOCKED` with zero API calls until D-02 has a
-  recorded resolution. After that they report that live handlers are not
-  yet built.
+- **Gated on D-02.** Similarity, recommendations, analysis and the
+  playlist proposal return `POLICY_BLOCKED` with zero API calls until
+  D-02 has a recorded resolution in
+  `docs/evidence/policy-and-consent/d02-status.json`. Once a reviewed PR
+  records it, they run live. Pass the `snapshot_id` from `get_library` to
+  `recommend_videos`, and the `candidate_set_id` from
+  `find_similar_videos` to `propose_playlist`.
 - **No writes.** No live tool can create or change anything on YouTube.
+  `propose_playlist` stores a preview only, and `begin_workflow` stays
+  unavailable.
 
 Ask the client to call `live_status` to see the current state. See
 [ADR-0011](../adr/0011-staged-live-serve-mode.md).

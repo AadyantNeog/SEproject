@@ -59,4 +59,33 @@ and [OAuth and secret handling](../../brain/resources/08-oauth-and-secret-handli
   blocked, not passed.
 - **Fixture behaviour is unchanged.**
 
-Requirements NFR-01, NFR-02, NFR-05, FR-6. Issue #56.
+## Amendment: step two (28 November 2026)
+
+Status: pending human owner review.
+
+- **One injected check.** Discovery, recommendations, analysis, planning
+  and candidate storage used to hard-code fixture-only checks. They now
+  take a `DerivedProcessingCheck`
+  ([`domain/derived.py`](../../src/yt_intel/domain/derived.py)). Its
+  default, `fixture_only`, keeps the old behaviour.
+- **Live check.** The live composition passes `recorded_policy_check`
+  from `policy.py`. It allows a live binding only while the reviewed D-02
+  record is resolved, re-reading the record on every call.
+- **Live handlers.** When the record is resolved,
+  [`mcp/live_derived.py`](../../src/yt_intel/mcp/live_derived.py) runs:
+  - `find_similar_videos` and `find_similar_channels` (FR-1, FR-2)
+  - `recommend_videos` from a live `get_library` snapshot (FR-3)
+  - `analyse_library` (FR-4)
+  - a preview-only `propose_playlist` from a live candidate set (FR-5
+    planning)
+
+  Each handler reserves its bounded worst case before the first call, under
+  `default-project`. Tool handlers check the record before any provider
+  call, and the services check it again.
+- **Still not built.** `begin_workflow`, live creation through the native
+  dialog, and live recovery. The live FR-5 creation demo stays blocked.
+- **D-02 is unchanged.** It is still unresolved. Nothing runs live until a
+  human records the instructor's or provider's direction through a reviewed
+  PR.
+
+Requirements NFR-01, NFR-02, NFR-05, FR-1 to FR-5, FR-6. Issue #56.

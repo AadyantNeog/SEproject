@@ -1,19 +1,21 @@
 """Live MCP composition: the authorised account, the OAuth vault and official API reads.
 
-This is step one of live mode. It wires the real pieces together: the saved
-OAuth account from `yt-intel auth`, its OS-protected vault, the
-quota-accounted HTTP executor, the persistent SQLite ledger and the
-official YouTube Data API read provider. It exposes the non-derived tools,
-which are account status, disconnect, single-video metadata and authorised
-library retrieval.
+It wires the real pieces together: the saved OAuth account from
+`yt-intel auth`, its OS-protected vault, the quota-accounted HTTP executor,
+the persistent SQLite ledger and the official YouTube Data API read
+provider. The non-derived tools are account status, disconnect,
+single-video metadata and authorised library retrieval.
 
 Derived processing is similarity (FR-1, FR-2), recommendations (FR-3),
-analysis (FR-4) and the playlist workflow built on FR-1 (FR-5). It depends on
-D-02. Those tools are registered so a client gets a typed refusal instead of a
-missing tool. They return `POLICY_BLOCKED`, with zero provider calls, until a
-human records a D-02 resolution. Live derived handlers are not part of this
-build. Even with D-02 resolved, they refuse rather than fall back to fixtures.
-No tool here can create, modify or delete anything on YouTube.
+analysis (FR-4) and the playlist proposal built on FR-1 (FR-5). It depends on
+D-02. Until a human records a D-02 resolution in the reviewed record, those
+tools return `POLICY_BLOCKED` with zero provider calls. Once it is resolved,
+they run the live handlers in `live_derived.py` (ADR-0011 step two). They
+never fall back to fixtures.
+
+`begin_workflow` and live playlist creation are not part of this build, so
+`propose_playlist` stores a preview only. No tool here can create, modify or
+delete anything on YouTube.
 """
 
 from __future__ import annotations
@@ -31,31 +33,52 @@ from mcp.server.mcpserver import Context
 from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
+from yt_intel.analytics.summaries import AnalysisReport
 from yt_intel.auth.account import JsonAccountStateStore, LocalAccountService
 from yt_intel.auth.oauth import OAuthClient, load_oauth_client_config
 from yt_intel.auth.vault import KeyringTokenVault
 from yt_intel.contracts.account import AccountStatus, DisconnectResult, TokenVault
-from yt_intel.contracts.common import Contract, Label, Limit, OpaqueId
+from yt_intel.contracts.common import (
+    Contract,
+    Label,
+    LanguageTag,
+    Limit,
+    OpaqueId,
+    Positive,
+)
 from yt_intel.contracts.errors import (
     ContractError,
     ErrorDetail,
     QuotaEstimate,
     ResultEnvelope,
 )
-from yt_intel.contracts.models import Coverage, LibrarySource, Video
+from yt_intel.contracts.models import Coverage, LibrarySource, RankedChannel, Video
+from yt_intel.contracts.proposals import PlaylistProposal, Privacy
 from yt_intel.contracts.workflow import CallCeiling, Clock, RequestContext, WorkflowPlan
 from yt_intel.domain.identifiers import parse_video_id
+from yt_intel.domain.language import normalize_language_tag
+from yt_intel.domain.proposals import PlaylistPlanner
 from yt_intel.infrastructure.database import Database
 from yt_intel.infrastructure.http import AccountedHttpExecutor
 from yt_intel.infrastructure.quota import QuotaProfile, SqliteQuotaLedger
 from yt_intel.infrastructure.repositories import (
     SqliteAccountDataRepository,
+    SqliteCacheRepository,
+    SqliteProposalRepository,
     SqliteSnapshotRepository,
 )
-from yt_intel.policy import D02_RECORD, policy_resolved
+from yt_intel.policy import D02_RECORD, policy_resolved, recorded_policy_check
 from yt_intel.presentation.results import render_error
 from yt_intel.providers.youtube import LiveYouTubeReadProvider
+from yt_intel.services.analysis import AnalysisService
 from yt_intel.services.library import LibraryBounds, LibraryService, LibrarySummary
+from yt_intel.services.recommendations import (
+    RecommendationResult,
+    RecommendationService,
+)
+
+from . import live_derived
+from .live_derived import LiveDerivedServices, live_candidate_sets
 
 LIVE_PROJECT_ID = "default-project"
 QUOTA_PROFILE = Path("config/quota-profiles/youtube-2026-11-16.json")
@@ -67,6 +90,7 @@ DERIVED_TOOLS = (
     "begin_workflow",
     "propose_playlist",
 )
+LIVE_DERIVED_TOOLS = tuple(tool for tool in DERIVED_TOOLS if tool != "begin_workflow")
 _READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 
 
@@ -104,6 +128,7 @@ class LiveRuntime:
     library: LibraryService
     executors: tuple[AccountedHttpExecutor, ...]
     policy_path: Path
+    derived: LiveDerivedServices
 
 
 def _envelope_result[T](
@@ -141,7 +166,7 @@ def _blocked(runtime: LiveRuntime, tool: str) -> CallToolResult:
     else:
         problem = ErrorDetail(
             code="PROVIDER_UNAVAILABLE",
-            message=f"{tool} is not yet available in live mode in this build.",
+            message=f"{tool} is not available in live mode in this build.",
             retryable=False,
             safe_next_action="Use the fixture server for this feature.",
         )
@@ -188,14 +213,34 @@ def build_live_runtime(
         quota_ledger=ledger, auth_headers=accounts, transport=api_transport, clock=clock
     )
     provider = LiveYouTubeReadProvider(read_executor, clock=clock)
+    resolved_policy = policy_path or project_root / D02_RECORD
+    permits = recorded_policy_check(resolved_policy)
+    snapshots = SqliteSnapshotRepository(database, clock=clock)
     library = LibraryService(
         provider=provider,
         account_service=accounts,
         quota_ledger=ledger,
         quota_profile=profile,
-        snapshot_repo=SqliteSnapshotRepository(database, clock=clock),
+        snapshot_repo=snapshots,
         clock=clock,
         bounds=LibraryBounds(),
+        project_id=LIVE_PROJECT_ID,
+    )
+    derived = LiveDerivedServices(
+        accounts=accounts,
+        profile=profile,
+        ledger=ledger,
+        provider=provider,
+        library=library,
+        snapshots=snapshots,
+        proposals=SqliteProposalRepository(database, clock=clock),
+        candidate_sets=live_candidate_sets(
+            lambda: SqliteCacheRepository(database, clock=clock), permits
+        ),
+        analysis=AnalysisService(snapshot_repo=snapshots, clock=clock, permits=permits),
+        recommendations=RecommendationService(normalize_language_tag, permits=permits),
+        planner=PlaylistPlanner(normalize_language_tag, permits=permits),
+        permits=permits,
         project_id=LIVE_PROJECT_ID,
     )
     return LiveRuntime(
@@ -205,7 +250,8 @@ def build_live_runtime(
         provider=provider,
         library=library,
         executors=(oauth_executor, read_executor),
-        policy_path=policy_path or project_root / D02_RECORD,
+        policy_path=resolved_policy,
+        derived=derived,
     )
 
 
@@ -224,11 +270,14 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
     )
     async def live_status() -> Annotated[CallToolResult, ResultEnvelope[LiveStatus]]:
         """Report live-mode readiness: account, D-02 state and which tools are blocked."""
+        resolved = policy_resolved(runtime.policy_path)
         status = LiveStatus(
             account_connected=await runtime.accounts.current() is not None,
-            d02_resolved=policy_resolved(runtime.policy_path),
-            available_tools=available,
-            blocked_tools=DERIVED_TOOLS,
+            d02_resolved=resolved,
+            available_tools=(*available, *LIVE_DERIVED_TOOLS)
+            if resolved
+            else available,
+            blocked_tools=("begin_workflow",) if resolved else DERIVED_TOOLS,
         )
         envelope = ResultEnvelope[LiveStatus](
             mode="live", request_id=uuid4().hex, status="ok", data=status
@@ -237,8 +286,8 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
             "Mode: live\n"
             f"Account connected: {'yes' if status.account_connected else 'no'}\n"
             f"D-02 resolved: {'yes' if status.d02_resolved else 'no'}\n"
-            f"Available: {', '.join(available)}\n"
-            f"Blocked (derived processing): {', '.join(DERIVED_TOOLS)}"
+            f"Available: {', '.join(status.available_tools)}\n"
+            f"Blocked: {', '.join(status.blocked_tools)}"
         )
         return _envelope_result(envelope, text)
 
@@ -431,42 +480,59 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
         )
         return _envelope_result(envelope, text)
 
-    # Derived tools: present so clients get a typed refusal, never a fallback.
+    # Derived tools. Each checks the reviewed D-02 record on every call, before
+    # any provider call, and the shared services check it again.
+    def _params(ctx: Context[None, object]) -> dict[str, object]:
+        return dict(ctx.request_context.params or {})
+
     @server.tool(annotations=_READ_ONLY)
     async def find_similar_videos(
-        video: Label, limit: Limit = 10, workflow_id: OpaqueId | None = None
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (derived similarity)."""
-        return _blocked(runtime, "find_similar_videos")
+        ctx: Context[None, object],
+        video: Label,
+        limit: Limit = 10,
+        workflow_id: OpaqueId | None = None,
+    ) -> Annotated[CallToolResult, live_derived.LiveVideoDiscoveryEnvelope]:
+        """Rank live videos similar to a seed video (FR-1). Needs D-02 resolved."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "find_similar_videos")
+        return await live_derived.similar_videos(runtime.derived, _params(ctx))
 
     @server.tool(annotations=_READ_ONLY)
     async def find_similar_channels(
-        channel: Label, limit: Limit = 10
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (derived similarity)."""
-        return _blocked(runtime, "find_similar_channels")
+        ctx: Context[None, object], channel: Label, limit: Limit = 10
+    ) -> Annotated[CallToolResult, ResultEnvelope[tuple[RankedChannel, ...]]]:
+        """Rank live channels similar to a seed channel (FR-2). Needs D-02 resolved."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "find_similar_channels")
+        return await live_derived.similar_channels(runtime.derived, _params(ctx))
 
     @server.tool(annotations=_READ_ONLY)
     async def recommend_videos(
+        ctx: Context[None, object],
         topic: Label | None = None,
-        total_seconds: int | None = None,
-        max_video_seconds: int | None = None,
-        language: str | None = None,
+        total_seconds: Positive | None = None,
+        max_video_seconds: Positive | None = None,
+        language: LanguageTag | None = None,
         limit: Limit = 10,
         snapshot_id: OpaqueId | None = None,
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (derived recommendations)."""
-        return _blocked(runtime, "recommend_videos")
+    ) -> Annotated[CallToolResult, ResultEnvelope[RecommendationResult]]:
+        """Recommend live videos from a get_library snapshot (FR-3). Needs D-02 resolved."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "recommend_videos")
+        return await live_derived.recommend(runtime.derived, _params(ctx))
 
     @server.tool(annotations=_READ_ONLY)
     async def analyse_library(
+        ctx: Context[None, object],
         snapshot_id: str | None = None,
         sources: list[LibrarySource] | None = None,
         period_a: dict[str, object] | None = None,
         period_b: dict[str, object] | None = None,
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (derived analysis)."""
-        return _blocked(runtime, "analyse_library")
+    ) -> Annotated[CallToolResult, ResultEnvelope[AnalysisReport]]:
+        """Analyse an authorised live library snapshot (FR-4). Needs D-02 resolved."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "analyse_library")
+        return await live_derived.analyse(runtime.derived, _params(ctx))
 
     @server.tool(
         annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
@@ -474,22 +540,31 @@ def build_live_server(runtime: LiveRuntime) -> MCPServer[None]:
     async def begin_workflow(
         kind: Literal["video_to_playlist"], video: str | None = None
     ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (the workflow uses FR-1)."""
+        """Not available in live mode: the workflow ends in a live write."""
         return _blocked(runtime, "begin_workflow")
 
     @server.tool(
-        annotations=ToolAnnotations(read_only_hint=False, open_world_hint=False)
+        annotations=ToolAnnotations(
+            read_only_hint=False, destructive_hint=False, open_world_hint=False
+        )
     )
     async def propose_playlist(
+        ctx: Context[None, object],
         title: str | None = None,
         topic: str | None = None,
-        total_seconds: int | None = None,
-        max_video_seconds: int | None = None,
-        language: str | None = None,
+        total_seconds: Positive | None = None,
+        max_video_seconds: Positive | None = None,
+        language: LanguageTag | None = None,
+        description: str = "",
+        privacy: Privacy = "private",
+        duration_mode: Literal["max", "exact"] = "max",
+        include_seed: bool = False,
         candidate_set_id: OpaqueId | None = None,
         workflow_id: OpaqueId | None = None,
-    ) -> Annotated[CallToolResult, ResultEnvelope[None]]:
-        """Blocked in live mode until D-02 is resolved (planning uses derived candidates)."""
-        return _blocked(runtime, "propose_playlist")
+    ) -> Annotated[CallToolResult, ResultEnvelope[PlaylistProposal]]:
+        """Preview a playlist from a live candidate set (FR-5 planning). Preview only."""
+        if not policy_resolved(runtime.policy_path):
+            return _blocked(runtime, "propose_playlist")
+        return await live_derived.propose(runtime.derived, _params(ctx))
 
     return server

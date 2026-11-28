@@ -91,7 +91,7 @@ acceptance. The per-requirement links are in
 | AT-16 Rate limits, timeouts, 5xx, bounded retries | Fixture pass | None for fixtures |
 | AT-17 Offline performance | **Pass**, all 12 targets at `283a330` and again on merged `main` `061932d` | Re-run if code changes before the tag |
 | AT-18 Skills, notes, validation, offline CI | Skill tests and validators pass. Hosted CI ran knowledge validation on #63. | Skill evaluation with the live client |
-| AT-19 Walkthroughs and live skill demo | Codex walkthrough done ([features](../features/README.md)). Live reads demonstrated ([live evidence](../live/README.md)). | Live FR-1 to FR-5 skill demo, **blocked** on D-02 and ADR-0011 step two |
+| AT-19 Walkthroughs and live skill demo | Codex walkthrough done ([features](../features/README.md)). Live reads demonstrated ([live evidence](../live/README.md)). | Live FR-1 to FR-4 and the FR-5 preview are built behind the gate (ADR-0011 step two). The demo is **blocked** on D-02. Live creation is not built. |
 | AT-20 Design, ADR, plan, review, trace, release | ADRs 0001–0010, [architecture](../../developer/architecture.md), coverage register, this record | **Human owner reviews**, stage reviews and the release tag |
 
 ## Defects and regressions found in this cycle
