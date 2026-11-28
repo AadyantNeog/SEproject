@@ -19,6 +19,7 @@ from yt_intel.contracts.errors import ContractError, ErrorCode, ErrorDetail
 from yt_intel.contracts.models import LibrarySnapshot, LibrarySource
 from yt_intel.contracts.repositories import SnapshotRepository
 from yt_intel.contracts.workflow import Clock
+from yt_intel.domain.derived import DerivedProcessingCheck, fixture_only
 from yt_intel.infrastructure.clock import SystemClock
 from yt_intel.presentation.reports import ReportSection, render_report
 
@@ -139,8 +140,10 @@ class AnalysisService:
         *,
         snapshot_repo: SnapshotRepository,
         clock: Clock | None = None,
+        permits: DerivedProcessingCheck = fixture_only,
     ) -> None:
         self._snapshots = snapshot_repo
+        self._permits = permits
         self._clock: Clock = clock if clock is not None else SystemClock()
 
     def analyse_snapshot(
@@ -152,7 +155,7 @@ class AnalysisService:
         period_a: TimePeriod | None = None,
         period_b: TimePeriod | None = None,
     ) -> AnalysisOutcome:
-        if binding.mode != "fixture":
+        if not self._permits(binding):
             raise _analysis_error(
                 "POLICY_BLOCKED",
                 "Live derived library analytics is pending D-02 policy clearance.",

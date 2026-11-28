@@ -12,6 +12,13 @@ team decision ([ADR-0010](docs/adr/0010-solo-completion-ownership-transfer.md)).
 
 ### Added
 
+- **Release (ADR-0011 step two).** Live derived handlers for
+  `find_similar_videos`, `find_similar_channels`, `recommend_videos`,
+  `analyse_library` and a preview-only `propose_playlist`, in
+  `mcp/live_derived.py`. They run only while the reviewed D-02 record is
+  resolved. The shared services take an injected `DerivedProcessingCheck`
+  whose default stays fixture-only. D-02 itself is still unresolved, so
+  nothing changes in practice until a human records it.
 - **A2-08.** An NFR-08 feature benchmark (`scripts/benchmark_features.py`)
   with a deterministic 200-candidate workload and MCP stdio targets. Also a
   feature evidence record and the now-automated video-to-playlist

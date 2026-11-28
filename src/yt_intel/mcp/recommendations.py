@@ -13,7 +13,14 @@ from mcp_types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import ValidationError
 
 from yt_intel.client_skills import project_file
-from yt_intel.contracts.common import Label, LanguageTag, Limit, OpaqueId, Positive
+from yt_intel.contracts.common import (
+    Label,
+    LanguageTag,
+    Limit,
+    Mode,
+    OpaqueId,
+    Positive,
+)
 from yt_intel.contracts.errors import (
     ContractError,
     ErrorDetail,
@@ -240,22 +247,28 @@ async def _recommend_from_library(
     )
 
 
-def _error_response(request_id: str, problem: ErrorDetail) -> CallToolResult:
+def _error_response(
+    request_id: str, problem: ErrorDetail, *, mode: Mode = "fixture"
+) -> CallToolResult:
     envelope = ResultEnvelope[RecommendationResult](
-        mode="fixture", request_id=request_id, status="error", data=None, error=problem
+        mode=mode, request_id=request_id, status="error", data=None, error=problem
     )
     return CallToolResult(
         is_error=True,
         structured_content=envelope.model_dump(),
-        content=[TextContent(type="text", text=render_error(problem, mode="fixture"))],
+        content=[TextContent(type="text", text=render_error(problem, mode=mode))],
     )
 
 
 def _recommendation_response(
-    request_id: str, result: RecommendationResult, *, quota: QuotaEstimate | None = None
+    request_id: str,
+    result: RecommendationResult,
+    *,
+    quota: QuotaEstimate | None = None,
+    mode: Mode = "fixture",
 ) -> CallToolResult:
     envelope = ResultEnvelope[RecommendationResult](
-        mode="fixture",
+        mode=mode,
         request_id=request_id,
         status="ok" if result.results else "empty",
         data=result,
@@ -265,7 +278,7 @@ def _recommendation_response(
     )
     text = render_ranked_results(
         result.results,
-        mode="fixture",
+        mode=mode,
         coverage=result.candidate_coverage,
         warnings=result.warnings,
     )
