@@ -7,9 +7,12 @@ from unicodedata import normalize
 
 from yt_intel.contracts.models import ChannelSample, RankedChannel, RankedVideo, Video
 
-VIDEO_RANKING_VERSION = "ranking-v1"
-CHANNEL_RANKING_VERSION = "channel-ranking-v1"
+VIDEO_RANKING_VERSION = "ranking-v2"
+CHANNEL_RANKING_VERSION = "channel-ranking-v2"
 
+# v2: links in descriptions are removed before tokenising, so URL fragments
+# such as "https", "www" or shortener paths never count as shared terms.
+_LINK = re.compile(r"(?:https?://|www\.)\S*")
 _TOKEN = re.compile(r"\bv?\d+(?:\.\d+)+\b|[^\W\d_]\w*(?:\+\+|#)|\w+")
 _STOP_WORDS = frozenset(
     "a an and are as at be by for from in is it of on or that the this to was with".split()
@@ -21,8 +24,8 @@ _TAG_LENGTH = 128
 
 
 def tokenize(text: str, *, max_chars: int = _DESCRIPTION_LENGTH) -> tuple[str, ...]:
-    """Normalize one bounded field and preserve technical terms and dotted versions."""
-    normalized = normalize("NFKC", text[:max_chars]).casefold()
+    """Normalize one bounded field, drop links, and keep technical terms and versions."""
+    normalized = _LINK.sub(" ", normalize("NFKC", text[:max_chars]).casefold())
     return tuple(
         token
         for token in _TOKEN.findall(normalized)

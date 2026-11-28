@@ -44,6 +44,38 @@ def test_terms_preserve_normalized_technical_words_and_versions():
     assert tokenize("compiler late", max_chars=8) == ("compiler",)
 
 
+def test_links_are_removed_before_tokenising():
+    assert tokenize("Listen https://lnk.to/Song?x=1 or www.example.com/a now") == (
+        "listen",
+        "now",
+    )
+    assert tokenize("HTTPS://LNK.TO/X and http://y.z") == ()
+
+
+def test_shared_links_do_not_create_similarity(video: Video):
+    seed = video.model_copy(
+        update={
+            "title": "orchid gardening",
+            "description": "Stream it https://lnk.to/official",
+            "tags": None,
+            "category_id": None,
+        }
+    )
+    copy = candidate(
+        seed,
+        "synthetic05",
+        title="compiler types",
+        description="Watch https://lnk.to/official",
+    )
+    output = rank_videos(seed, [copy], limit=1)
+    assert all(item.score == 0 for item in output)
+    assert all(
+        term not in item.matched_terms
+        for item in output
+        for term in ("https", "lnk", "official")
+    )
+
+
 def test_video_fields_have_documented_term_weights(video: Video):
     authored = video.model_copy(
         update={

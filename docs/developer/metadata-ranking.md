@@ -6,8 +6,9 @@
 
 - Normalize with Unicode NFKC and casefolding. Keep Unicode word tokens, `C++`, `C#`, and dotted versions. Remove the small stop-word set in `domain/ranking.py` and discard tokens longer than 64 characters. Use up to 256 title characters, 2,000 description characters, and the first 32 tags capped at 128 characters each.
 - Count video title terms three times, description terms once, and tag terms twice. Fit TF-IDF on the seed and the deduplicated candidate pool. Use `1 + ln(count)` for TF and `1 + ln((1 + N)/(1 + df))` for IDF. Normalize each vector to unit length and compute its cosine with the seed. Zero text overlap excludes a candidate even when the categories match.
-- `ranking-v1` combines 90% text cosine and 10% exact category match when both categories are known. It uses text alone when either category is unknown. Reasons identify terms with the strongest contribution, and warnings disclose missing seed and candidate evidence.
-- `channel-ranking-v1` counts channel title terms three times and adds the description and the weighted documents for usable sample videos. A channel needs supporting description or sample text. Compute one cosine per channel without a category adjustment. Rank both result types by descending unrounded score and ascending stable ID.
+- **Links (v2).** Before tokenising, `ranking-v2` and `channel-ranking-v2` remove every `http://`, `https://` or `www.` link, so URL fragments are never matched terms. Otherwise they keep the v1 rules below.
+- `ranking-v2` combines 90% text cosine and 10% exact category match when both categories are known. It uses text alone when either category is unknown. Reasons identify terms with the strongest contribution, and warnings disclose missing seed and candidate evidence.
+- `channel-ranking-v2` counts channel title terms three times and adds the description and the weighted documents for usable sample videos. A channel needs supporting description or sample text. Compute one cosine per channel without a category adjustment. Rank both result types by descending unrounded score and ascending stable ID.
 
 ## Discovery and integration
 

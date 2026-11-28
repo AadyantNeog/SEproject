@@ -102,8 +102,9 @@ held. Three quality weaknesses showed up with real data:
 1. **Link noise in similarity.** Tokens such as `lnk` and `https` from URLs
    in descriptions count as matched terms. As a result, re-uploads that
    copy the official description rank above the official videos,
-   including a 13-second clip ranked first. Stripping URLs before
-   tokenising would fix this.
+   including a 13-second clip ranked first. **Addressed** after these
+   runs by `ranking-v2`, which removes links before tokenising (tested
+   offline). The live runs above used `ranking-v1` and were not repeated.
 2. **Short clips crowd the playlist.** The planner packs by relevance
    (`greedy-relevance-v1`), and Shorts with the song name in the title
    score highly. So 7- to 68-second clips fill much of the time, while

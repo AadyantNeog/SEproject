@@ -120,8 +120,9 @@ covers the expiry.
   [requirement-trace.csv](requirement-trace.csv). Changing the baseline
   needs instructor direction.
 - **Teammate acknowledgement.** The ownership transfer was reported by the
-  team lead. Jeswin's and Paul's written acknowledgement is not in the
-  repository yet.
+  team lead. On 29 November 2026 he decided that Jeswin's and Paul's written
+  acknowledgement is not required ([ADR-0010](../../adr/0010-solo-completion-ownership-transfer.md)).
+  The repository does not contain their signed agreement.
 
 ## Human and external actions remaining
 

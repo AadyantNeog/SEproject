@@ -55,6 +55,9 @@ team decision ([ADR-0010](docs/adr/0010-solo-completion-ownership-transfer.md)).
 
 ### Changed
 
+- **Ranking v2.** `ranking-v2` and `channel-ranking-v2` remove links before
+  tokenising, so URL fragments no longer count as shared terms (live
+  observation 1).
 - Planning version 2.3 records the ownership transfer. The validator checks
   review rules by implementer and accepts real issue and PR links.
 - `coverage.csv` now links real issues and PRs for merged tasks.
