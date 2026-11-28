@@ -12,6 +12,9 @@ team decision ([ADR-0010](docs/adr/0010-solo-completion-ownership-transfer.md)).
 
 ### Added
 
+- **Live evidence.** Live FR-1 to FR-4 and the FR-5 preview ran in Codex
+  Desktop against the real API. The record includes quota totals and
+  three ranking-quality observations.
 - **D-02 (ADR-0012).** D-02 is resolved by Aadyant's team-lead
   decision, recorded in `d02-status.json` with
   `basis: "team-lead-decision"`. It is not instructor or provider
