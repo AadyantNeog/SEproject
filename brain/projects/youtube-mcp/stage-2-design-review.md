@@ -3,7 +3,7 @@ id: "REVIEW-STAGE-2-DESIGN"
 type: "review"
 title: "Stage 2 design review"
 created: "2026-11-28"
-author: "Codex revision of a Claude Code draft for the team"
+author: "Aadyant, Jeswin and Paul"
 status: "pending-review"
 sources: ["SDLC_and_Workflow.pdf p. 2, section 7", "docs/implementation/MASTER_PLAN.md", "docs/adr/", "docs/developer/architecture.md"]
 requirements: ["GOV-01", "GOV-02", "GOV-04"]
@@ -48,6 +48,3 @@ so fixtures and live mode can use the same code. Update the coverage and
 traceability tables in the PR that changes the requirement evidence. That
 would save having to piece the links together at release time.
 
-**Sign-off pending.**
-
-Related: [[2026-11-16-implementation-master-plan]], [[15-implementation-boundaries-and-contracts]].

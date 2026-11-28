@@ -3,7 +3,7 @@ id: "REVIEW-STAGE-3-TESTING-CI"
 type: "review"
 title: "Stage 3 testing and CI review"
 created: "2026-11-28"
-author: "Codex revision of a Claude Code draft for the team"
+author: "Aadyant, Paul and Jeswin"
 status: "pending-review"
 sources: ["SDLC_and_Workflow.pdf p. 3, section 7", ".github/workflows/ci.yml", "docs/evidence/release/README.md", "docs/evidence/skills/video-to-playlist.md"]
 requirements: ["NFR-08", "SK-05", "SK-06", "GOV-03"]
@@ -45,6 +45,4 @@ fixtures, use values that are clearly dummy credentials. When a PR fixes a
 bug, record it in the defect log and link the regression test in the
 same PR.
 
-**Sign-off pending.**
 
-Related: [[2026-11-28-release-candidate-assembly]], [[10-test-fixtures-and-error-cases]].

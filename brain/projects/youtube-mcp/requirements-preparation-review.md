@@ -3,7 +3,7 @@ id: "REVIEW-REQUIREMENTS-PREPARATION"
 type: "review"
 title: "Requirements preparation review"
 created: "2026-11-07"
-author: "Codex (draft for Aadyant Neog)"
+author: "Aadyant Neog"
 status: "pending-review"
 sources: ["SDLC_and_Workflow.pdf pp. 1-3", "docs/requirements/SRS.md", "brain/projects/youtube-mcp/srs-baseline.md"]
 requirements: ["GOV-01", "GOV-02"]
@@ -35,6 +35,3 @@ and leave time for everyone to read the version that is going in. The
 team lead later confirmed this SRS was submitted. Record any direction
 from the instructor or provider on D-02 alongside the submitted baseline.
 
-**Sign-off pending.**
-
-Related: [[srs-baseline]], [[2026-11-07-srs-preparation]], [[12-engineering-and-knowledge-workflow]], [[13-api-policy-dependency]].
