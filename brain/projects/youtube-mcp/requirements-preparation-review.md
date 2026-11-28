@@ -3,9 +3,9 @@ id: "REVIEW-REQUIREMENTS-PREPARATION"
 type: "review"
 title: "Requirements preparation review"
 created: "2026-11-07"
-author: "Codex"
+author: "Codex (draft for Aadyant Neog)"
 status: "pending-review"
-sources: ["SDLC_and_Workflow.pdf pp. 1-3"]
+sources: ["SDLC_and_Workflow.pdf pp. 1-3", "docs/requirements/SRS.md", "brain/projects/youtube-mcp/srs-baseline.md"]
 requirements: ["GOV-01", "GOV-02"]
 ---
 
@@ -13,14 +13,28 @@ requirements: ["GOV-01", "GOV-02"]
 
 ## What worked
 
-The SRS retains the required feature IDs, declares feasible evidence boundaries, and connects requirements to acceptance scenarios and research notes. Research has traceable sources and honest AI authorship.
+Keeping the five feature IDs from the brief made it easy to see where each
+feature was covered in the SRS. The acceptance scenarios gave the team
+something concrete to test. For example, the playlist had to stay within
+the time limit, and the analytics had to stick to what YouTube actually
+returned. The research notes made it possible to trace those choices back
+to their sources.
 
 ## What did not work or remains open
 
-Live API policy applicability is unresolved. Team cover information, human-authored notes, reviewed PRs and a CI skeleton are not completed by this document task. None are reported as done.
+The first draft still needed the team details on the cover and a place to
+track work such as CI setup and human review. The cover details were added
+later. The harder question was whether YouTube's policy permits the
+planned processing of live data. That question, tracked as D-02, is still
+open.
 
 ## What to change next
 
-Have team members review and explain the SRS before the immutable submission; add their cover details; resolve the live-policy dependency with the instructor; create issues and a reviewed SRS PR; then complete the remaining Stage 1 evidence. This is a preparation review, not a claim that Stage 1 has been submitted.
+For a future submission, set up the issue tracker and basic CI early,
+and leave time for everyone to read the version that is going in. The
+team lead later confirmed this SRS was submitted. Record any direction
+from the instructor or provider on D-02 alongside the submitted baseline.
+
+**Sign-off pending.**
 
 Related: [[srs-baseline]], [[2026-11-07-srs-preparation]], [[12-engineering-and-knowledge-workflow]], [[13-api-policy-dependency]].

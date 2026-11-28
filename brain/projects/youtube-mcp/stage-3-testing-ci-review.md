@@ -3,7 +3,7 @@ id: "REVIEW-STAGE-3-TESTING-CI"
 type: "review"
 title: "Stage 3 testing and CI review"
 created: "2026-11-28"
-author: "Claude Code draft for the team; human authors pending"
+author: "Codex revision of a Claude Code draft for the team"
 status: "pending-review"
 sources: ["SDLC_and_Workflow.pdf p. 3, section 7", ".github/workflows/ci.yml", "docs/evidence/release/README.md", "docs/evidence/skills/video-to-playlist.md"]
 requirements: ["NFR-08", "SK-05", "SK-06", "GOV-03"]
@@ -11,47 +11,40 @@ requirements: ["NFR-08", "SK-05", "SK-06", "GOV-03"]
 
 # Stage 3 testing and CI review
 
-> **Draft.** This lists facts recorded in the repository. The team should
-> rewrite the judgements in their own words and sign them. It is not a
-> human review.
-
 ## Deliverables and where they are
 
 | Stage 3 deliverable (brief §7) | Evidence |
 | --- | --- |
-| Continuous testing and CI plan and results | [ci.yml](../../../.github/workflows/ci.yml) runs Ruff, mypy, the offline pytest suite, the wheel build, both validators and Gitleaks, on Linux and Windows (P2-06, #38; knowledge validation added in #63). The offline suite has 358 tests on `main`. |
+| Continuous testing and CI plan and results | [ci.yml](../../../.github/workflows/ci.yml) runs Ruff, mypy, the offline pytest suite, the wheel build and both validators on Linux and Windows, with a separate Gitleaks job (P2-06, #38; knowledge validation added in #63). [PR #70](https://github.com/AadyantNeog/SEproject/pull/70) recorded 358 passing offline tests. |
 | Product skill with test results | [video-to-playlist evaluation](../../../docs/evidence/skills/video-to-playlist.md). It has automated stdio cases plus Codex Desktop runs with the real native dialog (#66, #68). |
 | Defect log with regression tests | The defect table in the [release record](../../../docs/evidence/release/README.md#defects-and-regressions-found-in-this-cycle) |
 | Review note for each stage | This note and [[stage-2-design-review]]. The Stage 1 note is [[requirements-preparation-review]]. |
 
-## What worked (facts to reflect on)
+## What worked
 
-- **Tests caught a real defect.** The denied-source period comparison bug
-  (D-2026-11-28-1) was found by a stdio test and fixed. The regression test
-  fails on the old code.
-- **Prerequisites fail closed.** Live and policy prerequisites block
-  cleanly, so CI never needed credentials.
-- **Real-client runs agreed with the tests.** The manual Codex runs matched
-  the automated expectations. One mismatch, FR-3, was a wrong expectation,
-  not a product fault.
+The stdio tests caught a period comparison that showed zero activity
+for sources the server couldn't read.
+The fix now has a regression test that fails on the old code. CI could also
+exercise the missing-prerequisite paths without any live credentials.
+The manual Codex walkthrough caught a mistake in the FR-3 demo notes. The
+request was supposed to come back empty because none of the saved videos
+met every constraint. [Feature walkthrough](../../../docs/evidence/features/README.md#observed-in-codex-desktop-on-windows)
 
-## What did not work (facts to reflect on)
+## What did not work
 
-- **Timing test on shared runners.** The NFR-08 timing test failed once on
-  GitHub's shared Windows runner (PR #67), then passed on a re-run. A
-  decision on how CI should treat timing bounds is still open.
-- **Secret scan scope.** Gitleaks flagged a random-looking fake token in a
-  test (PR #69). Because CI scans all branches, the superseded branch had
-  to be deleted before the replacement PR (#70) passed.
-- **Sandbox temp folder.** Local checks failed in the agent sandbox until
-  pytest's temp folder was redirected. This was an environment problem,
-  not a product one.
+An NFR-08 timing check failed on a shared Windows runner and passed when
+it was rerun. That makes a single run hard to interpret. Gitleaks also
+flagged a realistic-looking dummy token, and the replacement PR used an
+obviously fake value. Locally, pytest needed a scratch directory the
+sandbox could write to before the checks would run. [Timing rerun](https://github.com/AadyantNeog/SEproject/pull/67) · [Secret scan fix](https://github.com/AadyantNeog/SEproject/pull/70)
 
-## What to change (for the team to decide)
+## What to change next
 
-- Choose how CI treats NFR-08 timing: advisory on shared runners, a
-  separate job, or strict.
-- Use plainly fake, low-entropy placeholders for test credentials.
-- Record each new defect in the defect log in the PR that fixes it.
+Decide how timing results from shared runners should affect merges. For
+fixtures, use values that are clearly dummy credentials. When a PR fixes a
+bug, record it in the defect log and link the regression test in the
+same PR.
+
+**Sign-off pending.**
 
 Related: [[2026-11-28-release-candidate-assembly]], [[10-test-fixtures-and-error-cases]].
