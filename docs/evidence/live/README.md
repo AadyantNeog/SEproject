@@ -55,6 +55,68 @@ one of the tool calls.
 - **Blocked call.** The attempt count stayed at 51 after the
   `find_similar_videos` call, so the refusal made zero API calls.
 
+## Live derived runs (FR-1 to FR-4 and the FR-5 preview)
+
+28 November 2026, later the same day, on `main` at `3a4d45e`. This build
+includes the live derived handlers (PR #73, ADR-0011 step two). D-02 was
+resolved by team-lead decision (PR #74,
+[ADR-0012](../../adr/0012-d02-team-lead-resolution.md)), not by instructor
+evidence. Aadyant restarted `yt-intel-live` in Codex Desktop and ran the
+prompts below.
+
+**Privacy.** Some results come from the account's own library: the
+recommendations, the analysis and the library counts. Their titles,
+channel names, counts and the proposal's destination are left out. Public
+metadata for the seed video's similarity results is included.
+
+| Prompt | Tool | Result | Verdict |
+| --- | --- | --- | --- |
+| "…call live_status." | `live_status` | D-02 resolved. All five derived tools are available. Only `begin_workflow` is blocked. | Pass |
+| "…call find_similar_videos with video dQw4w9WgXcQ and limit 10." | `find_similar_videos` | 10 ranked videos labelled `Mode: live`, each with a score, a reason, matched terms and language evidence. The 187 candidates came from 4 search pages, under the 200 cap. The result is marked `truncated: true` and `complete: false`. Videos without audio-language data carry `audio_language_missing_metadata_only`. A candidate set was saved. | Pass (FR-1) |
+| "…call propose_playlist with title "Live test", topic "rick astley never gonna give you up", total_seconds 1800, max_video_seconds 600, language "en" and the candidate set." | `propose_playlist` | A private preview of 18 videos totalling 1,794 of 1,800 s. Every video is at most 600 s and has English audio confirmed by `defaultAudioLanguage`. Exclusions are reported in full: 94 audio language unverified, 10 audio language mismatch, 5 topic mismatch, 10 over the per-video limit, 50 over the remaining time, and 1 seed not requested. State is `proposed`, with a 10-minute expiry. It is labelled "Preview only", and nothing was written. | Pass (FR-5 planning) |
+| "…call find_similar_channels with channel @RickAstleyYT." | `find_similar_channels` | 10 channels, each from a sample of 5 uploads using the `first-accessible-uploads-v1` rule. Coverage is marked as sampled and truncated. Missing channel descriptions are flagged. | Pass (FR-2) |
+| "…call get_library." | `get_library` | All three sources `retrieved`. Likes hit the 4-page budget and reported `truncated: true` with a continuation. Subscriptions and playlists completed. | Pass |
+| "…call recommend_videos with the snapshot and language "en"." | `recommend_videos` | 10 ranked recommendations from likes, playlist items and subscription topics. It reported that likes were partial. 165 candidates were retrieved within the search limits. | Pass (FR-3) |
+| "…call analyse_library with the snapshot." | `analyse_library` | A report with per-source counts, median durations, overlap between likes and playlists, top channels and top categories. It states that likes were partial and that runtimes describe the snapshot, not viewing time. | Pass (FR-4) |
+
+### Quota accounting (live ledger, whole day)
+
+| Endpoint | Attempts |
+| --- | ---: |
+| `videos.list` | 72 |
+| `playlistItems.list` | 37 |
+| `subscriptions.list` | 6 |
+| `channels.list` | 5 |
+| `playlists.list` | 2 |
+| `search.list` | 13 |
+| **Total** | **122 general units** (of 10,000) and **13 search units** (of the profile's 100 search calls) |
+
+- **Reservations.** All 12 reservations for the day are under `default-project`, and none is left unreleased.
+- **This session's share.** It adds 71 general units and all 13 search units to the 51 general units recorded above.
+
+### Ranking quality observed live (not failures)
+
+No hard rule was broken. Every limit, language check and coverage note
+held. Three quality weaknesses showed up with real data:
+
+1. **Link noise in similarity.** Tokens such as `lnk` and `https` from URLs
+   in descriptions count as matched terms. As a result, re-uploads that
+   copy the official description rank above the official videos,
+   including a 13-second clip ranked first. Stripping URLs before
+   tokenising would fix this.
+2. **Short clips crowd the playlist.** The planner packs by relevance
+   (`greedy-relevance-v1`), and Shorts with the song name in the title
+   score highly. So 7- to 68-second clips fill much of the time, while
+   several official full-length videos are excluded for the time
+   remaining. A minimum per-video duration option would help.
+3. **Weak channel matches.** Channel similarity is bounded to 10 candidates
+   from a 5-upload sample each, so the scores are low (0.16 and below).
+   Some matches are weak, such as a TV network channel, and link tokens
+   affect them again.
+
+They are recorded as follow-up candidates, not as passed or failed
+acceptance cases.
+
 ## What this does and does not show
 
 - **Shows.** The live stack works end to end against Google's real API:
@@ -65,13 +127,14 @@ one of the tool calls.
   - normalised metadata
   - bounded, continuable library retrieval with honest per-source coverage
   - the D-02 gate refusing derived processing with no provider calls
-- **Does not show.** Live FR-1 to FR-5 (similarity, recommendations,
-  analysis and playlist creation). They stay **blocked** until D-02 has a
-  recorded instructor or provider resolution and the live derived handlers
-  exist (ADR-0011). This is a blocked prerequisite, not a passed acceptance
-  case (SRS §13.2).
+- **Also shows (later runs).** Live FR-1 to FR-4 and the FR-5 preview
+  in Codex, with honest coverage, strict constraints and no writes. D-02's
+  basis is a team-lead decision (ADR-0012), not instructor evidence.
+- **Does not show.** Live playlist creation through the native approval
+  dialog, which is not built in live mode. This remains a gap, not a
+  passed acceptance case (SRS §13.2).
 - **Not run.** The scheduled protected-runner check and live token expiry or
   revocation recovery.
 
 Prepared with AI assistance from Aadyant's Codex transcripts and the local
-ledger. Aadyant's owner review is pending.
+ledger, which was queried read-only. Aadyant's owner review is pending.
