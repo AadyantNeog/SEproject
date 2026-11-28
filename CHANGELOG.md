@@ -12,6 +12,11 @@ team decision ([ADR-0010](docs/adr/0010-solo-completion-ownership-transfer.md)).
 
 ### Added
 
+- **D-02 (ADR-0012).** D-02 is resolved by Aadyant's team-lead
+  decision, recorded in `d02-status.json` with
+  `basis: "team-lead-decision"`. It is not instructor or provider
+  evidence. Live derived tools now run for the team's own authorised
+  accounts. Live writes are not covered.
 - **Release (ADR-0011 step two).** Live derived handlers for
   `find_similar_videos`, `find_similar_channels`, `recommend_videos`,
   `analyse_library` and a preview-only `propose_playlist`, in

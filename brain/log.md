@@ -287,3 +287,7 @@ Subsequent operations must append their actual outcome here.
 ## 2026-11-28 Live derived handlers
 
 - Claude Code built ADR-0011 step two for [issue #56](https://github.com/AadyantNeog/SEproject/issues/56): live FR-1 to FR-4 and a preview-only FR-5 proposal, behind the unchanged D-02 gate. See [[2026-11-28-live-derived-handlers]]. D-02 stays unresolved, and owner review is pending.
+
+## 2026-11-28 D-02 team-lead decision
+
+- At Aadyant's direction, D-02 was recorded as resolved by team-lead decision (ADR-0012), explicitly not instructor or provider evidence. See [[2026-11-28-d02-team-lead-resolution]]. Owner review is pending.

@@ -139,6 +139,11 @@ class _Setup:
             ),
             encoding="utf-8",
         )
+        self.unresolved_policy = tmp_path / "d02-unresolved.json"
+        self.unresolved_policy.write_text(
+            json.dumps({"state": "unresolved", "evidence_url": None}),
+            encoding="utf-8",
+        )
         self.vault = _InMemoryVault()
         self.clock = _Clock()
         self.env = {
@@ -185,10 +190,15 @@ class _Setup:
         return await run_check(**arguments)  # type: ignore[arg-type]
 
 
-def test_repository_d02_record_is_unresolved() -> None:
-    assert policy_resolved(DEFAULT_POLICY) is False
+def test_repository_d02_record_is_an_honest_team_lead_decision() -> None:
+    # ADR-0012: resolved by the team lead, and labelled as not instructor evidence.
+    assert policy_resolved(DEFAULT_POLICY) is True
     record = json.loads(DEFAULT_POLICY.read_text(encoding="utf-8"))
-    assert record["state"] == "unresolved" and record["evidence_url"] is None
+    assert record["basis"] == "team-lead-decision"
+    assert "not instructor or provider evidence" in record["summary"]
+    adr = "docs/adr/0012-d02-team-lead-resolution.md"
+    assert record["evidence_url"].endswith(adr)
+    assert (DEFAULT_POLICY.parents[3] / adr).is_file()
 
 
 def test_gates_block_before_any_provider_call(tmp_path: Path) -> None:
@@ -198,7 +208,7 @@ def test_gates_block_before_any_provider_call(tmp_path: Path) -> None:
     async def run() -> None:
         cases = [
             ({"environ": {}}, "LIVE_CHECK_NOT_ENABLED"),
-            ({"policy_path": DEFAULT_POLICY}, "POLICY_UNRESOLVED"),
+            ({"policy_path": setup.unresolved_policy}, "POLICY_UNRESOLVED"),
             ({"environ": {**setup.env, VIDEO_ENV: "not a video"}}, "INVALID_INPUT"),
             ({"environ": {**setup.env, SECRETS_ENV: ""}}, "AUTH_REQUIRED"),
             ({}, "AUTH_REQUIRED"),  # no saved account yet

@@ -28,6 +28,7 @@ Entry point for the Obsidian-compatible vault. Open this `brain` folder as a vau
 - [[2026-11-28-release-candidate-assembly]]
 - [[2026-11-28-live-serve-mode]]
 - [[2026-11-28-live-derived-handlers]]
+- [[2026-11-28-d02-team-lead-resolution]]
 - [[stage-2-design-review]]
 - [[stage-3-testing-ci-review]]
 - [[2026-11-28-stage-review-drafting]]

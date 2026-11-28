@@ -6,12 +6,12 @@ This runbook takes a clean checkout to a connected live account, and back
 out again. Read [privacy.md](privacy.md) first. It says what is stored,
 where, and for how long.
 
-> **Live use is gated.** D-02, which covers the API policy for
-> live-derived processing, is unresolved. Until a human records its
-> resolution in [d02-status.json](../evidence/policy-and-consent/d02-status.json),
-> use live sign-in only to check the account and token lifecycle with an
-> authorised test account. The MCP `serve` command still accepts only the
-> fixture provider.
+> **Live derived use is gated on D-02.** D-02 covers the API policy for
+> live-derived processing. It is resolved by a team-lead decision
+> ([ADR-0012](../adr/0012-d02-team-lead-resolution.md)), not by instructor
+> evidence, and only for the team's own authorised test accounts. If
+> [d02-status.json](../evidence/policy-and-consent/d02-status.json) is set
+> back to `unresolved`, the live derived tools stop at once.
 
 ## 1. Clean checkout
 
