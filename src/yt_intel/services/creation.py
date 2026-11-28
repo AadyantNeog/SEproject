@@ -18,6 +18,7 @@ from yt_intel.contracts.workflow import (
     RequestContext,
     WorkflowPlan,
 )
+from yt_intel.domain.derived import DerivedProcessingCheck, fixture_only
 from yt_intel.domain.language import normalize_language_tag
 from yt_intel.domain.proposals import proposal_digest
 from yt_intel.infrastructure.clock import SystemClock
@@ -52,7 +53,7 @@ def _blocked(code: ErrorCode, message: str) -> ContractError:
 
 
 class PlaylistCreationService:
-    """Guarded creation using a synthetic provider configuration."""
+    """Guarded creation. Live bindings need the injected D-02 check to allow them."""
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class PlaylistCreationService:
         reads: YouTubeReadProvider,
         writes: YouTubeWriteProvider,
         clock: Clock | None = None,
+        permits: DerivedProcessingCheck = fixture_only,
     ) -> None:
         if proposals.database.path != operations.database.path:
             raise ValueError(
@@ -77,6 +79,7 @@ class PlaylistCreationService:
         self._reads = reads
         self._writes = writes
         self._clock = clock or SystemClock()
+        self._permits = permits
 
     async def prepare(
         self,
@@ -215,7 +218,7 @@ class PlaylistCreationService:
     async def _current(
         self, binding: AccountBinding, ref: ProposalRef
     ) -> PlaylistProposal:
-        if binding.mode != "fixture":
+        if not self._permits(binding):
             raise _blocked("POLICY_BLOCKED", "Live playlist creation is disabled.")
         current = await self._proposals.get_current_proposal(
             binding, ref.proposal_id, now=self._clock.now()

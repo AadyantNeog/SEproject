@@ -170,12 +170,32 @@ without it.
   records it, they run live. Pass the `snapshot_id` from `get_library` to
   `recommend_videos`, and the `candidate_set_id` from
   `find_similar_videos` to `propose_playlist`.
-- **No writes.** No live tool can create or change anything on YouTube.
-  `propose_playlist` stores a preview only, and `begin_workflow` stays
-  unavailable.
+- **Creating a playlist (one supervised write).** This is the only live
+  write. It needs the write scope, so sign in again once with:
+
+  ```powershell
+  & '.venv/Scripts/python.exe' -m yt_intel auth --enable-writes --client-secrets "$env:USERPROFILE\.config\yt-intel\client_secret.json"
+  ```
+
+  Then restart `yt-intel-live` in your client and ask it to run the
+  video-to-playlist workflow with one `workflow_id`:
+  1. `begin_workflow`
+  2. `get_video`
+  3. `find_similar_videos`
+  4. `propose_playlist`
+  5. `prepare_creation`
+  6. `create_playlist`
+
+  The workflow reserves its whole quota first, and expires after 5
+  minutes. `create_playlist` opens a **native dialog on your computer**
+  showing the exact playlist. Nothing is written unless you approve it
+  there. The model cannot approve for you. Each write is tried once. If a
+  result is partial or unknown, check the playlist in YouTube. Live
+  recovery is not automated.
 
 Ask the client to call `live_status` to see the current state. See
-[ADR-0011](../adr/0011-staged-live-serve-mode.md).
+[ADR-0011](../adr/0011-staged-live-serve-mode.md) and
+[ADR-0013](../adr/0013-live-approved-playlist-creation.md).
 
 ## 9. Scheduled live read-only check
 

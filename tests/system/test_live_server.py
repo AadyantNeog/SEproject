@@ -30,12 +30,16 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 import httpx
 from yt_intel.auth.account import AccountRecord, JsonAccountStateStore
-from yt_intel.auth.oauth import OAuthTokenSet, YOUTUBE_READONLY_SCOPE
+from dataclasses import replace
+from yt_intel.auth.oauth import OAuthTokenSet, YOUTUBE_READONLY_SCOPE, YOUTUBE_WRITE_SCOPE
+from yt_intel.contracts.approval import HumanDecision
+from yt_intel.providers.fixture_writes import FixturePlaylistWrites
 from yt_intel.contracts.common import AccountBinding
 from yt_intel.mcp.live import build_live_runtime, build_live_server
 from yt_intel.providers.fixture import FixtureDataset, FixtureYouTubeProvider
 
 config = json.loads(os.environ["YT_TEST_LIVE_CONFIG"])
+scopes = (YOUTUBE_READONLY_SCOPE, YOUTUBE_WRITE_SCOPE) if config["write_scope"] else (YOUTUBE_READONLY_SCOPE,)
 root = Path(config["root"])
 binding = AccountBinding(
     installation_id="local-cli", credential_binding_id="live-test-binding",
@@ -57,16 +61,22 @@ reference = f"yt-intel-live-{binding.credential_binding_id}"
 vault.data[reference] = OAuthTokenSet(
     access_token="ya29.fake", refresh_token="1//fake",
     expires_at=datetime.now(UTC) + timedelta(hours=1),
-    granted_scopes=(YOUTUBE_READONLY_SCOPE,),
+    granted_scopes=scopes,
 ).to_vault_bytes()
 state = Path(config["state"])
 if config["connected"]:
     JsonAccountStateStore(state).save(AccountRecord(
         binding=binding, channel_title="Live Test Channel", vault_reference=reference,
-        granted_scopes=(YOUTUBE_READONLY_SCOPE,),
+        granted_scopes=scopes,
     ))
 
 dataset = FixtureDataset.from_json_file(root / config["catalog"])
+# Google's view of the signed-in channel, so pre-write revalidation can match it.
+dataset = replace(dataset, my_channels=(
+    {"id": config["channel"], "snippet": {"title": "Live Test Channel"}},
+)) if config["write_scope"] else dataset
+writes = FixturePlaylistWrites(config["channel"])
+write_transport = writes.transport()
 
 class Ledger:
     async def reserve(self, plan): raise AssertionError("unused")
@@ -83,7 +93,24 @@ def api(request):
             "method": request.method,
             "auth": request.headers.get("authorization", ""),
         }) + "\n")
+    if config["write_scope"] and writes.handles(request):
+        return write_transport.handle_request(request)
     return google._handle_request(request)
+
+class ScriptedApproval:
+    # Test construction only. The shipped server always uses the native dialog.
+    def __init__(self):
+        self.decisions = list(config["decisions"])
+    async def request_decision(self, ctx, proposal, operation_id, challenge_ref):
+        decision = self.decisions.pop(0) if self.decisions else "reject"
+        with Path(config["approvals"]).open("a", encoding="utf-8") as target:
+            target.write(json.dumps({"decision": decision}) + "\n")
+        return HumanDecision(
+            challenge_ref=challenge_ref, response_ref="test-response",
+            operation_id=operation_id, proposal=proposal.ref,
+            proposal_digest=proposal.digest, binding=ctx.binding,
+            observed_at=datetime.now(UTC), decision=decision,
+        )
 
 def oauth(request):
     if request.url.path == "/revoke":
@@ -95,6 +122,7 @@ runtime = build_live_runtime(
     client_secrets_path=Path(config["secrets"]), account_state_path=state,
     vault=vault, policy_path=Path(config["policy"]),
     oauth_transport=httpx.MockTransport(oauth), api_transport=httpx.MockTransport(api),
+    approval_adapter=ScriptedApproval(),
 )
 build_live_server(runtime).run(transport="stdio")
 """
@@ -108,6 +136,8 @@ class LiveHarness:
         connected: bool = True,
         resolved: bool = False,
         catalog: str = "tests/fixtures/libraries/library_catalog.json",
+        write_scope: bool = False,
+        decisions: tuple[str, ...] = (),
     ):
         self.db = tmp_path / "live.sqlite3"
         self.audit = tmp_path / "google.jsonl"
@@ -136,12 +166,22 @@ class LiveHarness:
             "channel": CHANNEL,
             "connected": connected,
             "catalog": catalog,
+            "write_scope": write_scope,
+            "decisions": list(decisions),
+            "approvals": str(tmp_path / "approvals.jsonl"),
         }
 
     def google_calls(self) -> list[dict[str, str]]:
         if not self.audit.exists():
             return []
         lines = self.audit.read_text(encoding="utf-8").splitlines()
+        return [json.loads(line) for line in lines]
+
+    def approvals(self) -> list[dict[str, str]]:
+        path = Path(self.config["approvals"])
+        if not path.exists():
+            return []
+        lines = path.read_text(encoding="utf-8").splitlines()
         return [json.loads(line) for line in lines]
 
     async def session(self, steps: Any) -> None:
@@ -180,7 +220,9 @@ def test_live_reads_use_the_saved_account_bearer_auth_and_ledger(
             "get_library",
             "find_similar_videos",
         } <= tools
-        assert not tools & {"create_playlist", "resume_operation", "fixture_status"}
+        assert "create_playlist" in tools
+        # Live recovery is not exposed; unknown outcomes are reconciled by a human.
+        assert not tools & {"resume_operation", "reconcile_operation", "fixture_status"}
 
         status = _content(await client.call_tool("get_account_status", {}))
         assert status["data"]["binding"]["channel_id"] == CHANNEL
@@ -224,6 +266,13 @@ DERIVED_CALLS = [
     ("analyse_library", {}),
     ("begin_workflow", {"kind": "video_to_playlist", "video": "libVid00001"}),
     ("propose_playlist", {"title": "x", "topic": "database indexing"}),
+    ("prepare_creation", {"workflow_id": "wf", "proposal_id": "p", "version": 1}),
+    (
+        "create_playlist",
+        {"workflow_id": "wf", "proposal_id": "p", "version": 1, "operation_id": "o"},
+    ),
+    ("get_operation", {"operation_id": "o"}),
+    ("get_video", {"video": "libVid00001", "workflow_id": "wf"}),
 ]
 PLAN_FIELDS = {
     "title": "Indexing from live discovery",
@@ -274,7 +323,8 @@ def test_resolved_d02_runs_live_discovery_and_a_preview_only_proposal(
     async def steps(client: ClientSession) -> None:
         status = _content(await client.call_tool("live_status", {}))["data"]
         assert status["d02_resolved"] is True
-        assert status["blocked_tools"] == ["begin_workflow"]
+        assert status["blocked_tools"] == []
+        assert "create_playlist" in status["available_tools"]
         assert "propose_playlist" in status["available_tools"]
 
         found = await client.call_tool(
@@ -302,7 +352,8 @@ def test_resolved_d02_runs_live_discovery_and_a_preview_only_proposal(
         begin = await client.call_tool(
             "begin_workflow", {"kind": "video_to_playlist", "video": "vidIndex002"}
         )
-        assert _content(begin)["error"]["code"] == "PROVIDER_UNAVAILABLE"
+        # The saved account is read-only, so no workflow can reserve write quota.
+        assert _content(begin)["error"]["code"] == "SCOPE_REQUIRED"
 
         preview = await client.call_tool(
             "propose_playlist", {**PLAN_FIELDS, "candidate_set_id": candidate_set_id}
@@ -327,6 +378,135 @@ def test_resolved_d02_runs_live_discovery_and_a_preview_only_proposal(
     assert len(attempts) == len(calls)
     assert {row["project_id"] for row in attempts} == {"default-project"}
     assert reservations and all(row["released"] == 1 for row in reservations)
+
+
+async def _live_workflow_to_operation(client: ClientSession) -> dict[str, Any]:
+    """Run the live workflow up to a prepared operation for the exact preview."""
+    begun = await client.call_tool(
+        "begin_workflow", {"kind": "video_to_playlist", "video": "vidIndex002"}
+    )
+    assert not begun.is_error, begun.content
+    workflow_id = _content(begun)["data"]["workflow_id"]
+    seed = await client.call_tool(
+        "get_video", {"video": "vidIndex002", "workflow_id": workflow_id}
+    )
+    assert not seed.is_error, seed.content
+    found = await client.call_tool(
+        "find_similar_videos",
+        {"video": "vidIndex002", "limit": 1, "workflow_id": workflow_id},
+    )
+    assert not found.is_error, found.content
+    preview = await client.call_tool(
+        "propose_playlist",
+        {
+            **PLAN_FIELDS,
+            "workflow_id": workflow_id,
+            "candidate_set_id": _content(found)["candidate_set_id"],
+        },
+    )
+    assert not preview.is_error, preview.content
+    assert "Next: prepare_creation" in preview.content[0].text
+    ref = _content(preview)["data"]["ref"]
+    prepared = await client.call_tool(
+        "prepare_creation", {**ref, "workflow_id": workflow_id}
+    )
+    assert not prepared.is_error, prepared.content
+    assert "native approval dialog" in prepared.content[0].text
+    return {
+        **ref,
+        "workflow_id": workflow_id,
+        "operation_id": _content(prepared)["data"]["operation_id"],
+    }
+
+
+def _writes(harness: LiveHarness) -> list[dict[str, str]]:
+    return [call for call in harness.google_calls() if call["method"] == "POST"]
+
+
+def test_live_workflow_creates_the_approved_playlist_once(tmp_path: Path) -> None:
+    harness = LiveHarness(
+        tmp_path,
+        resolved=True,
+        catalog=READ_INDEX,
+        write_scope=True,
+        decisions=("approve",),
+    )
+
+    async def steps(client: ClientSession) -> None:
+        args = await _live_workflow_to_operation(client)
+        assert _writes(harness) == []
+        created = await client.call_tool("create_playlist", args)
+        assert not created.is_error, created.content
+        status = _content(created)
+        assert status["status"] == "ok"
+        assert status["data"]["state"] == "completed"
+        assert status["data"]["confirmed_items"] == 1
+        assert status["data"]["playlist_url"].startswith(
+            "https://www.youtube.com/playlist?list="
+        )
+        assert "Live playlist:" in created.content[0].text
+        writes_after_create = len(_writes(harness))
+
+        replay = await client.call_tool("create_playlist", args)
+        assert _content(replay)["data"]["state"] == "completed"
+        recorded = await client.call_tool(
+            "get_operation", {"operation_id": args["operation_id"]}
+        )
+        assert _content(recorded)["data"]["state"] == "completed"
+        # A repeated call returns the recorded result and writes nothing more.
+        assert len(_writes(harness)) == writes_after_create
+
+    anyio.run(harness.session, steps)
+    writes = _writes(harness)
+    assert [call["path"] for call in writes] == [
+        "/youtube/v3/playlists",
+        "/youtube/v3/playlistItems",
+    ]
+    assert all(call["auth"] == "Bearer ya29.fake" for call in writes)
+    assert harness.approvals() == [{"decision": "approve"}]
+    attempts, reservations = _ledger_rows(harness.db)
+    assert len(attempts) == len(harness.google_calls())
+    assert {row["project_id"] for row in attempts} == {"default-project"}
+    assert reservations and all(row["released"] == 1 for row in reservations)
+
+
+def test_rejected_live_approval_writes_nothing(tmp_path: Path) -> None:
+    harness = LiveHarness(
+        tmp_path,
+        resolved=True,
+        catalog=READ_INDEX,
+        write_scope=True,
+        decisions=("reject",),
+    )
+
+    async def steps(client: ClientSession) -> None:
+        args = await _live_workflow_to_operation(client)
+        refused = await client.call_tool("create_playlist", args)
+        assert refused.is_error
+        assert _content(refused)["error"]["code"] == "APPROVAL_REJECTED"
+        assert _content(refused)["data"]["state"] == "rejected"
+
+    anyio.run(harness.session, steps)
+    assert _writes(harness) == []
+    assert harness.approvals() == [{"decision": "reject"}]
+    _, reservations = _ledger_rows(harness.db)
+    assert all(row["released"] == 1 for row in reservations)
+
+
+def test_live_workflow_needs_the_write_scope_before_any_call(tmp_path: Path) -> None:
+    harness = LiveHarness(tmp_path, resolved=True, catalog=READ_INDEX)
+
+    async def steps(client: ClientSession) -> None:
+        begun = await client.call_tool(
+            "begin_workflow", {"kind": "video_to_playlist", "video": "vidIndex002"}
+        )
+        assert _content(begun)["error"]["code"] == "SCOPE_REQUIRED"
+        assert "--enable-writes" in begun.content[0].text
+
+    anyio.run(harness.session, steps)
+    assert harness.google_calls() == []
+    _, reservations = _ledger_rows(harness.db)
+    assert reservations == []
 
 
 def test_resolved_d02_runs_live_recommendations_and_analysis(tmp_path: Path) -> None:

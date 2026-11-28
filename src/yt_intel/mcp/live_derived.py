@@ -9,8 +9,9 @@ Each handler reserves its whole bounded worst case on the persistent ledger
 before the first provider call and releases the unused part afterwards. The
 services and ranking are the same ones the fixture server uses.
 
-Live playlist creation, workflows and recovery are not exposed. The playlist
-proposal is a stored preview only.
+A standalone playlist proposal is a stored preview only. Creation runs only
+inside a `begin_workflow` session (see `live_creation.py`), which reserves the
+whole video-to-playlist budget up front. Live recovery is not exposed.
 """
 
 from __future__ import annotations
@@ -79,6 +80,7 @@ from yt_intel.services.recommendations import (
     RecommendationFilters,
     RecommendationService,
 )
+from yt_intel.services.workflows import WorkflowService
 
 from .recommendations import _error_response as _recommendation_error
 from .recommendations import _recommendation_response
@@ -86,8 +88,12 @@ from .recommendations import _recommendation_response
 LIVE_CANDIDATE_SOURCE = "live-video-discovery"
 LIVE_CONFIG_VERSION = "live-v1"
 PREVIEW_ONLY_NOTE = (
-    "Preview only: live playlist creation is not available in this build, "
-    "so nothing is written to YouTube."
+    "Preview only: nothing is written to YouTube. To create a playlist, "
+    "start the video-to-playlist workflow with begin_workflow."
+)
+WORKFLOW_PREVIEW_NOTE = (
+    "Nothing is written to YouTube yet. Next: prepare_creation, then "
+    "create_playlist, which asks for your approval in a native dialog."
 )
 
 _BOUNDS = DiscoveryBounds()
@@ -161,6 +167,7 @@ class LiveDerivedServices:
     planner: PlaylistPlanner
     permits: DerivedProcessingCheck
     project_id: str
+    workflows: WorkflowService
 
 
 def live_candidate_sets(
@@ -221,13 +228,6 @@ def _error[T](
         is_error=True,
         structured_content=result.model_dump(),
         content=[TextContent(type="text", text=render_error(problem, mode="live"))],
-    )
-
-
-def _workflows_unavailable() -> ContractError:
-    return _invalid(
-        "Live workflow sessions are not available in this build.",
-        "Call this tool without workflow_id. Live playlist creation is not exposed.",
     )
 
 
@@ -297,24 +297,40 @@ async def similar_videos(
                 "Invalid discovery parameters.",
                 "Use a video URL or ID and a limit from 1 to 50.",
             ) from None
-        if args.workflow_id is not None:
-            raise _workflows_unavailable()
         seed = parse_video_id(args.video)
         binding = await services.accounts.require_binding()
-        async with _reserved(
-            services,
-            binding,
-            request_id,
-            "similar-videos",
-            _VIDEO_CALLS,
-            candidate_cap=_BOUNDS.video_candidates,
-        ) as context:
-            discovery = await DiscoveryService(
-                services.provider, _BOUNDS, permits=services.permits
-            ).videos(context, seed, limit=args.limit)
-        reference = await services.candidate_sets.publish(
-            discovery, binding, now=datetime.now(UTC)
-        )
+        if args.workflow_id is not None:
+            # A workflow stage spends the reservation made by begin_workflow.
+            async with services.workflows.stage(
+                args.workflow_id,
+                "find_similar_videos",
+                binding=binding,
+                request_id=request_id,
+                cancellation=_NotCancelled(),
+                video=seed,
+            ) as access:
+                discovery = await DiscoveryService(
+                    services.provider, _BOUNDS, permits=services.permits
+                ).videos(access.context, seed, limit=args.limit)
+                reference = await services.candidate_sets.publish(
+                    discovery, binding, now=datetime.now(UTC)
+                )
+                access.candidate_set_id = reference
+        else:
+            async with _reserved(
+                services,
+                binding,
+                request_id,
+                "similar-videos",
+                _VIDEO_CALLS,
+                candidate_cap=_BOUNDS.video_candidates,
+            ) as context:
+                discovery = await DiscoveryService(
+                    services.provider, _BOUNDS, permits=services.permits
+                ).videos(context, seed, limit=args.limit)
+            reference = await services.candidate_sets.publish(
+                discovery, binding, now=datetime.now(UTC)
+            )
     except ContractError as error:
         return _error(envelope, request_id, error.detail)
     except (OSError, SqliteError):
@@ -542,8 +558,6 @@ async def propose(
                 "Invalid workflow or candidate set reference.",
                 "Use the candidate set ID returned by find_similar_videos.",
             ) from error
-        if references.workflow_id is not None:
-            raise _workflows_unavailable()
         if references.candidate_set_id is None:
             raise planning_error(
                 "CONTENT_UNAVAILABLE",
@@ -558,32 +572,52 @@ async def propose(
             if status is not None and status.binding == binding
             else binding.channel_id
         )
-        now = datetime.now(UTC)
-        candidates = await services.candidate_sets.load(
-            references.candidate_set_id, binding, now=now
-        )
-        if candidates is None:
-            raise planning_error(
-                "CONTENT_UNAVAILABLE",
-                "The requested candidate set is missing or expired.",
-                "Run find_similar_videos again and use the returned candidate set ID.",
+        candidate_set_id = references.candidate_set_id
+
+        async def plan_and_save() -> tuple[PlaylistProposal, CandidateSet]:
+            now = datetime.now(UTC)
+            candidates = await services.candidate_sets.load(
+                candidate_set_id, binding, now=now
             )
-        proposal = services.planner.plan(
-            request,
-            candidates,
-            binding=binding,
-            destination_channel_title=destination,
-            proposal_id=uuid4().hex,
-            now=now,
-        )
-        try:
-            await services.proposals.save_proposal(proposal)
-        except (OSError, SqliteError, RepositoryConflict) as error:
-            raise planning_error(
-                "PROVIDER_UNAVAILABLE",
-                "The proposal could not be saved to local storage.",
-                "Check access to the live database and try again.",
-            ) from error
+            if candidates is None:
+                raise planning_error(
+                    "CONTENT_UNAVAILABLE",
+                    "The requested candidate set is missing or expired.",
+                    "Run find_similar_videos again and use the returned candidate set ID.",
+                )
+            proposal = services.planner.plan(
+                request,
+                candidates,
+                binding=binding,
+                destination_channel_title=destination,
+                proposal_id=uuid4().hex,
+                now=now,
+            )
+            try:
+                await services.proposals.save_proposal(proposal)
+            except (OSError, SqliteError, RepositoryConflict) as error:
+                raise planning_error(
+                    "PROVIDER_UNAVAILABLE",
+                    "The proposal could not be saved to local storage.",
+                    "Check access to the live database and try again.",
+                ) from error
+            return proposal, candidates
+
+        if references.workflow_id is None:
+            proposal, candidates = await plan_and_save()
+            note = PREVIEW_ONLY_NOTE
+        else:
+            async with services.workflows.stage(
+                references.workflow_id,
+                "propose_playlist",
+                binding=binding,
+                request_id=request_id,
+                cancellation=_NotCancelled(),
+                candidate_set_id=candidate_set_id,
+            ) as access:
+                proposal, candidates = await plan_and_save()
+                access.proposal_ref = proposal.ref
+            note = WORKFLOW_PREVIEW_NOTE
     except ContractError as error:
         return _error(envelope, request_id, error.detail)
     except (OSError, SqliteError):
@@ -593,14 +627,12 @@ async def propose(
         request_id=request_id,
         status="ok",
         data=proposal,
-        warnings=(*proposal.warnings, PREVIEW_ONLY_NOTE),
+        warnings=(*proposal.warnings, note),
         coverage=candidates.coverage,
     )
     return CallToolResult(
         structured_content=result.model_dump(),
         content=[
-            TextContent(
-                type="text", text=f"{render_proposal(proposal)}\n\n{PREVIEW_ONLY_NOTE}"
-            )
+            TextContent(type="text", text=f"{render_proposal(proposal)}\n\n{note}")
         ],
     )

@@ -73,10 +73,18 @@ by `yt-intel auth`. It needs `--client-secrets` or
 | `get_video`, `get_library` | Official API reads with bearer auth and quota accounting |
 | `find_similar_videos`, `find_similar_channels`, `recommend_videos`, `analyse_library`, `propose_playlist` | **D-02 unresolved:** `POLICY_BLOCKED` with zero API calls. **D-02 resolved:** the live handlers run (FR-1 to FR-4, and the FR-5 preview). The record is re-read on every call. |
 | `recommend_videos` | Needs a `snapshot_id` from live `get_library` |
-| `propose_playlist` | Needs a `candidate_set_id` from live `find_similar_videos`. Stores a **preview only**. |
-| `begin_workflow` | `POLICY_BLOCKED` while D-02 is unresolved, then `PROVIDER_UNAVAILABLE`: live workflows end in a write, which is not built |
+| `propose_playlist` | Needs a `candidate_set_id` from live `find_similar_videos`. Without `workflow_id` it stores a **preview only**. |
+| `begin_workflow` | Reserves the whole video-to-playlist budget first. Needs the write scope (`yt-intel auth --enable-writes`). Otherwise it returns `SCOPE_REQUIRED` with zero calls. |
+| `get_video`, `find_similar_videos`, `propose_playlist` with `workflow_id` | The workflow stages, in this order. They spend the workflow's reservation. |
+| `prepare_creation` | Records an operation for the exact preview. Writes nothing. |
+| `create_playlist` | Opens the **native approval dialog** for the exact preview. It writes only after approval, with one attempt per write. A repeat call returns the recorded result. |
+| `get_operation` | The recorded status of a live operation |
 
-No write, operation or recovery tool is exposed in live mode.
+All derived and workflow tools return `POLICY_BLOCKED` with zero API calls
+while D-02 is unresolved. Live `resume_operation` and `reconcile_operation`
+are not exposed. A partial or unknown live result is reported by
+`get_operation` for a human to fix in YouTube. See
+[ADR-0013](../adr/0013-live-approved-playlist-creation.md).
 
 ## Common error codes
 
